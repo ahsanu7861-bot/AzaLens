@@ -51,7 +51,7 @@ export default function FundamentalsWorkspace({
         isLoading={isLoading}
       />
 
-      <section className="az-card p-5 sm:p-6">
+      <section className="az-card az-workspace-card p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="az-eyebrow">Research coverage</p>
@@ -74,7 +74,7 @@ export default function FundamentalsWorkspace({
           {coverage.map(({ title, description, icon: Icon }) => (
             <div
               key={title}
-              className="rounded-2xl border border-stroke bg-surface-soft p-4"
+              className="az-subcard rounded-2xl border border-stroke bg-surface-soft p-4"
             >
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-intelligence/10 text-intelligence">
                 <Icon size={18} strokeWidth={1.8} />

@@ -50,7 +50,7 @@ export default function ImportantLevels({
             )}
           </div>
 
-          <span className="font-medium text-ink">
+          <span className="az-numeric font-medium text-ink">
             {formatPrice(support?.zone?.center)}
           </span>
         </div>
@@ -69,7 +69,7 @@ export default function ImportantLevels({
 
           <span
             className={[
-              "text-right text-sm font-medium",
+              "az-numeric text-right text-sm font-medium",
               actionableConfluence ? "text-ink" : "text-ink-muted",
             ].join(" ")}
           >

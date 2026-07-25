@@ -26,7 +26,7 @@ const paddingClasses = {
   none: "",
   sm: "p-4",
   md: "p-6",
-  lg: "p-8",
+  lg: "p-6",
 };
 
 export default function Card({
@@ -40,11 +40,11 @@ export default function Card({
   return (
     <div
       className={[
-        "rounded-[22px] border shadow-[0_16px_48px_var(--az-shadow)]",
+        "az-card rounded-2xl border",
         variantClasses[variant],
         paddingClasses[padding],
         interactive
-          ? "transition duration-200 hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[0_20px_60px_var(--az-shadow)]"
+          ? "cursor-pointer"
           : "",
         className,
       ].join(" ")}

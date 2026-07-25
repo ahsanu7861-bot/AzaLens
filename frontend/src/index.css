@@ -16,63 +16,75 @@
   --color-caution: var(--az-caution);
   --color-critical: var(--az-critical);
   --color-intelligence: var(--az-intelligence);
+  --color-shariah: var(--az-shariah);
   --font-sans: var(--az-font-body);
   --font-display: var(--az-font-display);
+  --font-mono: var(--az-font-numeric);
 }
 
 :root,
 [data-theme="night"] {
   color-scheme: dark;
-  --az-canvas: #070a11;
-  --az-surface: #0d121d;
-  --az-surface-raised: #121927;
-  --az-surface-soft: #111a2a;
-  --az-surface-inset: #080e18;
-  --az-text: #f5f7fa;
-  --az-text-soft: #b6c0d0;
-  --az-text-muted: #7f8ca1;
-  --az-stroke: #1c2637;
-  --az-stroke-strong: #2a3850;
-  --az-brand: #4c8dff;
-  --az-brand-strong: #72a7ff;
-  --az-brand-soft: rgba(76, 141, 255, 0.18);
-  --az-positive: #31ca77;
-  --az-positive-soft: rgba(49, 202, 119, 0.14);
-  --az-caution: #f2ad4a;
-  --az-critical: #f25b70;
-  --az-intelligence: #9b7cff;
-  --az-shadow: rgba(0, 0, 0, 0.34);
-  --az-shadow-strong: rgba(0, 0, 0, 0.56);
+  --az-canvas: #0a0e1a;
+  --az-surface: #111827;
+  --az-surface-raised: #111827;
+  --az-surface-soft: #1a2332;
+  --az-surface-inset: #0a0e1a;
+  --az-text: #f0f4f8;
+  --az-text-soft: #94a3b8;
+  --az-text-muted: #64748b;
+  --az-stroke: rgba(255, 255, 255, 0.06);
+  --az-stroke-strong: rgba(255, 255, 255, 0.14);
+  --az-brand: #06b6d4;
+  --az-brand-strong: #06b6d4;
+  --az-brand-soft: rgba(6, 182, 212, 0.15);
+  --az-positive: #10b981;
+  --az-positive-soft: rgba(16, 185, 129, 0.15);
+  --az-caution: #f59e0b;
+  --az-caution-soft: rgba(245, 158, 11, 0.15);
+  --az-critical: #ef4444;
+  --az-critical-soft: rgba(239, 68, 68, 0.15);
+  --az-intelligence: #06b6d4;
+  --az-intelligence-soft: rgba(6, 182, 212, 0.15);
+  --az-shariah: #8b5cf6;
+  --az-shariah-soft: rgba(139, 92, 246, 0.15);
+  --az-shadow: rgba(0, 0, 0, 0.1);
+  --az-shadow-strong: rgba(0, 0, 0, 0.25);
   --az-atmosphere:
-    radial-gradient(circle at 14% -12%, rgba(76, 141, 255, 0.1), transparent 32%),
-    radial-gradient(circle at 92% 8%, rgba(155, 124, 255, 0.06), transparent 25%);
+    radial-gradient(circle at 14% -12%, rgba(6, 182, 212, 0.08), transparent 32%),
+    radial-gradient(circle at 92% 8%, rgba(139, 92, 246, 0.05), transparent 25%);
 }
 
 [data-theme="day"] {
   color-scheme: light;
-  --az-canvas: #f3f6fb;
+  --az-canvas: #f8fafc;
   --az-surface: #ffffff;
   --az-surface-raised: #ffffff;
-  --az-surface-soft: #f6f8fc;
-  --az-surface-inset: #eef3f9;
-  --az-text: #102039;
-  --az-text-soft: #47566d;
-  --az-text-muted: #77849a;
-  --az-stroke: #dce4ef;
-  --az-stroke-strong: #c5d1e0;
-  --az-brand: #286eea;
-  --az-brand-strong: #155bdb;
-  --az-brand-soft: rgba(40, 110, 234, 0.15);
-  --az-positive: #168a52;
-  --az-positive-soft: rgba(22, 138, 82, 0.12);
-  --az-caution: #b86b08;
-  --az-critical: #d43c55;
-  --az-intelligence: #7255d9;
-  --az-shadow: rgba(23, 42, 72, 0.12);
-  --az-shadow-strong: rgba(23, 42, 72, 0.22);
+  --az-surface-soft: #f1f5f9;
+  --az-surface-inset: #f1f5f9;
+  --az-text: #0f172a;
+  --az-text-soft: #475569;
+  --az-text-muted: #64748b;
+  --az-stroke: rgba(0, 0, 0, 0.08);
+  --az-stroke-strong: rgba(0, 0, 0, 0.16);
+  --az-brand: #06b6d4;
+  --az-brand-strong: #0891b2;
+  --az-brand-soft: rgba(6, 182, 212, 0.15);
+  --az-positive: #10b981;
+  --az-positive-soft: rgba(16, 185, 129, 0.15);
+  --az-caution: #f59e0b;
+  --az-caution-soft: rgba(245, 158, 11, 0.15);
+  --az-critical: #ef4444;
+  --az-critical-soft: rgba(239, 68, 68, 0.15);
+  --az-intelligence: #06b6d4;
+  --az-intelligence-soft: rgba(6, 182, 212, 0.15);
+  --az-shariah: #8b5cf6;
+  --az-shariah-soft: rgba(139, 92, 246, 0.15);
+  --az-shadow: rgba(0, 0, 0, 0.05);
+  --az-shadow-strong: rgba(0, 0, 0, 0.15);
   --az-atmosphere:
-    radial-gradient(circle at 12% -10%, rgba(40, 110, 234, 0.08), transparent 31%),
-    radial-gradient(circle at 94% 5%, rgba(114, 85, 217, 0.055), transparent 24%);
+    radial-gradient(circle at 12% -10%, rgba(6, 182, 212, 0.055), transparent 31%),
+    radial-gradient(circle at 94% 5%, rgba(139, 92, 246, 0.04), transparent 24%);
 }
 
 :root {
@@ -80,8 +92,25 @@
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   --az-font-display:
-    Sora, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Space Grotesk", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
+  --az-font-numeric:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  --az-radius-sm: 8px;
+  --az-radius-md: 12px;
+  --az-radius-lg: 16px;
+  --az-radius-xl: 24px;
+  --az-radius-full: 9999px;
+  --az-space-card: 24px;
+  --az-space-card-gap: 16px;
+  --az-space-section: 32px;
+  --az-shadow-level-1: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --az-shadow-level-2: 0 6px 16px rgba(0, 0, 0, 0.15);
+  --az-shadow-level-3: 0 16px 32px rgba(0, 0, 0, 0.25);
+  --az-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --az-ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --az-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
   font-family: var(--az-font-body);
   color: var(--az-text);
   background: var(--az-canvas);
@@ -323,7 +352,34 @@ a {
 }
 
 .az-card {
-  border-radius: 22px;
+  border-radius: var(--az-radius-lg);
+  box-shadow: var(--az-shadow-level-1);
+  transition:
+    border-color 200ms var(--az-ease-standard),
+    box-shadow 200ms var(--az-ease-standard),
+    transform 200ms var(--az-ease-standard);
+}
+
+.az-workspace-card {
+  border-color: var(--az-stroke);
+  border-radius: var(--az-radius-lg);
+  background: var(--az-surface);
+}
+
+.az-subcard {
+  transition:
+    border-color 200ms var(--az-ease-standard),
+    box-shadow 200ms var(--az-ease-standard),
+    transform 200ms var(--az-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .az-card:hover,
+  .az-subcard:hover {
+    border-color: var(--az-stroke-strong);
+    box-shadow: var(--az-shadow-level-2);
+    transform: translateY(-2px);
+  }
 }
 
 [data-theme="night"] .az-secondary-card {
@@ -410,19 +466,85 @@ a {
 }
 
 .az-workspace-enter {
-  animation: az-workspace-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: az-workspace-in 400ms var(--az-ease-enter) both;
 }
 
 @keyframes az-workspace-in {
   from {
     opacity: 0;
-    transform: translateY(7px);
+    transform: translateY(20px);
   }
 
   to {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.az-numeric {
+  font-family: var(--az-font-numeric);
+  font-variant-numeric: tabular-nums;
+}
+
+.az-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--az-space-card-gap);
+}
+
+.az-overview .az-card,
+.az-overview .az-overview-card {
+  border: 1px solid var(--az-stroke);
+  border-radius: var(--az-radius-lg);
+  background: var(--az-surface);
+  box-shadow: var(--az-shadow-level-1);
+  transition:
+    border-color 200ms var(--az-ease-standard),
+    box-shadow 200ms var(--az-ease-standard),
+    transform 200ms var(--az-ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .az-overview .az-card:hover,
+  .az-overview .az-overview-card:hover {
+    border-color: var(--az-stroke-strong);
+    box-shadow: var(--az-shadow-level-2);
+    transform: translateY(-2px);
+  }
+}
+
+.az-verdict-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.az-verdict-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--az-verdict-accent, var(--az-intelligence));
+  content: "";
+}
+
+.az-confidence-fill {
+  animation: az-confidence-fill 1500ms var(--az-ease-spring) both;
+  transform-origin: left center;
+}
+
+@keyframes az-confidence-fill {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+[data-theme="day"] .az-overview .az-card,
+[data-theme="day"] .az-overview .az-overview-card,
+[data-theme="day"] .az-workspace-card {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05);
 }
 
 @keyframes az-popover-in {

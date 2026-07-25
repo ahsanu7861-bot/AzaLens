@@ -133,6 +133,8 @@ export interface ConfluenceData {
 }
 
 export interface AnalysisResponse {
+  success?: boolean
+  error?: string
   data: {
     market: {
       success?: boolean

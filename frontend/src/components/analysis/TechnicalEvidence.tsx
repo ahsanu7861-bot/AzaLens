@@ -236,17 +236,17 @@ export default function TechnicalEvidence({
     {
       label: "Bullish",
       value: agreement?.bullishSignals,
-      className: "border-emerald-400/10 bg-emerald-400/[0.035] text-emerald-300",
+      className: "border-positive/20 bg-positive/15 text-positive",
     },
     {
       label: "Bearish",
       value: agreement?.bearishSignals,
-      className: "border-rose-400/10 bg-rose-400/[0.035] text-rose-300",
+      className: "border-critical/20 bg-critical/15 text-critical",
     },
     {
       label: "Neutral",
       value: agreement?.neutralSignals,
-      className: "border-sky-400/10 bg-sky-400/[0.035] text-sky-300",
+      className: "border-ink-soft/20 bg-ink-soft/15 text-ink-soft",
     },
   ];
   const source =
@@ -262,21 +262,21 @@ export default function TechnicalEvidence({
     macd?.dataSource;
 
   return (
-    <Card variant="glass" padding="lg">
+    <Card variant="glass" padding="lg" className="az-workspace-card">
       <div>
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">
+            <p className="az-eyebrow text-intelligence">
               Technical Evidence
             </p>
 
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight text-ink">
               {isLoading
                 ? "Reading the latest technical evidence"
                 : `Evidence behind the ${direction.toLowerCase()} case`}
             </h2>
 
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
               Live trend, momentum, volatility and participation evidence,
               interpreted indicator by indicator.
             </p>
@@ -301,12 +301,12 @@ export default function TechnicalEvidence({
           {signalCounts.map((signal) => (
             <div
               key={signal.label}
-              className={`rounded-2xl border p-4 ${signal.className}`}
+              className={`az-subcard rounded-2xl border p-4 ${signal.className}`}
             >
               <p className="text-xs font-semibold uppercase tracking-[0.16em]">
                 {signal.label}
               </p>
-              <p className="mt-2 text-2xl font-bold text-white">
+              <p className="az-numeric mt-2 text-2xl font-bold text-ink">
                 {isLoading || !isFiniteNumber(signal.value)
                   ? "—"
                   : signal.value}
@@ -315,11 +315,11 @@ export default function TechnicalEvidence({
           ))}
         </div>
 
-        <div className="mt-4 rounded-2xl border border-sky-400/10 bg-sky-400/[0.035] p-5">
-          <p className="text-sm font-medium text-sky-300">
+        <div className="az-subcard mt-4 rounded-2xl border border-intelligence/20 bg-intelligence/5 p-5">
+          <p className="text-sm font-medium text-intelligence">
             Indicator agreement
           </p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
+          <p className="mt-2 text-sm leading-6 text-ink-soft">
             {isLoading
               ? "AzaLens is comparing the latest indicator signals."
               : agreement?.agreementSummary ||
@@ -331,14 +331,14 @@ export default function TechnicalEvidence({
           {evidence.map((item) => (
             <div
               key={item.label}
-              className="rounded-2xl border border-white/5 bg-white/[0.025] p-5"
+              className="az-subcard rounded-2xl border border-stroke bg-surface-soft p-5"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">
+                  <p className="text-sm font-medium text-ink-soft">
                     {item.label}
                   </p>
-                  <p className="mt-3 text-xl font-semibold text-white">
+                  <p className="az-numeric mt-3 text-xl font-semibold text-ink">
                     {isLoading ? "—" : item.value}
                   </p>
                 </div>
@@ -348,7 +348,7 @@ export default function TechnicalEvidence({
                 </Badge>
               </div>
 
-              <p className="mt-4 text-sm leading-6 text-slate-300">
+              <p className="mt-4 text-sm leading-6 text-ink-soft">
                 {isLoading
                   ? "Calculating from the latest completed market history."
                   : item.description}
@@ -357,7 +357,7 @@ export default function TechnicalEvidence({
           ))}
         </div>
 
-        <p className="mt-4 text-xs leading-5 text-slate-600">
+        <p className="mt-4 text-xs leading-5 text-ink-muted">
           Source: {source}
           {dataSource ? ` · ${dataSource}` : ""}. Indicator readings are
           educational market evidence, not standalone trade instructions.

@@ -15,13 +15,13 @@ type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 };
 
 const variantClasses: Record<BadgeVariant, string> = {
-  neutral: "border-stroke bg-surface-soft text-ink-soft",
+  neutral: "border-ink-soft/20 bg-ink-soft/15 text-ink-soft",
   success:
-    "border-positive/20 bg-positive/10 text-positive",
-  warning: "border-caution/20 bg-caution/10 text-caution",
-  danger: "border-critical/20 bg-critical/10 text-critical",
-  info: "border-brand/20 bg-brand/10 text-brand",
-  brand: "border-intelligence/20 bg-intelligence/10 text-intelligence",
+    "border-positive/20 bg-positive/15 text-positive",
+  warning: "border-caution/20 bg-caution/15 text-caution",
+  danger: "border-critical/20 bg-critical/15 text-critical",
+  info: "border-intelligence/20 bg-intelligence/15 text-intelligence",
+  brand: "border-intelligence/20 bg-intelligence/15 text-intelligence",
 };
 
 const dotClasses: Record<BadgeVariant, string> = {

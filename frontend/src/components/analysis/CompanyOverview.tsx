@@ -62,10 +62,10 @@ export default function CompanyOverview({
     typeof price === "number" && Number.isFinite(price);
   const changeTone =
     typeof dailyChange !== "number" || dailyChange === 0
-      ? "text-slate-300"
+      ? "text-ink-soft"
       : dailyChange > 0
-        ? "text-emerald-400"
-        : "text-rose-400";
+        ? "text-positive"
+        : "text-critical";
   const sourceLabel =
     priceContext?.analysisPriceSource ||
     (market?.provider ? `${market.provider} quote` : "Market data unavailable");
@@ -100,12 +100,12 @@ export default function CompanyOverview({
   ];
 
   return (
-    <Card variant="glass" padding="lg">
+    <Card variant="glass" padding="lg" className="az-workspace-card">
       <div className="flex flex-col gap-8">
         <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
                 {isLoading ? "Loading company…" : companyName}
               </h1>
 
@@ -117,18 +117,18 @@ export default function CompanyOverview({
               </Badge>
             </div>
 
-            <p className="mt-2 text-sm font-medium tracking-wide text-slate-500">
+            <p className="mt-2 text-sm font-medium tracking-wide text-ink-muted">
               {isLoading ? `Fetching ${symbol}` : exchangeLabel}
             </p>
           </div>
 
           <div className="lg:text-right">
-            <p className="text-sm font-medium uppercase tracking-widest text-slate-500">
+            <p className="az-eyebrow">
               Current price
             </p>
 
             <div className="mt-2 flex flex-wrap items-baseline gap-3 lg:justify-end">
-              <p className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              <p className="az-numeric font-display text-4xl font-bold tracking-tight text-ink sm:text-5xl">
                 {isLoading ? "—" : formatMoney(price, currency)}
               </p>
 
@@ -146,19 +146,19 @@ export default function CompanyOverview({
           </div>
         </div>
 
-        <div className="h-px bg-white/10" />
+        <div className="h-px bg-stroke" />
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {statistics.map((stat) => (
             <div
               key={stat.label}
-              className="rounded-2xl border border-white/5 bg-white/[0.025] p-5"
+              className="az-subcard rounded-2xl border border-stroke bg-surface-soft p-5"
             >
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <p className="az-eyebrow">
                 {stat.label}
               </p>
 
-              <p className="mt-3 text-lg font-semibold text-white">
+              <p className="az-numeric mt-3 text-lg font-semibold text-ink">
                 {stat.value}
               </p>
             </div>

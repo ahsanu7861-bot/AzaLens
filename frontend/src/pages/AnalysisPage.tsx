@@ -53,7 +53,7 @@ export default function AnalysisPage() {
 
   const workspaceContent = {
     overview: (
-      <div className="space-y-5">
+      <div className="az-overview">
         <AIVerdict
           direction={data?.agreement?.direction ?? data?.agreement?.agreement}
           trend={data?.trend?.trend}
@@ -83,7 +83,7 @@ export default function AnalysisPage() {
               <div className="mt-4 space-y-4">
                 <div className="flex items-center justify-between gap-4 border-b border-stroke pb-4">
                   <span className="text-xs text-ink-muted">Technical risk</span>
-                  <span className="text-sm font-semibold text-caution">
+                  <span className="az-numeric text-sm font-semibold text-caution">
                     {isLoading
                       ? "—"
                       : data?.risk?.riskLevel || "Review required"}
@@ -92,7 +92,7 @@ export default function AnalysisPage() {
 
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-ink-muted">ATR volatility</span>
-                  <span className="text-sm font-semibold text-ink">
+                  <span className="az-numeric text-sm font-semibold text-ink">
                     {isLoading
                       ? "—"
                       : typeof data?.risk?.atrPercent === "number"
@@ -158,7 +158,7 @@ export default function AnalysisPage() {
           }
         />
 
-        <section className="az-card p-5 sm:p-6">
+        <section className="az-card az-workspace-card p-6">
           <div className="flex items-start gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-intelligence/10 text-intelligence">
               <BrainCircuit size={19} strokeWidth={1.8} />
@@ -183,7 +183,7 @@ export default function AnalysisPage() {
               data?.agreement?.agreementDetails?.map((detail, index) => (
                 <div
                   key={`${detail}-${index}`}
-                  className="flex gap-3 rounded-2xl border border-stroke bg-surface-soft p-4"
+                  className="az-subcard flex gap-3 rounded-2xl border border-stroke bg-surface-soft p-4"
                 >
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-intelligence/10 text-xs font-bold text-intelligence">
                     {index + 1}

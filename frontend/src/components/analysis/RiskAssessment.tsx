@@ -154,19 +154,19 @@ export default function RiskAssessment({
   ];
 
   return (
-    <Card variant="glass" padding="lg">
+    <Card variant="glass" padding="lg" className="az-workspace-card">
       <div>
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
+            <p className="az-eyebrow text-caution">
               Risk Assessment
             </p>
 
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight text-ink">
               Understand the downside before taking action
             </h2>
 
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
               Live technical risk, volatility and ATR-based educational price
               references from the AzaLens engine.
             </p>
@@ -181,10 +181,10 @@ export default function RiskAssessment({
           {overviewMetrics.map((metric) => (
             <div
               key={metric.label}
-              className="rounded-2xl border border-white/5 bg-white/[0.025] p-5"
+              className="az-subcard rounded-2xl border border-stroke bg-surface-soft p-5"
             >
               <div className="flex items-start justify-between gap-4">
-                <p className="text-sm font-medium text-slate-400">
+                <p className="text-sm font-medium text-ink-soft">
                   {metric.label}
                 </p>
 
@@ -193,7 +193,7 @@ export default function RiskAssessment({
                 </Badge>
               </div>
 
-              <p className="mt-4 text-sm leading-6 text-slate-300">
+              <p className="mt-4 text-sm leading-6 text-ink-soft">
                 {isLoading
                   ? "Calculating from the latest market evidence."
                   : metric.description}
@@ -206,10 +206,10 @@ export default function RiskAssessment({
           {referenceRanges.map((reference) => (
             <div
               key={reference.label}
-              className="rounded-2xl border border-sky-400/10 bg-sky-400/[0.035] p-5"
+              className="az-subcard rounded-2xl border border-intelligence/20 bg-intelligence/5 p-5"
             >
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-slate-300">
+                <p className="text-sm font-medium text-ink-soft">
                   {reference.label}
                 </p>
 
@@ -218,7 +218,7 @@ export default function RiskAssessment({
                 </Badge>
               </div>
 
-              <p className="mt-4 text-lg font-semibold text-white">
+              <p className="az-numeric mt-4 text-lg font-semibold text-ink">
                 {isLoading
                   ? "Loading reference range…"
                   : `${formatMoney(reference.below, displayCurrency)} — ${formatMoney(
@@ -227,7 +227,7 @@ export default function RiskAssessment({
                     )}`}
               </p>
 
-              <p className="mt-2 text-xs leading-5 text-slate-500">
+              <p className="mt-2 text-xs leading-5 text-ink-muted">
                 {isLoading
                   ? "Using ATR-based distance from the current price."
                   : isFiniteNumber(reference.distance?.atrMultiplier) &&
@@ -242,12 +242,12 @@ export default function RiskAssessment({
           ))}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-amber-400/10 bg-amber-400/[0.04] p-5">
-          <p className="text-sm font-medium text-amber-300">
+        <div className="az-subcard mt-6 rounded-2xl border border-caution/20 bg-caution/10 p-5">
+          <p className="text-sm font-medium text-caution">
             Risk interpretation
           </p>
 
-          <p className="mt-2 text-sm leading-6 text-slate-300">
+          <p className="mt-2 text-sm leading-6 text-ink-soft">
             {isLoading
               ? "AzaLens is interpreting the latest volatility and confirmation evidence."
               : risk?.riskSummary ||
@@ -260,8 +260,8 @@ export default function RiskAssessment({
             (risk?.supportiveFactors?.length ?? 0) > 0) && (
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               {(risk?.riskNotes?.length ?? 0) > 0 && (
-                <div className="rounded-2xl border border-rose-400/10 bg-rose-400/[0.025] p-5">
-                  <p className="text-sm font-medium text-rose-300">
+                <div className="az-subcard rounded-2xl border border-critical/20 bg-critical/10 p-5">
+                  <p className="text-sm font-medium text-critical">
                     Risk notes
                   </p>
 
@@ -269,9 +269,9 @@ export default function RiskAssessment({
                     {risk?.riskNotes?.map((note) => (
                       <li
                         key={note}
-                        className="flex gap-3 text-sm leading-6 text-slate-400"
+                        className="flex gap-3 text-sm leading-6 text-ink-soft"
                       >
-                        <span aria-hidden="true" className="text-rose-400">
+                        <span aria-hidden="true" className="text-critical">
                           •
                         </span>
                         <span>{note}</span>
@@ -282,8 +282,8 @@ export default function RiskAssessment({
               )}
 
               {(risk?.supportiveFactors?.length ?? 0) > 0 && (
-                <div className="rounded-2xl border border-emerald-400/10 bg-emerald-400/[0.025] p-5">
-                  <p className="text-sm font-medium text-emerald-300">
+                <div className="az-subcard rounded-2xl border border-positive/20 bg-positive/10 p-5">
+                  <p className="text-sm font-medium text-positive">
                     Supportive factors
                   </p>
 
@@ -291,9 +291,9 @@ export default function RiskAssessment({
                     {risk?.supportiveFactors?.map((factor) => (
                       <li
                         key={factor}
-                        className="flex gap-3 text-sm leading-6 text-slate-400"
+                        className="flex gap-3 text-sm leading-6 text-ink-soft"
                       >
-                        <span aria-hidden="true" className="text-emerald-400">
+                        <span aria-hidden="true" className="text-positive">
                           •
                         </span>
                         <span>{factor}</span>
@@ -305,7 +305,7 @@ export default function RiskAssessment({
             </div>
           )}
 
-        <p className="mt-4 text-xs leading-5 text-slate-600">
+        <p className="mt-4 text-xs leading-5 text-ink-muted">
           {risk?.disclaimer ||
             "These values are educational risk references only and are not personalized financial advice or trade instructions."}
         </p>

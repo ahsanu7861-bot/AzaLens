@@ -170,29 +170,29 @@ export default function IslamicCompliance({
   }>;
 
   return (
-    <Card variant="positive" padding="lg">
+    <Card variant="glass" padding="lg" className="az-workspace-card">
       <div>
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">
+              <p className="az-eyebrow text-shariah">
                 Islamic Compliance
               </p>
-              <Badge variant="neutral">AAOIFI</Badge>
+              <Badge variant="brand" className="border-shariah/20 bg-shariah/15 text-shariah">AAOIFI</Badge>
             </div>
 
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight text-ink">
               AAOIFI Shariah screening
             </h2>
 
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
               One clear verdict based exclusively on AAOIFI business-activity
               and financial-ratio screening.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] p-5 lg:min-w-64">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <div className="az-subcard rounded-2xl border border-shariah/20 bg-shariah/10 p-5 lg:min-w-64">
+            <p className="az-eyebrow">
               AAOIFI Status
             </p>
 
@@ -205,7 +205,7 @@ export default function IslamicCompliance({
               </Badge>
             </div>
 
-            <p className="mt-3 text-xs leading-5 text-slate-500">
+            <p className="az-numeric mt-3 text-xs leading-5 text-ink-muted">
               Confidence: {data?.summary?.confidence || "Unknown"}
             </p>
           </div>
@@ -215,10 +215,10 @@ export default function IslamicCompliance({
           {metrics.map((metric) => (
             <div
               key={metric.label}
-              className="rounded-2xl border border-white/5 bg-slate-950/30 p-5"
+              className="az-subcard rounded-2xl border border-stroke bg-surface-soft p-5"
             >
               <div className="flex items-start justify-between gap-4">
-                <p className="text-sm font-medium text-slate-400">
+                <p className="text-sm font-medium text-ink-soft">
                   {metric.label}
                 </p>
 
@@ -227,21 +227,21 @@ export default function IslamicCompliance({
                 </Badge>
               </div>
 
-              <p className="mt-4 text-sm leading-6 text-slate-300">
+              <p className="mt-4 text-sm leading-6 text-ink-soft">
                 {metric.description}
               </p>
             </div>
           ))}
         </div>
 
-        <div className="mt-6 rounded-2xl border border-white/5 bg-slate-950/30 p-5">
+        <div className="az-subcard mt-6 rounded-2xl border border-stroke bg-surface-soft p-5">
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <p className="text-sm font-semibold text-white">
+              <p className="font-display text-sm font-semibold text-ink">
                 Why this status
               </p>
 
-              <p className="mt-2 text-sm leading-6 text-slate-400">
+              <p className="mt-2 text-sm leading-6 text-ink-soft">
                 {data?.summary?.explanation ||
                   primary?.reason ||
                   "The AAOIFI result is not currently available. AzaLens will not infer a compliant status without verified screening data."}
@@ -249,11 +249,11 @@ export default function IslamicCompliance({
             </div>
 
             <div>
-              <p className="text-sm font-semibold text-white">
+              <p className="font-display text-sm font-semibold text-ink">
                 Verification
               </p>
 
-              <p className="mt-2 text-sm leading-6 text-slate-400">
+              <p className="mt-2 text-sm leading-6 text-ink-soft">
                 Last checked:{" "}
                 {formatCheckedAt(data?.verification?.lastCheckedAt)}
                 {data?.verification?.isStale === true
@@ -264,7 +264,7 @@ export default function IslamicCompliance({
           </div>
         </div>
 
-        <p className="mt-4 text-xs leading-5 text-slate-500">
+        <p className="mt-4 text-xs leading-5 text-ink-muted">
           AAOIFI is the sole methodology used for the displayed AzaLens
           verdict. This automated screen is for research and is not a fatwa,
           religious ruling, or personal investment advice.

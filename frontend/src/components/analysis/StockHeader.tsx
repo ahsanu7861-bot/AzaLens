@@ -140,13 +140,13 @@ export default function StockHeader({
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="mr-auto sm:mr-1 sm:text-right lg:mr-3">
-            <div className="font-display text-2xl font-semibold tracking-tight text-ink">
+            <div className="az-numeric text-2xl font-semibold tracking-tight text-ink">
               {isLoading ? "—" : formatMoney(price, currency)}
             </div>
 
             <div
               className={[
-                "mt-0.5 flex items-center gap-1 text-xs font-semibold sm:justify-end",
+                "az-numeric mt-0.5 flex items-center gap-1 text-xs font-semibold sm:justify-end",
                 positive ? "text-positive" : "text-critical",
               ].join(" ")}
             >
