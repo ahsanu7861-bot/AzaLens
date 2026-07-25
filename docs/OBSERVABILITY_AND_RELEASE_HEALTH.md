@@ -104,3 +104,67 @@ After publishing:
 7. Review 5xx rate, p95 latency, timeout/rate-limit counts, and cache behavior.
 8. If health regresses, stop the rollout and return to the last verified
    production commit.
+
+## Automated production release health
+
+The `Production Release Health` GitHub workflow runs:
+
+- after the `Reliability Gates` workflow succeeds on `main`;
+- every six hours as a synthetic production check; and
+- manually, with an optional expected commit.
+
+The zero-dependency checker validates:
+
+- the Vercel frontend serves the application shell;
+- backend liveness is healthy and reports the expected commit;
+- strict readiness passes with core market providers configured;
+- a representative `AAPL` analysis returns all six workspace contracts;
+- response headers and JSON bodies preserve the same request ID; and
+- `/ops/metrics` remains fail-closed or, when the shared secret is configured,
+  returns the authenticated operational metrics contract.
+
+Truthful status handling is deliberate:
+
+- `PASS` means every check, including authenticated metrics, passed.
+- `PASS_WITH_LIMITATIONS` means production contracts passed but metrics remain
+  securely unavailable because the monitoring secret is not configured.
+- `FAIL` blocks the workflow and identifies the failed contract.
+
+The JSON report is retained as a GitHub Actions artifact for 14 days. The
+workflow never prints or stores the metrics token in the report.
+
+### Enable authenticated metrics monitoring
+
+Generate one long random token and store the same value in both locations:
+
+1. Render backend environment:
+   `OBSERVABILITY_METRICS_TOKEN`
+2. GitHub repository Actions secret:
+   `OBSERVABILITY_METRICS_TOKEN`
+
+Never commit this value to the repository or place it in a local `.env` file
+that could be uploaded. After both values are active, manually run
+`Production Release Health`. The expected result changes from
+`PASS_WITH_LIMITATIONS` to `PASS`, and the report begins validating HTTP and
+provider latency, failures, timeouts, rate limits, and cache aggregates.
+
+### Local or manual execution
+
+From `backend`:
+
+```bash
+npm run health:release
+```
+
+Optional environment controls:
+
+| Variable | Purpose |
+| --- | --- |
+| `HEALTH_FRONTEND_URL` | Frontend origin; defaults to the production Vercel URL. |
+| `HEALTH_API_URL` | Backend origin; defaults to the production API URL. |
+| `HEALTH_CHECK_SYMBOL` | Representative analysis symbol; defaults to `AAPL`. |
+| `EXPECTED_COMMIT` | Requires the backend deployment to match this full or abbreviated commit. |
+| `HEALTH_REQUEST_TIMEOUT_MS` | Per-request timeout, capped at 120 seconds. |
+| `HEALTH_MAX_DEPLOYMENT_ATTEMPTS` | Liveness polling attempts while a new deployment becomes active. |
+| `HEALTH_DEPLOYMENT_POLL_INTERVAL_MS` | Delay between deployment polls, capped at 60 seconds. |
+| `HEALTH_REPORT_PATH` | Optional path for the JSON report. |
