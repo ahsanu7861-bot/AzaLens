@@ -24,9 +24,9 @@ const variantClasses: Record<CardVariant, string> = {
 
 const paddingClasses = {
   none: "",
-  sm: "p-4",
-  md: "p-6",
-  lg: "p-6",
+  sm: "p-3.5 sm:p-4",
+  md: "p-3.5 sm:p-6",
+  lg: "p-3.5 sm:p-6",
 };
 
 export default function Card({
@@ -40,11 +40,11 @@ export default function Card({
   return (
     <div
       className={[
-        "az-card rounded-2xl border",
+        "rounded-2xl border shadow-[var(--az-card-shadow)]",
         variantClasses[variant],
         paddingClasses[padding],
         interactive
-          ? "cursor-pointer"
+          ? "transition duration-200 hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[0_20px_60px_var(--az-shadow)]"
           : "",
         className,
       ].join(" ")}

@@ -53,7 +53,7 @@ export default function AnalysisPage() {
 
   const workspaceContent = {
     overview: (
-      <div className="az-overview">
+      <div className="space-y-5">
         <AIVerdict
           direction={data?.agreement?.direction ?? data?.agreement?.agreement}
           trend={data?.trend?.trend}
@@ -62,6 +62,7 @@ export default function AnalysisPage() {
             data?.agreement?.agreementSummary ??
             data?.explanation?.overallAssessment
           }
+          invalidation={data?.thesisInvalidation}
           isLoading={isLoading}
         />
 
@@ -83,7 +84,7 @@ export default function AnalysisPage() {
               <div className="mt-4 space-y-4">
                 <div className="flex items-center justify-between gap-4 border-b border-stroke pb-4">
                   <span className="text-xs text-ink-muted">Technical risk</span>
-                  <span className="az-numeric text-sm font-semibold text-caution">
+                  <span className="text-sm font-semibold text-caution">
                     {isLoading
                       ? "—"
                       : data?.risk?.riskLevel || "Review required"}
@@ -92,7 +93,7 @@ export default function AnalysisPage() {
 
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-xs text-ink-muted">ATR volatility</span>
-                  <span className="az-numeric text-sm font-semibold text-ink">
+                  <span className="text-sm font-semibold text-ink">
                     {isLoading
                       ? "—"
                       : typeof data?.risk?.atrPercent === "number"
@@ -158,7 +159,7 @@ export default function AnalysisPage() {
           }
         />
 
-        <section className="az-card az-workspace-card p-6">
+        <section className="az-card p-5 sm:p-6">
           <div className="flex items-start gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-intelligence/10 text-intelligence">
               <BrainCircuit size={19} strokeWidth={1.8} />
@@ -183,7 +184,7 @@ export default function AnalysisPage() {
               data?.agreement?.agreementDetails?.map((detail, index) => (
                 <div
                   key={`${detail}-${index}`}
-                  className="az-subcard flex gap-3 rounded-2xl border border-stroke bg-surface-soft p-4"
+                  className="flex gap-3 rounded-2xl border border-stroke bg-surface-soft p-4"
                 >
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-intelligence/10 text-xs font-bold text-intelligence">
                     {index + 1}
@@ -228,7 +229,7 @@ export default function AnalysisPage() {
         </div>
       </div>
 
-      <main className="app-atmosphere min-h-[620px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+      <main className="app-atmosphere min-h-[620px] px-3.5 py-4 pb-20 sm:px-6 sm:py-6 sm:pb-20 lg:px-8 lg:pb-6">
         <div className="relative mx-auto max-w-[1680px]">
           {isError && (
             <div

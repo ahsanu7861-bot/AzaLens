@@ -1,6 +1,9 @@
 import {
+  Bell,
   Clock3,
+  FileDown,
   LoaderCircle,
+  ListPlus,
   Search,
   ShieldCheck,
   Star,
@@ -11,7 +14,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
 import type { AnalysisData, ShariahStatus } from "../../types/analysis";
+import type {
+  DataFreshnessStatus,
+  ProFeatureTrigger,
+} from "../../types/overview";
 import { useCommandStore } from "../../store/commandStore";
+import ProFeatureWrapper from "./ProFeatureWrapper";
 
 type StockHeaderProps = {
   symbol: string;
@@ -63,6 +71,91 @@ function formatFreshness(timestamp?: number) {
   }).format(date)}`;
 }
 
+function toMilliseconds(value: DataFreshnessStatus["asOf"]) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") {
+    return value < 1_000_000_000_000 ? value * 1000 : value;
+  }
+  return new Date(value).getTime();
+}
+
+function formatAge(asOf: DataFreshnessStatus["asOf"], now: number) {
+  const timestamp = toMilliseconds(asOf);
+  if (!Number.isFinite(timestamp)) return "time unavailable";
+  const minutes = Math.max(0, Math.floor((now - timestamp) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1_440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1_440)}d ago`;
+}
+
+function DataProvenanceBadge({
+  metadata,
+}: {
+  metadata: DataFreshnessStatus;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const cautious =
+    metadata.state === "cached" ||
+    metadata.state === "fallback" ||
+    metadata.reviewRequired === true;
+  const feedLabel =
+    metadata.state === "realtime"
+      ? "Real-time"
+      : metadata.state === "delayed"
+        ? `Real-time${metadata.delayMinutes ? ` (${metadata.delayMinutes}m delay)` : ""}`
+        : metadata.state === "cached"
+          ? `Cached (${formatAge(metadata.asOf, now)})`
+          : `Fallback (${formatAge(metadata.asOf, now)})`;
+  const source = metadata.filingSource || metadata.marketSource;
+
+  return (
+    <span
+      className={[
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[11px] leading-4",
+        cautious
+          ? "border-caution/30 bg-caution/15 text-caution"
+          : "border-stroke-strong bg-surface-soft text-ink-soft",
+      ].join(" ")}
+      title={`As of ${new Date(toMilliseconds(metadata.asOf)).toLocaleString()}`}
+    >
+      <Clock3 size={12} className="shrink-0" />
+      <span className="break-words">
+        Data: {feedLabel}
+        {source ? ` · ${source}` : ""}
+        {cautious ? " · Review Required" : ""}
+      </span>
+    </span>
+  );
+}
+
+const proFeatures: Record<
+  "export" | "alert" | "watchlist",
+  ProFeatureTrigger
+> = {
+  export: {
+    id: "export-report",
+    label: "Export report",
+    title: "Institutional PDF reports",
+  },
+  alert: {
+    id: "continuous-alert",
+    label: "Add continuous alert",
+    title: "Continuous monitoring alerts",
+  },
+  watchlist: {
+    id: "multi-watchlist",
+    label: "Choose watchlist",
+    title: "Multi-watchlist workflows",
+  },
+};
+
 function formatShariahStatus(status?: ShariahStatus) {
   if (status === "COMPLIANT") {
     return "AAOIFI compliant";
@@ -93,6 +186,15 @@ export default function StockHeader({
   const company = marketData?.company?.trim() || symbol;
   const exchange = marketData?.exchange?.trim() || "Exchange unavailable";
   const shariahStatus = data?.shariah?.summary?.status;
+  const metadata: DataFreshnessStatus = data?.metadata ?? {
+    state: "delayed",
+    asOf: marketData?.timestamp ?? Date.now(),
+    delayMinutes: 15,
+    marketSource: data?.market?.provider
+      ? `${data.market.provider} market feed`
+      : "Market feed",
+    filingSource: data?.shariah?.provider?.name ?? null,
+  };
 
   useEffect(() => {
     setQuery(symbol);
@@ -109,7 +211,7 @@ export default function StockHeader({
 
   return (
     <section className="border-b border-stroke bg-canvas/92 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+      <div className="mx-auto flex max-w-[1680px] flex-col gap-3 px-3.5 py-3 sm:px-6 sm:py-4 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-brand/20 bg-brand/10 font-display text-sm font-bold text-brand">
             {symbol.slice(0, 2)}
@@ -135,18 +237,21 @@ export default function StockHeader({
                 {formatFreshness(marketData?.timestamp)}
               </span>
             </div>
+            <div className="mt-2">
+              <DataProvenanceBadge metadata={metadata} />
+            </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="mr-auto sm:mr-1 sm:text-right lg:mr-3">
-            <div className="az-numeric text-2xl font-semibold tracking-tight text-ink">
+            <div className="font-display text-2xl font-semibold tracking-tight text-ink">
               {isLoading ? "—" : formatMoney(price, currency)}
             </div>
 
             <div
               className={[
-                "az-numeric mt-0.5 flex items-center gap-1 text-xs font-semibold sm:justify-end",
+                "mt-0.5 flex items-center gap-1 text-xs font-semibold sm:justify-end",
                 positive ? "text-positive" : "text-critical",
               ].join(" ")}
             >
@@ -171,13 +276,41 @@ export default function StockHeader({
             {formatShariahStatus(shariahStatus)}
           </span>
 
-          <button
-            type="button"
-            aria-label={`Add ${symbol} to watchlist`}
-            className="az-icon-button"
-          >
-            <Star size={18} strokeWidth={1.8} />
-          </button>
+          <ProFeatureWrapper feature={proFeatures.export}>
+            <button
+              type="button"
+              aria-label="Export institutional report"
+              className="az-icon-button hidden sm:grid"
+            >
+              <FileDown size={18} strokeWidth={1.8} />
+            </button>
+          </ProFeatureWrapper>
+
+          <ProFeatureWrapper feature={proFeatures.alert}>
+            <button
+              type="button"
+              aria-label="Add continuous alert"
+              className="az-icon-button hidden sm:grid"
+            >
+              <Bell size={18} strokeWidth={1.8} />
+            </button>
+          </ProFeatureWrapper>
+
+          <ProFeatureWrapper feature={proFeatures.watchlist}>
+            <button
+              type="button"
+              aria-label={`Choose a watchlist for ${symbol}`}
+              className="az-icon-button"
+            >
+              <span className="relative">
+                <Star size={18} strokeWidth={1.8} />
+                <ListPlus
+                  size={10}
+                  className="absolute -bottom-1 -right-1 rounded-sm bg-surface"
+                />
+              </span>
+            </button>
+          </ProFeatureWrapper>
 
           <button
             type="button"

@@ -225,7 +225,7 @@ export default function AppShell() {
 
       <nav
         aria-label="Mobile navigation"
-        className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 rounded-[22px] border border-stroke bg-surface/92 p-1.5 shadow-[0_18px_55px_var(--az-shadow)] backdrop-blur-xl lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid h-14 grid-cols-5 border-t border-stroke bg-surface/95 px-1 pb-safe shadow-[0_-8px_30px_var(--az-shadow)] backdrop-blur-xl lg:hidden"
       >
         {primaryNavigation.map(({ label, to, icon: Icon }) => (
           <NavLink
@@ -234,7 +234,7 @@ export default function AppShell() {
             aria-current={isItemActive(to) ? "page" : undefined}
             className={() =>
               [
-                "flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[10px] font-semibold transition",
+                "flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[11px] font-semibold transition",
                 isItemActive(to)
                   ? "bg-brand/10 text-brand"
                   : "text-ink-muted hover:text-ink",

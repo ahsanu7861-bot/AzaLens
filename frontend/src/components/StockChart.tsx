@@ -15,7 +15,7 @@ import { useTheme } from '../app/providers/theme';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  'https://api.azalens.com';
+  'https://alphalensai.onrender.com';
 
 type HistoricalBar = {
   date: string;
@@ -207,7 +207,7 @@ export default function StockChart({
     const isDayTheme = resolvedTheme === 'day';
     const chart = createChart(container, {
       width: container.clientWidth,
-      height: container.clientWidth < 640 ? 390 : 520,
+      height: container.clientWidth < 640 ? 280 : 520,
 
       layout: {
         background: {
@@ -343,7 +343,7 @@ export default function StockChart({
 
       chart.applyOptions({
         width: entry.contentRect.width,
-        height: entry.contentRect.width < 640 ? 390 : 520,
+        height: entry.contentRect.width < 640 ? 280 : 520,
       });
     });
 
@@ -356,7 +356,7 @@ export default function StockChart({
   }, [bars, resolvedTheme]);
 
   return (
-    <section className="az-chart-card overflow-hidden rounded-[22px] border border-stroke bg-surface shadow-[0_16px_48px_var(--az-shadow)]">
+    <section className="az-chart-card min-h-[280px] overflow-hidden rounded-2xl border border-stroke bg-surface shadow-[var(--az-card-shadow)]">
       <div
         style={{
           display: 'flex',

@@ -1,3 +1,5 @@
+import type { DataFreshnessStatus, ThesisInvalidation } from "./overview"
+
 export type ShariahStatus =
   | "COMPLIANT"
   | "NON_COMPLIANT"
@@ -133,9 +135,9 @@ export interface ConfluenceData {
 }
 
 export interface AnalysisResponse {
-  success?: boolean
-  error?: string
   data: {
+    metadata?: DataFreshnessStatus
+    thesisInvalidation?: ThesisInvalidation
     market: {
       success?: boolean
       provider?: string
