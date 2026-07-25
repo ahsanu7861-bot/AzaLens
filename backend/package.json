@@ -9,6 +9,7 @@
     "test:confluence-actionability": "node tests/testConfluenceActionability.js",
     "test:analysis-trust": "node tests/testAnalysisTrustService.js",
     "test:finnhub-resilience": "node tests/testFinnhubProviderResilience.js",
+    "test:multi-symbol-consistency": "node tests/testMultiSymbolConsistency.js",
     "test:shariah-aaoifi": "node tests/testShariahAAOIFI.js",
     "test:shariah-safety": "node tests/testShariahCostProtection.js",
     "trace:shariah": "node tests/traceHalalTerminalResponse.js"

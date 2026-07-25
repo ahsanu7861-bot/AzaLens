@@ -118,6 +118,10 @@ function buildAnalysisMetadata({
       : shariah?.metadata?.providerMetadata?.fromCache === true
         ? "cached"
         : "fresh";
+  const reviewRequired =
+    ["fallback", "stale", "unavailable"].includes(marketState) ||
+    shariahUnavailable ||
+    shariahStale;
   const providerErrors = uniqueStrings([
     market?.success === false ? market?.error : null,
     history?.success === false ? history?.error : null,
@@ -164,8 +168,7 @@ function buildAnalysisMetadata({
       shariah?.provider?.name ||
       shariah?.businessActivity?.sourceUrl ||
       null,
-    reviewRequired:
-      ["fallback", "stale", "unavailable"].includes(marketState),
+    reviewRequired,
     symbol,
     generatedAt,
     analysisTimeframe: history?.interval || "1day",
