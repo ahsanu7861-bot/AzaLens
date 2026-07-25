@@ -11,6 +11,12 @@ const {
   setCache
 } = require("../utils/cache");
 
+const {
+  recordProviderResult
+} = require(
+  "../utils/observability"
+);
+
 // ==================================================
 // Helpers
 // ==================================================
@@ -429,7 +435,7 @@ function buildHistoricalQuality(
 // Live Market Data — Finnhub
 // ==================================================
 
-async function getMarketData(symbol) {
+async function getMarketDataUnobserved(symbol) {
   const normalizedSymbol =
     normalizeSymbol(symbol);
 
@@ -568,11 +574,28 @@ async function getMarketData(symbol) {
   }
 }
 
+async function getMarketData(symbol) {
+  const startedAt = Date.now();
+  const result =
+    await getMarketDataUnobserved(symbol);
+
+  recordProviderResult({
+    provider:
+      result?.provider || "Finnhub",
+    operation: "live_quote",
+    result,
+    durationMs:
+      Date.now() - startedAt
+  });
+
+  return result;
+}
+
 // ==================================================
 // Historical Data — Shared OHLCV
 // ==================================================
 
-async function getHistory(
+async function getHistoryUnobserved(
   symbol,
   interval = "1day"
 ) {
@@ -908,6 +931,29 @@ async function getHistory(
       }
     };
   }
+}
+
+async function getHistory(
+  symbol,
+  interval = "1day"
+) {
+  const startedAt = Date.now();
+  const result =
+    await getHistoryUnobserved(
+      symbol,
+      interval
+    );
+
+  recordProviderResult({
+    provider:
+      result?.provider || "TwelveData",
+    operation: "historical_ohlcv",
+    result,
+    durationMs:
+      Date.now() - startedAt
+  });
+
+  return result;
 }
 
 module.exports = {

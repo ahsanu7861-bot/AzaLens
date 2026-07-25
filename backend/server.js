@@ -3,7 +3,15 @@ require("dotenv").config();
 const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
-const morgan = require("morgan");
+
+const {
+  buildLivenessSnapshot,
+  buildReadinessSnapshot,
+  getMetricsSnapshot,
+  isMetricsAuthorized,
+  requestObservability,
+  writeLog
+} = require("./utils/observability");
 
 // ============================
 // Import Services
@@ -46,10 +54,20 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 // ============================
 
+app.use(requestObservability);
 app.use(express.json());
 app.use(cors());
 app.use(helmet());
-app.use(morgan("dev"));
+app.use(
+  ["/health", "/ops/metrics"],
+  (req, res, next) => {
+    res.setHeader(
+      "Cache-Control",
+      "no-store"
+    );
+    next();
+  }
+);
 
 // ============================
 // API Routes
@@ -74,10 +92,62 @@ app.get("/", (req, res) => {
 // ============================
 
 app.get("/health", (req, res) => {
+  const health =
+    buildLivenessSnapshot();
+
   res.json({
     status: "Healthy",
-    uptime: process.uptime(),
-    timestamp: new Date()
+    uptime: health.uptimeSeconds,
+    timestamp: health.timestamp,
+    requestId: req.requestId,
+    deployment: health.deployment
+  });
+});
+
+app.get("/health/live", (req, res) => {
+  res.status(200).json({
+    ...buildLivenessSnapshot(),
+    requestId: req.requestId
+  });
+});
+
+app.get("/health/ready", (req, res) => {
+  const readiness =
+    buildReadinessSnapshot();
+
+  res
+    .status(readiness.ready ? 200 : 503)
+    .json({
+      ...readiness,
+      requestId: req.requestId
+    });
+});
+
+app.get("/ops/metrics", (req, res) => {
+  if (!isMetricsAuthorized(req)) {
+    const metricsConfigured = Boolean(
+      String(
+        process.env
+          .OBSERVABILITY_METRICS_TOKEN ||
+          ""
+      ).trim()
+    );
+
+    return res
+      .status(metricsConfigured ? 401 : 404)
+      .json({
+        success: false,
+        error: metricsConfigured
+          ? "Metrics authentication is required."
+          : "Route not found.",
+        requestId: req.requestId
+      });
+  }
+
+  return res.status(200).json({
+    success: true,
+    requestId: req.requestId,
+    data: getMetricsSnapshot()
   });
 });
 
@@ -456,6 +526,14 @@ app.get("/api/analyze/:symbol", async (req, res) => {
 
     const result = await getMasterAnalysis(symbol);
 
+    if (
+      result?.meta &&
+      typeof result.meta === "object"
+    ) {
+      result.meta.requestId =
+        req.requestId;
+    }
+
     const statusCode = result.success ? 200 : 500;
 
     res.status(statusCode).json(result);
@@ -503,7 +581,45 @@ app.get("/api/explanation/:symbol", async (req, res) => {
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    error: "Route not found."
+    error: "Route not found.",
+    requestId: req.requestId
+  });
+});
+
+// ============================
+// Error Boundary
+// ============================
+
+app.use((error, req, res, next) => {
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  const statusCode =
+    Number(error?.status) >= 400 &&
+    Number(error?.status) < 600
+      ? Number(error.status)
+      : 500;
+
+  writeLog("error", "unhandled_http_error", {
+    requestId: req.requestId,
+    method: req.method,
+    route:
+      req.route?.path || "UNMATCHED",
+    statusCode,
+    errorName:
+      error?.name || "Error",
+    errorCode:
+      error?.code || null
+  });
+
+  return res.status(statusCode).json({
+    success: false,
+    error:
+      statusCode === 400
+        ? "Invalid request payload."
+        : "An unexpected server error occurred.",
+    requestId: req.requestId
   });
 });
 
@@ -511,8 +627,22 @@ app.use((req, res) => {
 // Start Server
 // ============================
 
-app.listen(PORT, () => {
-  console.log(
-    `🚀 AzaLens Backend running on port ${PORT}`
-  );
-});
+function startServer(port = PORT) {
+  return app.listen(port, () => {
+    writeLog("info", "service_started", {
+      port: Number(port),
+      environment:
+        process.env.NODE_ENV ||
+        "development"
+    });
+  });
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  app,
+  startServer
+};

@@ -13,6 +13,7 @@
     "test:finnhub-resilience": "node tests/testFinnhubProviderResilience.js",
     "test:support-resistance-reliability": "node tests/testSupportResistanceReliability.js",
     "test:multi-symbol-consistency": "node tests/testMultiSymbolConsistency.js",
+    "test:observability": "node tests/testObservability.js",
     "test:fundamentals-coverage": "node tests/testFundamentalsCoverage.js",
     "test:trend-reliability": "node tests/testTrendReliability.js",
     "test:shariah-aaoifi": "node tests/testShariahAAOIFI.js",

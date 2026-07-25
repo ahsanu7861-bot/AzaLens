@@ -1,0 +1,436 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const { EventEmitter } = require("node:events");
+
+process.env.NODE_ENV = "test";
+
+const {
+  buildReadinessSnapshot,
+  getCurrentRequestId,
+  getMetricsSnapshot,
+  isMetricsAuthorized,
+  recordProviderResult,
+  requestObservability,
+  resetObservabilityForTests,
+} = require("../utils/observability");
+
+function createRequest({
+  requestId = null,
+  method = "GET",
+  route = "/api/analyze/:symbol",
+} = {}) {
+  return {
+    method,
+    baseUrl: "",
+    route: {
+      path: route,
+    },
+    headers: requestId
+      ? {
+          "x-request-id": requestId,
+        }
+      : {},
+    get(name) {
+      return this.headers[
+        String(name).toLowerCase()
+      ];
+    },
+  };
+}
+
+function createResponse(statusCode = 200) {
+  const response = new EventEmitter();
+
+  response.statusCode = statusCode;
+  response.headers = {};
+  response.setHeader = (name, value) => {
+    response.headers[
+      String(name).toLowerCase()
+    ] = value;
+  };
+
+  return response;
+}
+
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const body = await response.json();
+
+  return {
+    response,
+    body,
+  };
+}
+
+async function run() {
+  resetObservabilityForTests();
+
+  const preservedRequestId =
+    "release-health-check-001";
+  const request = createRequest({
+    requestId: preservedRequestId,
+  });
+  const response = createResponse(503);
+  const unsafeRequest = createRequest({
+    requestId: "unsafe request id",
+    route: "/health/live",
+  });
+  const unsafeResponse = createResponse(200);
+  let middlewareContinued = false;
+  let contextualRequestId = null;
+
+  requestObservability(
+    request,
+    response,
+    () => {
+      middlewareContinued = true;
+      contextualRequestId =
+        getCurrentRequestId();
+    }
+  );
+
+  assert.equal(middlewareContinued, true);
+  assert.equal(
+    request.requestId,
+    preservedRequestId
+  );
+  assert.equal(
+    contextualRequestId,
+    preservedRequestId
+  );
+  assert.equal(
+    response.headers["x-request-id"],
+    preservedRequestId
+  );
+
+  response.emit("finish");
+  response.emit("close");
+
+  requestObservability(
+    unsafeRequest,
+    unsafeResponse,
+    () => {}
+  );
+  unsafeResponse.emit("finish");
+
+  assert.notEqual(
+    unsafeRequest.requestId,
+    "unsafe request id"
+  );
+  assert.match(
+    unsafeRequest.requestId,
+    /^[A-Za-z0-9-]{32,36}$/
+  );
+
+  recordProviderResult({
+    provider: "Finnhub",
+    operation: "live_quote",
+    result: {
+      success: true,
+      limitations: [
+        "Company profile enrichment is unavailable because the Finnhub rate limit was reached.",
+      ],
+      cache: {
+        status: "HIT",
+        hit: true,
+      },
+    },
+    durationMs: 12,
+  });
+  recordProviderResult({
+    provider: "Finnhub",
+    operation: "live_quote",
+    result: {
+      success: false,
+      code: "FINNHUB_TIMEOUT",
+      error: "Finnhub request timed out.",
+      cache: {
+        status: "MISS",
+        hit: false,
+      },
+    },
+    durationMs: 10000,
+  });
+  recordProviderResult({
+    provider: "TwelveData",
+    operation: "historical_ohlcv",
+    result: {
+      success: false,
+      code: "TWELVE_DATA_RATE_LIMIT",
+      httpStatus: 429,
+      cache: "MISS",
+    },
+    durationMs: 320,
+  });
+  recordProviderResult({
+    provider: "Halal Terminal",
+    operation: "shariah_screening",
+    result: {
+      success: false,
+      error: {
+        code: "SHARIAH_LIVE_API_DISABLED",
+      },
+      metadata: {
+        dataMode: "offline",
+        fromCache: false,
+      },
+    },
+    durationMs: 1,
+  });
+
+  const metrics = getMetricsSnapshot();
+  const httpRoute = metrics.http.routes.find(
+    ({ route }) =>
+      route === "/api/analyze/:symbol"
+  );
+  const finnhub = metrics.providers.find(
+    ({ provider }) => provider === "Finnhub"
+  );
+  const twelveData = metrics.providers.find(
+    ({ provider }) =>
+      provider === "TwelveData"
+  );
+  const shariah = metrics.providers.find(
+    ({ provider }) =>
+      provider === "Halal Terminal"
+  );
+
+  assert.equal(metrics.http.count, 2);
+  assert.equal(metrics.http.successes, 1);
+  assert.equal(metrics.http.failures, 1);
+  assert.equal(metrics.http.inFlight, 0);
+  assert.equal(
+    metrics.http.statusCodes["503"],
+    1
+  );
+  assert.equal(httpRoute.count, 1);
+  assert.equal(finnhub.count, 2);
+  assert.equal(finnhub.successes, 0);
+  assert.equal(finnhub.failures, 1);
+  assert.equal(finnhub.degraded, 1);
+  assert.equal(finnhub.timeouts, 1);
+  assert.equal(finnhub.rateLimits, 1);
+  assert.equal(finnhub.cacheHits, 1);
+  assert.equal(finnhub.cacheMisses, 1);
+  assert.equal(twelveData.rateLimits, 1);
+  assert.equal(shariah.blocked, 1);
+  assert.equal(shariah.failures, 0);
+
+  const incompleteReadiness =
+    buildReadinessSnapshot({
+      strict: true,
+      env: {
+        NODE_ENV: "production",
+        SHARIAH_DATA_MODE: "offline",
+      },
+    });
+  const completeReadiness =
+    buildReadinessSnapshot({
+      strict: true,
+      env: {
+        NODE_ENV: "production",
+        FINNHUB_API_KEY: "configured",
+        TWELVE_DATA_API_KEY: "configured",
+        SHARIAH_DATA_MODE: "offline",
+      },
+    });
+
+  assert.equal(
+    incompleteReadiness.ready,
+    false
+  );
+  assert.equal(
+    incompleteReadiness.checks
+      .marketProviders,
+    "incomplete"
+  );
+  assert.equal(
+    completeReadiness.ready,
+    true
+  );
+
+  assert.equal(
+    isMetricsAuthorized(
+      {
+        headers: {
+          authorization: "Bearer correct-token",
+        },
+      },
+      {
+        NODE_ENV: "production",
+        OBSERVABILITY_METRICS_TOKEN:
+          "correct-token",
+      }
+    ),
+    true
+  );
+  assert.equal(
+    isMetricsAuthorized(
+      {
+        headers: {
+          authorization: "Bearer wrong-token",
+        },
+      },
+      {
+        NODE_ENV: "production",
+        OBSERVABILITY_METRICS_TOKEN:
+          "correct-token",
+      }
+    ),
+    false
+  );
+
+  const { app } = require("../server");
+  const server = app.listen(0, "127.0.0.1");
+
+  try {
+    await new Promise((resolve) => {
+      if (server.listening) {
+        resolve();
+        return;
+      }
+
+      server.once("listening", resolve);
+    });
+
+    const address = server.address();
+    const baseUrl =
+      `http://127.0.0.1:${address.port}`;
+    const live = await requestJson(
+      `${baseUrl}/health/live`
+    );
+    const ready = await requestJson(
+      `${baseUrl}/health/ready`
+    );
+    const operations = await requestJson(
+      `${baseUrl}/ops/metrics`
+    );
+    const missing = await requestJson(
+      `${baseUrl}/missing`
+    );
+    const environmentSnapshot = {
+      NODE_ENV: process.env.NODE_ENV,
+      OBSERVABILITY_METRICS_TOKEN:
+        process.env
+          .OBSERVABILITY_METRICS_TOKEN,
+    };
+
+    assert.equal(live.response.status, 200);
+    assert.equal(live.body.status, "healthy");
+    assert.equal(
+      live.response.headers.get(
+        "cache-control"
+      ),
+      "no-store"
+    );
+    assert.equal(
+      live.body.requestId,
+      live.response.headers.get("x-request-id")
+    );
+    assert.equal(ready.response.status, 200);
+    assert.equal(ready.body.ready, true);
+    assert.equal(
+      operations.response.status,
+      200
+    );
+    assert.equal(
+      operations.body.success,
+      true
+    );
+    assert.equal(missing.response.status, 404);
+    assert.equal(
+      missing.body.requestId,
+      missing.response.headers.get(
+        "x-request-id"
+      )
+    );
+
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env
+        .OBSERVABILITY_METRICS_TOKEN;
+
+      const disabledMetrics = await requestJson(
+        `${baseUrl}/ops/metrics`
+      );
+
+      assert.equal(
+        disabledMetrics.response.status,
+        404
+      );
+
+      process.env
+        .OBSERVABILITY_METRICS_TOKEN =
+        "production-metrics-token";
+
+      const unauthenticatedMetrics =
+        await requestJson(
+          `${baseUrl}/ops/metrics`
+        );
+      const authenticatedMetrics =
+        await requestJson(
+          `${baseUrl}/ops/metrics`,
+          {
+            headers: {
+              Authorization:
+                "Bearer production-metrics-token",
+            },
+          }
+        );
+
+      assert.equal(
+        unauthenticatedMetrics.response.status,
+        401
+      );
+      assert.equal(
+        authenticatedMetrics.response.status,
+        200
+      );
+    } finally {
+      if (
+        environmentSnapshot.NODE_ENV ===
+        undefined
+      ) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV =
+          environmentSnapshot.NODE_ENV;
+      }
+
+      if (
+        environmentSnapshot
+          .OBSERVABILITY_METRICS_TOKEN ===
+        undefined
+      ) {
+        delete process.env
+          .OBSERVABILITY_METRICS_TOKEN;
+      } else {
+        process.env
+          .OBSERVABILITY_METRICS_TOKEN =
+          environmentSnapshot
+            .OBSERVABILITY_METRICS_TOKEN;
+      }
+    }
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+
+  console.log(
+    "Observability and health-contract tests passed."
+  );
+}
+
+run().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

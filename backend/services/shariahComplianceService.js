@@ -2,6 +2,10 @@ const {
   fetchScreening,
 } = require("../providers/halalTerminalProvider");
 
+const {
+  recordProviderResult,
+} = require("../utils/observability");
+
 // ============================================================
 // AzaLens - Shariah Compliance Service
 // Version: 0.4.1
@@ -485,8 +489,44 @@ function transformProviderResult(providerResult) {
 }
 
 async function getShariahCompliance(symbol) {
-  const providerResult = await fetchScreening(symbol);
-  return transformProviderResult(providerResult);
+  const startedAt = Date.now();
+
+  try {
+    const providerResult =
+      await fetchScreening(symbol);
+
+    recordProviderResult({
+      provider:
+        providerResult?.provider?.name ||
+        "Halal Terminal",
+      operation: "shariah_screening",
+      result: providerResult,
+      durationMs: Date.now() - startedAt,
+    });
+
+    return transformProviderResult(
+      providerResult
+    );
+  } catch (error) {
+    recordProviderResult({
+      provider: "Halal Terminal",
+      operation: "shariah_screening",
+      result: {
+        success: false,
+        error: {
+          code:
+            error?.code ||
+            "SHARIAH_PROVIDER_EXCEPTION",
+          message:
+            error?.message ||
+            "Unexpected Shariah provider error.",
+        },
+      },
+      durationMs: Date.now() - startedAt,
+    });
+
+    throw error;
+  }
 }
 
 module.exports = {
