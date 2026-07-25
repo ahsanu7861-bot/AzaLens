@@ -134,6 +134,33 @@ export interface ConfluenceData {
   dataSource?: string
 }
 
+export interface FundamentalsData {
+  success?: boolean
+  status?: "PARTIAL" | "UNAVAILABLE" | string
+  provider?: string | null
+  asOf?: string | null
+  companyProfile?: {
+    name?: string | null
+    ticker?: string | null
+    country?: string | null
+    currency?: string | null
+    exchange?: string | null
+    industry?: string | null
+    ipoDate?: string | null
+    website?: string | null
+    logo?: string | null
+  } | null
+  coverage?: {
+    companyProfile?: string
+    financialStatements?: string
+    valuationAndPeers?: string
+    earningsAndEstimates?: string
+    filingsAndOwnership?: string
+  }
+  unavailableSections?: string[]
+  limitations?: string[]
+}
+
 export interface AnalysisResponse {
   success?: boolean
   error?: string
@@ -170,6 +197,8 @@ export interface AnalysisResponse {
       analysisPriceSource?: string
       note?: string
     }
+
+    fundamentals?: FundamentalsData
 
     trend: {
       trend: string

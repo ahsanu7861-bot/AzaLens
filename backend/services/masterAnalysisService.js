@@ -265,6 +265,112 @@ function buildPriceContext(
 }
 
 // ==================================================
+// Truthful Fundamentals Coverage
+// ==================================================
+
+function buildFundamentalsSnapshot({
+  market,
+  generatedAt
+}) {
+  const profile =
+    market?.companyProfile &&
+    typeof market.companyProfile ===
+      "object"
+      ? market.companyProfile
+      : null;
+
+  const profileAvailable =
+    market?.success === true &&
+    profile !== null;
+
+  return {
+    success: profileAvailable,
+
+    status:
+      profileAvailable
+        ? "PARTIAL"
+        : "UNAVAILABLE",
+
+    provider:
+      profileAvailable
+        ? profile.source ||
+          "Finnhub Company Profile"
+        : null,
+
+    asOf:
+      profileAvailable
+        ? profile.retrievedAt ||
+          generatedAt
+        : null,
+
+    companyProfile:
+      profileAvailable
+        ? {
+            name:
+              profile.name ||
+              market?.data?.company ||
+              null,
+            ticker:
+              profile.ticker ||
+              market?.symbol ||
+              null,
+            country:
+              profile.country || null,
+            currency:
+              profile.currency ||
+              market?.data?.currency ||
+              null,
+            exchange:
+              profile.exchange ||
+              market?.data?.exchange ||
+              null,
+            industry:
+              profile.industry || null,
+            ipoDate:
+              profile.ipoDate || null,
+            website:
+              profile.website || null,
+            logo:
+              profile.logo || null
+          }
+        : null,
+
+    coverage: {
+      companyProfile:
+        profileAvailable
+          ? "AVAILABLE"
+          : "UNAVAILABLE",
+      financialStatements:
+        "UNAVAILABLE",
+      valuationAndPeers:
+        "UNAVAILABLE",
+      earningsAndEstimates:
+        "UNAVAILABLE",
+      filingsAndOwnership:
+        "UNAVAILABLE"
+    },
+
+    unavailableSections: [
+      "financialStatements",
+      "valuationAndPeers",
+      "earningsAndEstimates",
+      "filingsAndOwnership"
+    ],
+
+    limitations: [
+      ...(
+        Array.isArray(
+          market?.limitations
+        )
+          ? market.limitations
+          : []
+      ),
+      "Verified financial statements, valuation multiples, earnings estimates, filings, and ownership data are not connected yet."
+    ]
+  };
+}
+
+// ==================================================
 // Shared-OHLCV Status
 // ==================================================
 
@@ -1239,6 +1345,12 @@ async function getMasterAnalysis(
         sharedHistory
       );
 
+    const fundamentals =
+      buildFundamentalsSnapshot({
+        market,
+        generatedAt
+      });
+
     // ==============================================
     // Indicator Calculations
     // ==============================================
@@ -1755,6 +1867,8 @@ async function getMasterAnalysis(
 
         priceContext,
 
+        fundamentals,
+
         shariah,
 
         dataQuality
@@ -1885,6 +1999,8 @@ async function getMasterAnalysis(
 
         priceContext,
 
+        fundamentals,
+
         sharedHistory,
 
         indicators,
@@ -1941,5 +2057,6 @@ async function getMasterAnalysis(
 // ==================================================
 
 module.exports = {
-  getMasterAnalysis
+  getMasterAnalysis,
+  buildFundamentalsSnapshot
 };

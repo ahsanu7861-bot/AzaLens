@@ -79,6 +79,7 @@ function buildAnalysisMetadata({
   market,
   history,
   priceContext,
+  fundamentals,
   shariah,
   dataQuality,
 }) {
@@ -145,6 +146,9 @@ function buildAnalysisMetadata({
       : null,
     ...(Array.isArray(market?.limitations)
       ? market.limitations
+      : []),
+    ...(Array.isArray(fundamentals?.limitations)
+      ? fundamentals.limitations
       : []),
     ...(Array.isArray(dataQuality?.warnings)
       ? dataQuality.warnings
@@ -213,6 +217,27 @@ function buildAnalysisMetadata({
         interval: history?.interval || "1day",
         fromCache: history?.performance?.cacheHit === true,
         error: history?.success === false ? history?.error || null : null,
+      },
+      fundamentals: {
+        provider:
+          fundamentals?.provider || null,
+        state:
+          fundamentals?.status ===
+          "PARTIAL"
+            ? "partial"
+            : "unavailable",
+        asOf:
+          toIsoTimestamp(
+            fundamentals?.asOf
+          ),
+        reviewRequired:
+          fundamentals?.status !==
+          "PARTIAL",
+        error:
+          fundamentals?.status ===
+          "UNAVAILABLE"
+            ? "Verified company profile is unavailable."
+            : null,
       },
       shariah: {
         provider: shariah?.provider?.name || null,

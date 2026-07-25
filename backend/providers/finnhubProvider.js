@@ -284,6 +284,9 @@ async function fetchFreshFinnhubQuote(symbol) {
     profileResult?.profile || {};
   const profileError =
     profileResult?.error || null;
+  const profileAvailable =
+    !profileError &&
+    Object.keys(profile).length > 0;
 
   if (!isValidQuote(quote)) {
     throw new Error(
@@ -335,6 +338,26 @@ async function fetchFreshFinnhubQuote(symbol) {
       timestamp:
         toFiniteNumber(quote.t)
     },
+
+    companyProfile:
+      profileAvailable
+        ? {
+            name: profile?.name || null,
+            ticker: profile?.ticker || symbol,
+            country: profile?.country || null,
+            currency: profile?.currency || null,
+            exchange: profile?.exchange || null,
+            industry:
+              profile?.finnhubIndustry || null,
+            ipoDate: profile?.ipo || null,
+            website: profile?.weburl || null,
+            logo: profile?.logo || null,
+            source:
+              "Finnhub Company Profile",
+            retrievedAt:
+              new Date().toISOString()
+          }
+        : null,
 
     limitations:
       profileError

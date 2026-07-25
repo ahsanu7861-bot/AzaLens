@@ -49,6 +49,7 @@ export interface DataFreshnessStatus {
   sources?: {
     quote?: EvidenceSourceStatus;
     history?: EvidenceSourceStatus;
+    fundamentals?: EvidenceSourceStatus;
     shariah?: EvidenceSourceStatus;
   };
   providerErrors?: string[];
