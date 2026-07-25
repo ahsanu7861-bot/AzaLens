@@ -139,6 +139,9 @@ function buildAnalysisMetadata({
     shariahStale
       ? "AAOIFI screening evidence is stale and requires review."
       : null,
+    ...(Array.isArray(market?.limitations)
+      ? market.limitations
+      : []),
     ...(Array.isArray(dataQuality?.warnings)
       ? dataQuality.warnings
       : []),

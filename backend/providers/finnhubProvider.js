@@ -250,9 +250,11 @@ async function fetchFreshFinnhubQuote(symbol) {
 
     The profile itself is cached for six hours, so after
     the first request this normally results in only one
-    Finnhub network request per quote refresh.
+    Finnhub network request per quote refresh. A company
+    profile is enrichment only: a profile failure must not
+    discard an otherwise valid market quote.
   */
-  const [quoteResponse, profile] =
+  const [quoteResponse, profileResult] =
     await Promise.all([
       axios.get(
         `${FINNHUB_BASE_URL}/quote`,
@@ -266,9 +268,22 @@ async function fetchFreshFinnhubQuote(symbol) {
       ),
 
       fetchCompanyProfile(symbol)
+        .then((profile) => ({
+          profile,
+          error: null
+        }))
+        .catch((error) => ({
+          profile: {},
+          error:
+            getAxiosErrorMessage(error)
+        }))
     ]);
 
   const quote = quoteResponse?.data;
+  const profile =
+    profileResult?.profile || {};
+  const profileError =
+    profileResult?.error || null;
 
   if (!isValidQuote(quote)) {
     throw new Error(
@@ -319,7 +334,14 @@ async function fetchFreshFinnhubQuote(symbol) {
 
       timestamp:
         toFiniteNumber(quote.t)
-    }
+    },
+
+    limitations:
+      profileError
+        ? [
+            `Company profile enrichment is unavailable: ${profileError}`
+          ]
+        : []
   };
 }
 
