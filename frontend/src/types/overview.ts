@@ -17,6 +17,8 @@ export interface EvidenceSourceStatus {
   methodology?: string | null;
   fromCache?: boolean;
   reviewRequired?: boolean;
+  barCount?: number;
+  minimumBarsRequired?: number;
   error?: string | null;
 }
 

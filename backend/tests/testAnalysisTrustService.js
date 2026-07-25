@@ -29,11 +29,9 @@ function baseInput() {
       provider: "TwelveData",
       interval: "1day",
       cache: "MISS",
-      bars: [
-        {
-          close: 224,
-        },
-      ],
+      bars: Array.from({ length: 60 }, (_, index) => ({
+        close: index === 59 ? 224 : 200 + index,
+      })),
       metadata: {
         latestDate: "2026-07-24",
       },
@@ -119,7 +117,7 @@ function baseInput() {
 
 {
   const input = baseInput();
-  input.history.bars[0].close = 210;
+  input.history.bars.at(-1).close = 210;
   input.priceContext.latestHistoricalClose = 210;
   input.indicators.rvol.rvol = 1.8;
 
@@ -140,7 +138,7 @@ function baseInput() {
       },
     },
   };
-  input.history.bars[0].close = 245;
+  input.history.bars.at(-1).close = 245;
   input.priceContext.latestHistoricalClose = 245;
   input.indicators.rvol.rvol = 1.7;
 
@@ -152,7 +150,7 @@ function baseInput() {
 
 {
   const input = baseInput();
-  input.history.bars[0].close = 210;
+  input.history.bars.at(-1).close = 210;
   input.priceContext.latestHistoricalClose = 210;
   input.indicators.rvol.rvol = null;
 
@@ -200,6 +198,42 @@ function baseInput() {
 
   assert.strictEqual(metadata.state, "fallback");
   assert.strictEqual(metadata.reviewRequired, true);
+}
+
+{
+  const input = baseInput();
+  input.history.bars = input.history.bars.slice(0, 20);
+  input.dataQuality.status = "Degraded";
+  input.dataQuality.warnings = [
+    "Historical data contains fewer than 50 bars.",
+  ];
+
+  const metadata = buildAnalysisMetadata(input);
+
+  assert.strictEqual(metadata.reviewRequired, true);
+  assert.strictEqual(metadata.sources.history.state, "partial");
+  assert.strictEqual(metadata.sources.history.barCount, 20);
+  assert.strictEqual(metadata.sources.history.minimumBarsRequired, 50);
+  assert.strictEqual(metadata.evidenceCompleteness.percent, 67);
+}
+
+{
+  const input = baseInput();
+  input.shariah.verification.lastCheckedAt =
+    "2026-07-01T12:00:00.000Z";
+  input.shariah.verification.isStale = true;
+
+  const metadata = buildAnalysisMetadata(input);
+  const invalidation = buildThesisInvalidation(input);
+
+  assert.strictEqual(metadata.reviewRequired, true);
+  assert.strictEqual(metadata.sources.shariah.state, "stale");
+  assert.strictEqual(metadata.evidenceCompleteness.percent, 67);
+  assert.strictEqual(invalidation.status, "unknown");
+  assert.strictEqual(
+    invalidation.evidence.fundamental.status,
+    "unknown"
+  );
 }
 
 console.log("Analysis trust service tests passed.");

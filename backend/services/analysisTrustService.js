@@ -4,6 +4,7 @@ const AAOIFI_METHODOLOGY_VERSION = "0.5.0";
 
 const DEFAULT_MARKET_DELAY_MINUTES = 15;
 const SHARIAH_STALE_AFTER_HOURS = 24 * 7;
+const MINIMUM_RELIABLE_HISTORY_BARS = 50;
 
 function toFiniteNumber(value, fallback = null) {
   if (value === null || value === undefined || value === "") {
@@ -54,6 +55,64 @@ function uniqueStrings(values) {
   ];
 }
 
+function getHistoryBarCount(history) {
+  if (Array.isArray(history?.bars)) {
+    return history.bars.length;
+  }
+
+  if (Array.isArray(history?.data?.c)) {
+    return history.data.c.length;
+  }
+
+  return 0;
+}
+
+function isHistoryCacheHit(history) {
+  return (
+    history?.performance?.cacheHit === true ||
+    history?.cache?.hit === true ||
+    String(history?.cache || "").toUpperCase() === "HIT"
+  );
+}
+
+function resolveHistoryState(history) {
+  const barCount = getHistoryBarCount(history);
+
+  if (history?.success !== true || barCount === 0) {
+    return "unavailable";
+  }
+
+  if (barCount < MINIMUM_RELIABLE_HISTORY_BARS) {
+    return "partial";
+  }
+
+  return isHistoryCacheHit(history) ? "cached" : "fresh";
+}
+
+function resolveEvaluationTime(generatedAt) {
+  const timestamp = new Date(generatedAt).getTime();
+
+  return Number.isFinite(timestamp) ? timestamp : Date.now();
+}
+
+function isShariahEvidenceStale(shariah, generatedAt) {
+  const shariahTimestamp = toIsoTimestamp(
+    shariah?.verification?.lastCheckedAt ||
+      shariah?.metadata?.providerMetadata?.fetchedAt ||
+      shariah?.metadata?.generatedAt
+  );
+  const shariahAgeHours = hoursSince(
+    shariahTimestamp,
+    resolveEvaluationTime(generatedAt)
+  );
+
+  return (
+    shariah?.verification?.isStale === true ||
+    (shariahAgeHours !== null &&
+      shariahAgeHours > SHARIAH_STALE_AFTER_HOURS)
+  );
+}
+
 function resolveMarketState({ market, priceContext }) {
   if (priceContext?.livePriceAvailable !== true) {
     return priceContext?.historicalCloseAvailable === true
@@ -98,17 +157,18 @@ function buildAnalysisMetadata({
       history?.metadata?.latestDate ||
         history?.dataQuality?.latestHistoricalDate
     );
+  const historyBarCount = getHistoryBarCount(history);
+  const historyState = resolveHistoryState(history);
   const shariahTimestamp =
     toIsoTimestamp(
       shariah?.verification?.lastCheckedAt ||
         shariah?.metadata?.providerMetadata?.fetchedAt ||
         shariah?.metadata?.generatedAt
     );
-  const shariahAgeHours = hoursSince(shariahTimestamp);
-  const shariahStale =
-    shariah?.verification?.isStale === true ||
-    (shariahAgeHours !== null &&
-      shariahAgeHours > SHARIAH_STALE_AFTER_HOURS);
+  const shariahStale = isShariahEvidenceStale(
+    shariah,
+    generatedAt
+  );
   const shariahStatus = shariah?.summary?.status || "UNKNOWN";
   const shariahUnavailable =
     shariah?.success !== true || shariahStatus === "UNKNOWN";
@@ -119,10 +179,19 @@ function buildAnalysisMetadata({
       : shariah?.metadata?.providerMetadata?.fromCache === true
         ? "cached"
         : "fresh";
+  const dataQualityState = String(
+    dataQuality?.status || ""
+  ).toLowerCase();
+  const dataQualityRequiresReview = [
+    "degraded",
+    "unavailable",
+  ].includes(dataQualityState);
   const reviewRequired =
     ["fallback", "stale", "unavailable"].includes(marketState) ||
+    ["partial", "unavailable"].includes(historyState) ||
     shariahUnavailable ||
-    shariahStale;
+    shariahStale ||
+    dataQualityRequiresReview;
   const providerErrors = uniqueStrings([
     market?.success === false ? market?.error : null,
     history?.success === false ? history?.error : null,
@@ -137,6 +206,15 @@ function buildAnalysisMetadata({
       : null,
     marketState === "fallback"
       ? "Live quote unavailable; the latest completed historical close is displayed."
+      : null,
+    historyState === "cached"
+      ? "Historical OHLCV data came from the provider cache."
+      : null,
+    historyState === "partial"
+      ? `Historical evidence contains ${historyBarCount} bars; at least ${MINIMUM_RELIABLE_HISTORY_BARS} bars are required for full technical coverage.`
+      : null,
+    historyState === "unavailable"
+      ? "Historical OHLCV evidence is unavailable."
       : null,
     shariahUnavailable
       ? "AAOIFI screening evidence is unavailable; Shariah status requires review."
@@ -157,8 +235,10 @@ function buildAnalysisMetadata({
   const evidenceChecks = [
     priceContext?.analysisPrice !== null &&
       priceContext?.analysisPrice !== undefined,
-    history?.success === true,
-    shariah?.success === true && shariahStatus !== "UNKNOWN",
+    historyState === "fresh" || historyState === "cached",
+    shariah?.success === true &&
+      shariahStatus !== "UNKNOWN" &&
+      !shariahStale,
   ];
   const availableEvidence = evidenceChecks.filter(Boolean).length;
 
@@ -212,11 +292,14 @@ function buildAnalysisMetadata({
       },
       history: {
         provider: history?.provider || null,
-        state: history?.success === true ? "fresh" : "unavailable",
+        state: historyState,
         asOf: historicalTimestamp,
         interval: history?.interval || "1day",
-        fromCache: history?.performance?.cacheHit === true,
-        error: history?.success === false ? history?.error || null : null,
+        fromCache: isHistoryCacheHit(history),
+        barCount: historyBarCount,
+        minimumBarsRequired: MINIMUM_RELIABLE_HISTORY_BARS,
+        reviewRequired: ["partial", "unavailable"].includes(historyState),
+        error: historyState === "unavailable" ? history?.error || null : null,
       },
       fundamentals: {
         provider:
@@ -359,8 +442,12 @@ function buildTechnicalInvalidation({
   };
 }
 
-function buildFundamentalInvalidation({ shariah }) {
+function buildFundamentalInvalidation({ shariah, generatedAt }) {
   const status = shariah?.summary?.status || "UNKNOWN";
+  const shariahStale = isShariahEvidenceStale(
+    shariah,
+    generatedAt
+  );
   const debtToAssets = toFiniteNumber(
     shariah?.financialScreen?.ratios?.debtToAssets
   );
@@ -368,7 +455,9 @@ function buildFundamentalInvalidation({ shariah }) {
     shariah?.businessActivity?.revenueRatios?.impermissible
   );
   const evidenceAvailable =
-    shariah?.success === true && status !== "UNKNOWN";
+    shariah?.success === true &&
+    status !== "UNKNOWN" &&
+    !shariahStale;
   const boundaryViolated =
     status === "NON_COMPLIANT" ||
     (debtToAssets !== null && debtToAssets > 0.3) ||
@@ -385,7 +474,9 @@ function buildFundamentalInvalidation({ shariah }) {
     debtToAssets,
     impermissibleIncome,
     evidence: !evidenceAvailable
-      ? "Verified AAOIFI evidence is unavailable; review is required."
+      ? shariahStale
+        ? "AAOIFI evidence is stale; review is required."
+        : "Verified AAOIFI evidence is unavailable; review is required."
       : `AAOIFI status: ${status}; debt/assets: ${
           debtToAssets === null
             ? "unavailable"
@@ -428,5 +519,6 @@ module.exports = {
     TRUST_CONTRACT_VERSION,
     TECHNICAL_METHODOLOGY_VERSION,
     AAOIFI_METHODOLOGY_VERSION,
+    MINIMUM_RELIABLE_HISTORY_BARS,
   },
 };
