@@ -93,16 +93,26 @@ export interface MarketStructureData {
   provider?: string
   supportResistance?: {
     success?: boolean
+    status?: "COMPLETE" | "PARTIAL" | "UNAVAILABLE"
+    partialSuccess?: boolean
     provider?: string
     currentPrice?: number
     nearestSupport?: StructureReference | null
     nearestResistance?: StructureReference | null
     statistics?: {
+      receivedBars?: number
       barsAnalyzed?: number
+      droppedBars?: number
       rawPivotCount?: number
       totalZones?: number
       supportZonesBelowPrice?: number
       resistanceZonesAbovePrice?: number
+    }
+    evidence?: {
+      status?: "COMPLETE" | "PARTIAL" | "UNAVAILABLE"
+      coveragePercent?: number
+      required?: string[]
+      missing?: string[]
     }
     pricePosition?: {
       insideZone?: boolean

@@ -22,6 +22,15 @@ function normalizeSymbol(symbol) {
 }
 
 function toFiniteNumber(value, fallback = null) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === "" ||
+    typeof value === "boolean"
+  ) {
+    return fallback;
+  }
+
   const number = Number(value);
 
   return Number.isFinite(number)
@@ -232,13 +241,19 @@ function normalizeBars(rawBars) {
       if (
         high < low ||
         high <= 0 ||
-        low <= 0
+        low <= 0 ||
+        open <= 0 ||
+        close <= 0 ||
+        open < low ||
+        open > high ||
+        close < low ||
+        close > high
       ) {
         return null;
       }
 
       return {
-        index,
+        sourceIndex: index,
 
         date:
           bar.date ??
@@ -262,7 +277,11 @@ function normalizeBars(rawBars) {
         volume
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((bar, index) => ({
+      ...bar,
+      index
+    }));
 }
 
 // ==================================================
@@ -1140,6 +1159,18 @@ function analyzeSupportResistance({
   const normalizedBars =
     normalizeBars(bars);
 
+  const receivedBars =
+    Array.isArray(bars)
+      ? bars.length
+      : 0;
+
+  const droppedBars =
+    Math.max(
+      0,
+      receivedBars -
+        normalizedBars.length
+    );
+
   const normalizedCurrentPrice =
     toFiniteNumber(
       currentPrice,
@@ -1187,12 +1218,12 @@ function analyzeSupportResistance({
 
       diagnostics: {
         receivedBars:
-          Array.isArray(bars)
-            ? bars.length
-            : 0,
+          receivedBars,
 
         validBars:
-          normalizedBars.length
+          normalizedBars.length,
+
+        droppedBars
       },
 
       performance: {
@@ -1326,15 +1357,54 @@ function analyzeSupportResistance({
 
   const warnings = [];
 
+  const evidenceStatus =
+    swingHighs.length > 0 &&
+    swingLows.length > 0
+      ? "COMPLETE"
+      : swingHighs.length > 0 ||
+          swingLows.length > 0
+        ? "PARTIAL"
+        : "UNAVAILABLE";
+
+  const evidenceCoveragePercent =
+    (
+      Number(
+        swingHighs.length > 0
+      ) +
+      Number(
+        swingLows.length > 0
+      )
+    ) * 50;
+
+  const missingEvidence = [];
+
   if (swingHighs.length === 0) {
+    missingEvidence.push(
+      "SWING_HIGHS"
+    );
+
     warnings.push(
       "No confirmed swing highs were detected."
     );
   }
 
   if (swingLows.length === 0) {
+    missingEvidence.push(
+      "SWING_LOWS"
+    );
+
     warnings.push(
       "No confirmed swing lows were detected."
+    );
+  }
+
+  if (droppedBars > 0) {
+    warnings.push(
+      `${droppedBars} malformed OHLCV ${
+        droppedBars === 1
+          ? "bar was"
+          : "bars were"
+      } excluded before swing detection.`
     );
   }
 
@@ -1351,7 +1421,12 @@ function analyzeSupportResistance({
   }
 
   return {
-    success: true,
+    success:
+      evidenceStatus !==
+      "UNAVAILABLE",
+    status: evidenceStatus,
+    partialSuccess:
+      evidenceStatus === "PARTIAL",
     provider: "AzaLens",
     symbol: normalizedSymbol,
 
@@ -1389,8 +1464,12 @@ function analyzeSupportResistance({
     pricePosition,
 
     statistics: {
+      receivedBars,
+
       barsAnalyzed:
         normalizedBars.length,
+
+      droppedBars,
 
       swingHighsDetected:
         swingHighs.length,
@@ -1423,6 +1502,19 @@ function analyzeSupportResistance({
     },
 
     warnings,
+
+    evidence: {
+      status: evidenceStatus,
+      coveragePercent:
+        evidenceCoveragePercent,
+      required:
+        [
+          "SWING_HIGHS",
+          "SWING_LOWS"
+        ],
+      missing:
+        missingEvidence
+    },
 
     dataSource:
       "Shared OHLCV",
