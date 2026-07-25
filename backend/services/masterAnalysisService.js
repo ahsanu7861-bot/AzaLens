@@ -1773,17 +1773,17 @@ async function getMasterAnalysis(
 
     const trendResult =
       analyzeTrend(
-        ema.signal,
-        sma.signal,
-        macd.signal,
-        adx.signal
+        ema,
+        sma,
+        macd,
+        adx
       );
 
     const trend = {
-      success: true,
-
       provider:
         ema.provider ||
+        sma.provider ||
+        macd.provider ||
         "TwelveData",
 
       symbol:

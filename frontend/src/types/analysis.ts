@@ -201,9 +201,21 @@ export interface AnalysisResponse {
     fundamentals?: FundamentalsData
 
     trend: {
+      success?: boolean
+      status?: "COMPLETE" | "PARTIAL" | "UNAVAILABLE"
       trend: string
-      score: number
+      score: number | null
       provider?: string
+      details?: string[]
+      evidence?: {
+        directionalAvailable: number
+        directionalRequired: number
+        directionalTotal: number
+        coveragePercent: number
+        missing: string[]
+        adxAvailable: boolean
+      }
+      warning?: string | null
     }
 
     agreement: {
