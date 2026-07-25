@@ -104,16 +104,32 @@ function DataProvenanceBadge({
   const cautious =
     metadata.state === "cached" ||
     metadata.state === "fallback" ||
+    metadata.state === "stale" ||
+    metadata.state === "unavailable" ||
     metadata.reviewRequired === true;
   const feedLabel =
     metadata.state === "realtime"
       ? "Real-time"
       : metadata.state === "delayed"
-        ? `Real-time${metadata.delayMinutes ? ` (${metadata.delayMinutes}m delay)` : ""}`
+        ? `Delayed${metadata.delayMinutes ? ` (${metadata.delayMinutes}m)` : ""}`
         : metadata.state === "cached"
           ? `Cached (${formatAge(metadata.asOf, now)})`
-          : `Fallback (${formatAge(metadata.asOf, now)})`;
-  const source = metadata.filingSource || metadata.marketSource;
+          : metadata.state === "fallback"
+            ? `Fallback (${formatAge(metadata.asOf, now)})`
+            : metadata.state === "stale"
+              ? `Stale (${formatAge(metadata.asOf, now)})`
+              : "Unavailable";
+  const source = [metadata.marketSource, metadata.filingSource]
+    .filter(
+      (value, index, values): value is string =>
+        Boolean(value) && values.indexOf(value) === index,
+    )
+    .join(" · ");
+  const limitations = metadata.knownLimitations ?? [];
+  const title = [
+    `As of ${new Date(toMilliseconds(metadata.asOf)).toLocaleString()}`,
+    ...limitations,
+  ].join("\n");
 
   return (
     <span
@@ -123,7 +139,7 @@ function DataProvenanceBadge({
           ? "border-caution/30 bg-caution/15 text-caution"
           : "border-stroke-strong bg-surface-soft text-ink-soft",
       ].join(" ")}
-      title={`As of ${new Date(toMilliseconds(metadata.asOf)).toLocaleString()}`}
+      title={title}
     >
       <Clock3 size={12} className="shrink-0" />
       <span className="break-words">
@@ -187,13 +203,13 @@ export default function StockHeader({
   const exchange = marketData?.exchange?.trim() || "Exchange unavailable";
   const shariahStatus = data?.shariah?.summary?.status;
   const metadata: DataFreshnessStatus = data?.metadata ?? {
-    state: "delayed",
+    state: "unavailable",
     asOf: marketData?.timestamp ?? Date.now(),
-    delayMinutes: 15,
-    marketSource: data?.market?.provider
-      ? `${data.market.provider} market feed`
-      : "Market feed",
-    filingSource: data?.shariah?.provider?.name ?? null,
+    marketSource: data?.market?.provider ?? null,
+    reviewRequired: true,
+    knownLimitations: [
+      "The analysis API did not return provenance metadata.",
+    ],
   };
 
   useEffect(() => {

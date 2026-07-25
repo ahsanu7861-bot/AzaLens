@@ -135,6 +135,8 @@ export interface ConfluenceData {
 }
 
 export interface AnalysisResponse {
+  success?: boolean
+  error?: string
   data: {
     metadata?: DataFreshnessStatus
     thesisInvalidation?: ThesisInvalidation

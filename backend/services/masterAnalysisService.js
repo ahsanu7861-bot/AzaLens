@@ -24,6 +24,13 @@ const {
 );
 
 const {
+  buildAnalysisMetadata,
+  buildThesisInvalidation
+} = require(
+  "./analysisTrustService"
+);
+
+const {
   analyzeSupportResistance
 } = require(
   "../analysis/structure/supportResistanceEngine"
@@ -1735,6 +1742,43 @@ async function getMasterAnalysis(
         internalAnalysis
       );
 
+    const metadata =
+      buildAnalysisMetadata({
+        symbol:
+          normalizedSymbol,
+
+        generatedAt,
+
+        market,
+
+        history,
+
+        priceContext,
+
+        shariah,
+
+        dataQuality
+      });
+
+    const thesisInvalidation =
+      buildThesisInvalidation({
+        generatedAt,
+
+        market,
+
+        priceContext,
+
+        history,
+
+        agreement,
+
+        confluence,
+
+        indicators,
+
+        shariah
+      });
+
     const analysisDurationMs =
       Date.now() -
       analysisStartedAt;
@@ -1833,6 +1877,10 @@ async function getMasterAnalysis(
       performance,
 
       data: {
+        metadata,
+
+        thesisInvalidation,
+
         market,
 
         priceContext,
