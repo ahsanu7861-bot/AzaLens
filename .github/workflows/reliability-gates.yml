@@ -39,7 +39,11 @@ jobs:
       - name: Run deterministic reliability gates
         env:
           NODE_ENV: test
+          APP_ENV: test
         run: npm run test:ci
+
+      - name: Validate migration ordering and naming
+        run: npm run check:migrations
 
   frontend-production:
     name: Frontend tests, lint, types, and production build
@@ -77,6 +81,45 @@ jobs:
 
       - name: Enforce frontend performance budgets
         run: npm run test:performance
+
+  release-artifact:
+    name: Versioned release artifact and provenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build immutable source artifacts
+        run: |
+          mkdir -p release
+          git archive --format=tar.gz --prefix=azalens-backend/ \
+            -o release/azalens-backend-${GITHUB_SHA::7}.tar.gz \
+            HEAD backend
+          git archive --format=tar.gz --prefix=azalens-frontend/ \
+            -o release/azalens-frontend-${GITHUB_SHA::7}.tar.gz \
+            HEAD frontend
+          RELEASE_VERSION="0.1.0-${GITHUB_SHA::7}" \
+            node backend/scripts/createReleaseManifest.js \
+            release/manifest.json release/*.tar.gz
+
+      - name: Attest artifact provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release/*.tar.gz
+
+      - name: Upload versioned release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: azalens-release-${{ github.sha }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 30
 
   frontend-browser:
     name: Browser journeys and accessibility

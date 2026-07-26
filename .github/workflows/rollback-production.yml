@@ -1,0 +1,56 @@
+name: Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      failed_commit:
+        description: Production commit being rolled back
+        required: true
+        type: string
+      rollback_commit:
+        description: Last known-good commit
+        required: true
+        type: string
+      confirmation:
+        description: Type ROLLBACK
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: Guarded production rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify rollback guardrails
+        env:
+          FAILED_COMMIT: ${{ inputs.failed_commit }}
+          ROLLBACK_COMMIT: ${{ inputs.rollback_commit }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          test "$CONFIRMATION" = "ROLLBACK"
+          test "$(git rev-parse origin/main)" = "$(git rev-parse "$FAILED_COMMIT")"
+          git merge-base --is-ancestor "$ROLLBACK_COMMIT" "$FAILED_COMMIT"
+
+      - name: Restore last known-good source
+        env:
+          FAILED_COMMIT: ${{ inputs.failed_commit }}
+        run: |
+          git config user.name "AzaLens Release Bot"
+          git config user.email "release-bot@azalens.com"
+          git revert --no-edit "$FAILED_COMMIT"
+          git push origin HEAD:main

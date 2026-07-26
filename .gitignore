@@ -20,6 +20,7 @@ build/
 coverage/
 **/.env
 **/.env.*
+!.env.example
 *.zip
 
 # Local backup archives

@@ -3,6 +3,9 @@ require("dotenv").config();
 const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
+const {
+  getEnvironmentConfig
+} = require("./config/environment");
 
 const {
   buildLivenessSnapshot,
@@ -48,6 +51,8 @@ const portfolioRoutes = require("./routes/portfolioRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const environmentConfig =
+  getEnvironmentConfig(process.env);
 
 
 // ============================
@@ -158,7 +163,9 @@ app.get("/ops/metrics", (req, res) => {
 app.get("/version", (req, res) => {
   res.json({
     project: "AzaLens",
-    version: "0.1.0"
+    version: environmentConfig.releaseVersion,
+    environment: environmentConfig.environment,
+    features: environmentConfig.featureFlags
   });
 });
 

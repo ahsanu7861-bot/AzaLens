@@ -1,0 +1,68 @@
+name: Staging Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: Commit deployed to staging
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-release
+  cancel-in-progress: false
+
+jobs:
+  validate-staging:
+    name: Validate staging before production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_commit }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate staging environment contract
+        env:
+          APP_ENV: staging
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+          OBSERVABILITY_METRICS_TOKEN: ${{ secrets.OBSERVABILITY_METRICS_TOKEN }}
+          FEATURE_SCANNER_ENABLED: ${{ vars.FEATURE_SCANNER_ENABLED || 'false' }}
+          FEATURE_PORTFOLIO_PRO_ENABLED: ${{ vars.FEATURE_PORTFOLIO_PRO_ENABLED || 'false' }}
+          FEATURE_LIVE_SHARIAH_ENABLED: ${{ vars.FEATURE_LIVE_SHARIAH_ENABLED || 'false' }}
+          SHARIAH_DATA_MODE: ${{ vars.SHARIAH_DATA_MODE || 'offline' }}
+          HALAL_TERMINAL_API_KEY: ${{ secrets.HALAL_TERMINAL_API_KEY }}
+        run: node backend/scripts/validateEnvironment.js
+
+      - name: Verify staging application contracts
+        env:
+          HEALTH_FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+          HEALTH_API_URL: ${{ vars.API_URL }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          HEALTH_CHECK_SYMBOL: AAPL
+          HEALTH_MAX_DEPLOYMENT_ATTEMPTS: "30"
+          HEALTH_DEPLOYMENT_POLL_INTERVAL_MS: "15000"
+          OBSERVABILITY_METRICS_TOKEN: ${{ secrets.OBSERVABILITY_METRICS_TOKEN }}
+          HEALTH_REPORT_PATH: backend/staging-health-report.json
+        run: node backend/scripts/releaseHealthCheck.js
+
+      - name: Upload staging evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-health-${{ inputs.expected_commit }}
+          path: backend/staging-health-report.json
+          if-no-files-found: warn
+          retention-days: 30
