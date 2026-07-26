@@ -11,6 +11,7 @@
     "test:confluence-actionability": "node tests/testConfluenceActionability.js",
     "test:analysis-trust": "node tests/testAnalysisTrustService.js",
     "test:finnhub-resilience": "node tests/testFinnhubProviderResilience.js",
+    "test:load-resilience": "node tests/testLoadResilience.js",
     "test:support-resistance-reliability": "node tests/testSupportResistanceReliability.js",
     "test:multi-symbol-consistency": "node tests/testMultiSymbolConsistency.js",
     "test:observability": "node tests/testObservability.js",

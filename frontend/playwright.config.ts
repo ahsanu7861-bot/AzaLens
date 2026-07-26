@@ -9,6 +9,12 @@ export default defineConfig({
   timeout: 45_000,
   expect: {
     timeout: 15_000,
+    toHaveScreenshot: {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.005,
+      threshold: 0.2,
+    },
   },
   reporter: process.env.CI ? "github" : "list",
   projects: [
@@ -34,7 +40,10 @@ export default defineConfig({
   },
   use: {
     baseURL: "http://127.0.0.1:5173",
+    locale: "en-US",
+    reducedMotion: "reduce",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    timezoneId: "UTC",
   },
 });

@@ -10,6 +10,7 @@ const deterministicSuites = [
   "testConfluenceActionability.js",
   "testFinnhubProviderResilience.js",
   "testFundamentalsCoverage.js",
+  "testLoadResilience.js",
   "testMultiSymbolConsistency.js",
   "testObservability.js",
   "testPhase45Stability.js",
