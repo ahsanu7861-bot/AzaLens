@@ -2,13 +2,15 @@ import { Crown, X } from "lucide-react";
 import {
   cloneElement,
   isValidElement,
-  useEffect,
+  useCallback,
   useId,
+  useRef,
   useState,
   type ReactElement,
   type ReactNode,
 } from "react";
 
+import { useDialogFocus } from "../../hooks/useDialogFocus";
 import type { ProFeatureTrigger } from "../../types/overview";
 
 const DEFAULT_DESCRIPTION =
@@ -28,15 +30,16 @@ export default function ProFeatureWrapper({
   const [open, setOpen] = useState(false);
   const titleId = useId();
   const descriptionId = useId();
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeDialog = useCallback(() => {
+    setOpen(false);
+  }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  useDialogFocus({
+    open,
+    dialogRef,
+    onClose: closeDialog,
+  });
 
   if (!isValidElement(children)) return null;
 
@@ -64,14 +67,16 @@ export default function ProFeatureWrapper({
         <div
           className="fixed inset-0 z-[100] grid place-items-end bg-black/55 p-3 backdrop-blur-sm sm:place-items-center"
           onMouseDown={(event) => {
-            if (event.currentTarget === event.target) setOpen(false);
+            if (event.currentTarget === event.target) closeDialog();
           }}
         >
           <section
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
             aria-describedby={descriptionId}
+            tabIndex={-1}
             className="az-popover w-full max-w-md rounded-3xl p-5 sm:p-6"
           >
             <div className="flex items-start gap-3">
@@ -92,7 +97,7 @@ export default function ProFeatureWrapper({
               <button
                 type="button"
                 aria-label="Close Pro preview"
-                onClick={() => setOpen(false)}
+                onClick={closeDialog}
                 className="az-icon-button !h-11 !w-11"
               >
                 <X size={18} />

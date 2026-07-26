@@ -5,7 +5,11 @@ import ProductPreview from "../components/landing/ProductPreview";
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="min-h-screen bg-slate-950 text-white"
+    >
       <Navbar />
       <Hero />
       <MarketSnapshot />

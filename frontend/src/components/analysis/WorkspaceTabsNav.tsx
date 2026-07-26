@@ -6,7 +6,12 @@ import {
   LayoutDashboard,
   ShieldCheck,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 
 import type { WorkspaceTab } from "../../types/overview";
 import type { WorkspaceId } from "./workspaces";
@@ -30,6 +35,7 @@ export default function WorkspaceTabsNav({
   onChange,
 }: WorkspaceTabsNavProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [showRightFade, setShowRightFade] = useState(false);
 
   useEffect(() => {
@@ -51,6 +57,50 @@ export default function WorkspaceTabsNav({
     };
   }, []);
 
+  function moveFocus(nextIndex: number) {
+    const nextWorkspace = workspaces[nextIndex];
+    if (!nextWorkspace) return;
+
+    onChange(nextWorkspace.id);
+    const nextTab = tabRefs.current[nextIndex];
+    nextTab?.focus({ preventScroll: true });
+    nextTab?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "nearest",
+      inline: "nearest",
+    });
+  }
+
+  function handleKeyDown(
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentIndex: number,
+  ) {
+    let nextIndex: number | null = null;
+
+    switch (event.key) {
+      case "ArrowRight":
+        nextIndex = (currentIndex + 1) % workspaces.length;
+        break;
+      case "ArrowLeft":
+        nextIndex =
+          (currentIndex - 1 + workspaces.length) % workspaces.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = workspaces.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    moveFocus(nextIndex);
+  }
+
   return (
     <div className="relative">
       <div
@@ -58,15 +108,23 @@ export default function WorkspaceTabsNav({
         className="az-tab-scroller no-scrollbar"
         role="tablist"
         aria-label="Analysis workspaces"
+        aria-orientation="horizontal"
       >
-        {workspaces.map(({ id, label, icon: Icon, ariaLabel }) => (
+        {workspaces.map(({ id, label, icon: Icon, ariaLabel }, index) => (
           <button
             key={id}
+            ref={(element) => {
+              tabRefs.current[index] = element;
+            }}
+            id={`workspace-tab-${id}`}
             type="button"
             role="tab"
             aria-label={ariaLabel}
             aria-selected={activeWorkspace === id}
+            aria-controls={`workspace-panel-${id}`}
+            tabIndex={activeWorkspace === id ? 0 : -1}
             onClick={() => onChange(id)}
+            onKeyDown={(event) => handleKeyDown(event, index)}
             className={[
               "az-workspace-tab min-h-[44px] min-w-[44px]",
               activeWorkspace === id ? "az-workspace-tab-active" : "",

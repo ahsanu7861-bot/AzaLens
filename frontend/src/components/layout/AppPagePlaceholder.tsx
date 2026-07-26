@@ -14,7 +14,11 @@ export default function AppPagePlaceholder({
   icon: Icon,
 }: AppPagePlaceholderProps) {
   return (
-    <main className="app-atmosphere min-h-[calc(100dvh-68px)] px-4 py-6 sm:px-6 lg:px-8">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="app-atmosphere min-h-[calc(100dvh-68px)] px-4 py-6 sm:px-6 lg:px-8"
+    >
       <div className="relative mx-auto max-w-[1680px]">
         <section className="az-card overflow-hidden p-6 sm:p-8">
           <div className="max-w-2xl">

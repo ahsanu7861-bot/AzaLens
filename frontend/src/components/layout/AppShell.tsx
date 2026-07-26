@@ -10,12 +10,14 @@ import {
   Search,
   Settings,
 } from "lucide-react";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
-import CommandCenter from "../command/CommandCenter";
 import { useCommandStore } from "../../store/commandStore";
 import ThemeToggle from "./ThemeToggle";
+
+const loadCommandCenter = () => import("../command/CommandCenter");
+const CommandCenter = lazy(loadCommandCenter);
 
 const primaryNavigation = [
   {
@@ -79,6 +81,7 @@ function RailLink({
 
 export default function AppShell() {
   const setCommandOpen = useCommandStore((state) => state.setOpen);
+  const commandOpen = useCommandStore((state) => state.open);
   const location = useLocation();
 
   function isItemActive(to: string) {
@@ -179,6 +182,8 @@ export default function AppShell() {
           <button
             type="button"
             onClick={() => setCommandOpen(true)}
+            onFocus={() => void loadCommandCenter()}
+            onPointerEnter={() => void loadCommandCenter()}
             className="az-command-trigger ml-auto max-w-xl flex-1 sm:ml-3 lg:ml-0"
           >
             <Search size={17} strokeWidth={1.8} />
@@ -247,7 +252,11 @@ export default function AppShell() {
         ))}
       </nav>
 
-      <CommandCenter />
+      {commandOpen && (
+        <Suspense fallback={null}>
+          <CommandCenter />
+        </Suspense>
+      )}
     </div>
   );
 }

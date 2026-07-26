@@ -69,8 +69,14 @@ jobs:
       - name: Run deterministic frontend tests
         run: npm test
 
+      - name: Verify WCAG AA color contrast tokens
+        run: npm run test:contrast
+
       - name: Build frontend
         run: npm run build
+
+      - name: Enforce frontend performance budgets
+        run: npm run test:performance
 
   frontend-browser:
     name: Browser journeys and accessibility

@@ -30,7 +30,7 @@
   --az-surface-inset: #0a0e1a;
   --az-text: #f0f4f8;
   --az-text-soft: #94a3b8;
-  --az-text-muted: #64748b;
+  --az-text-muted: #7f8ca1;
   --az-stroke: rgba(255, 255, 255, 0.08);
   --az-stroke-strong: rgba(255, 255, 255, 0.18);
   --az-brand: #06b6d4;
@@ -39,9 +39,9 @@
   --az-positive: #10b981;
   --az-positive-soft: rgba(16, 185, 129, 0.15);
   --az-caution: #f59e0b;
-  --az-critical: #ef4444;
+  --az-critical: #f87171;
   --az-intelligence: #06b6d4;
-  --az-shariah: #8b5cf6;
+  --az-shariah: #a78bfa;
   --az-card-border: rgba(255, 255, 255, 0.08);
   --az-ring: rgba(6, 182, 212, 0.55);
   --az-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
@@ -64,13 +64,13 @@
   --az-text-muted: #526175;
   --az-stroke: rgba(15, 23, 42, 0.15);
   --az-stroke-strong: rgba(15, 23, 42, 0.28);
-  --az-brand: #0891b2;
-  --az-brand-strong: #0e7490;
+  --az-brand: #0e7490;
+  --az-brand-strong: #155e75;
   --az-brand-soft: rgba(6, 182, 212, 0.15);
   --az-positive: #047857;
   --az-positive-soft: rgba(16, 185, 129, 0.15);
-  --az-caution: #b45309;
-  --az-critical: #dc2626;
+  --az-caution: #92400e;
+  --az-critical: #b91c1c;
   --az-intelligence: #0e7490;
   --az-shariah: #6d28d9;
   --az-card-border: rgba(15, 23, 42, 0.15);
@@ -147,6 +147,27 @@ a {
 :focus-visible {
   outline: 2px solid var(--az-ring);
   outline-offset: 3px;
+}
+
+.az-skip-link {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 200;
+  border: 2px solid var(--az-brand);
+  border-radius: 10px;
+  background: var(--az-surface);
+  padding: 10px 14px;
+  box-shadow: 0 12px 30px var(--az-shadow-strong);
+  color: var(--az-text);
+  font-size: 13px;
+  font-weight: 700;
+  transform: translateY(calc(-100% - 20px));
+  transition: transform 140ms ease-out;
+}
+
+.az-skip-link:focus {
+  transform: translateY(0);
 }
 
 * {

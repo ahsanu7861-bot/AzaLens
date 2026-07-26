@@ -1,31 +1,72 @@
 import {
   AlertTriangle,
-  BrainCircuit,
   RefreshCw,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  type ReactNode,
+} from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
-import StockChart from "../components/StockChart";
-import {
-  AIVerdict,
-  IslamicCompliance,
-  RiskAssessment,
-  TechnicalEvidence,
-} from "../components/analysis";
-import FundamentalsWorkspace from "../components/analysis/FundamentalsWorkspace";
 import StockHeader from "../components/analysis/StockHeader";
 import WorkspaceTabs from "../components/analysis/WorkspaceTabs";
 import {
   workspaceIds,
   type WorkspaceId,
 } from "../components/analysis/workspaces";
-import ImportantLevels from "../components/dashboard/ImportantLevels";
-import AIExplanation from "../components/dashboard/AIExplanation";
 import { useAnalysis } from "../hooks/useAnalysis";
+
+const FundamentalsWorkspace = lazy(
+  () => import("../components/analysis/FundamentalsWorkspace"),
+);
+const IslamicCompliance = lazy(
+  () => import("../components/analysis/IslamicCompliance"),
+);
+const RiskAssessment = lazy(
+  () => import("../components/analysis/RiskAssessment"),
+);
+const TechnicalEvidence = lazy(
+  () => import("../components/analysis/TechnicalEvidence"),
+);
+const OverviewWorkspace = lazy(
+  () => import("../components/analysis/OverviewWorkspace"),
+);
+const ThesisWorkspace = lazy(
+  () => import("../components/analysis/ThesisWorkspace"),
+);
+
+const workspaceLabels: Record<WorkspaceId, string> = {
+  overview: "overview",
+  technical: "technical evidence",
+  fundamentals: "fundamentals",
+  risk: "risk",
+  shariah: "Shariah",
+  thesis: "AI thesis",
+};
 
 function isWorkspaceId(value: string | null): value is WorkspaceId {
   return workspaceIds.includes(value as WorkspaceId);
+}
+
+function WorkspaceLoader({ workspace }: { workspace: WorkspaceId }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="az-card grid min-h-48 place-items-center p-6 text-center"
+    >
+      <div>
+        <div
+          aria-hidden="true"
+          className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-brand/25 border-t-brand"
+        />
+        <p className="mt-4 text-sm font-medium text-ink-muted">
+          Preparing the {workspaceLabels[workspace]} workspace…
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function AnalysisPage() {
@@ -53,66 +94,11 @@ export default function AnalysisPage() {
 
   const workspaceContent = {
     overview: (
-      <div className="space-y-5">
-        <AIVerdict
-          direction={data?.agreement?.direction ?? data?.agreement?.agreement}
-          trend={data?.trend?.trend}
-          confidence={data?.agreement?.confidence}
-          summary={
-            data?.agreement?.agreementSummary ??
-            data?.explanation?.overallAssessment
-          }
-          invalidation={data?.thesisInvalidation}
-          isLoading={isLoading}
-        />
-
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-          <StockChart symbol={normalizedSymbol} />
-
-          <aside className="space-y-5">
-            <ImportantLevels
-              support={data?.confluence?.nearestSupport}
-              actionableConfluence={data?.confluence?.actionableZone}
-              strongestConfluence={data?.confluence?.strongestZone}
-              actionableDistancePercent={
-                data?.confluence?.methodology?.actionableDistancePercent ?? 5
-              }
-            />
-
-            <section className="az-card az-secondary-card p-5">
-              <p className="az-eyebrow">Risk context</p>
-              <div className="mt-4 space-y-4">
-                <div className="flex items-center justify-between gap-4 border-b border-stroke pb-4">
-                  <span className="text-xs text-ink-muted">Technical risk</span>
-                  <span className="text-sm font-semibold text-caution">
-                    {isLoading
-                      ? "—"
-                      : data?.risk?.riskLevel || "Review required"}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-xs text-ink-muted">ATR volatility</span>
-                  <span className="text-sm font-semibold text-ink">
-                    {isLoading
-                      ? "—"
-                      : typeof data?.risk?.atrPercent === "number"
-                        ? `${data.risk.atrPercent.toFixed(2)}%`
-                        : "Unavailable"}
-                  </span>
-                </div>
-              </div>
-
-              <p className="mt-5 text-xs leading-5 text-ink-muted">
-                {isLoading
-                  ? "Loading risk context…"
-                  : data?.risk?.riskSummary ||
-                    "Risk context is unavailable for this analysis."}
-              </p>
-            </section>
-          </aside>
-        </div>
-      </div>
+      <OverviewWorkspace
+        symbol={normalizedSymbol}
+        data={data}
+        isLoading={isLoading}
+      />
     ),
     technical: (
       <TechnicalEvidence
@@ -140,73 +126,7 @@ export default function AnalysisPage() {
       <IslamicCompliance data={data?.shariah} isLoading={isLoading} />
     ),
     thesis: (
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]">
-        <AIExplanation
-          trend={data?.trend?.trend ?? "Unavailable"}
-          confidence={data?.agreement?.confidence ?? "—"}
-          risk={data?.risk?.riskLevel ?? "Review required"}
-          shariah={
-            data?.shariah?.summary?.status === "COMPLIANT"
-              ? "Compliant"
-              : data?.shariah?.summary?.status === "NON_COMPLIANT"
-                ? "Non-compliant"
-                : "Review required"
-          }
-          explanation={
-            data?.agreement?.agreementSummary ??
-            data?.explanation?.overallAssessment ??
-            "AzaLens is waiting for enough verified evidence to explain this thesis."
-          }
-        />
-
-        <section className="az-card p-5 sm:p-6">
-          <div className="flex items-start gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-intelligence/10 text-intelligence">
-              <BrainCircuit size={19} strokeWidth={1.8} />
-            </span>
-            <div>
-              <p className="az-eyebrow text-intelligence">Evidence narrative</p>
-              <h2 className="mt-2 font-display text-xl font-semibold text-ink">
-                What supports or challenges the thesis
-              </h2>
-            </div>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {isLoading ? (
-              Array.from({ length: 4 }, (_, index) => (
-                <div
-                  key={index}
-                  className="h-16 animate-pulse rounded-2xl border border-stroke bg-surface-soft"
-                />
-              ))
-            ) : (data?.agreement?.agreementDetails?.length ?? 0) > 0 ? (
-              data?.agreement?.agreementDetails?.map((detail, index) => (
-                <div
-                  key={`${detail}-${index}`}
-                  className="flex gap-3 rounded-2xl border border-stroke bg-surface-soft p-4"
-                >
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-intelligence/10 text-xs font-bold text-intelligence">
-                    {index + 1}
-                  </span>
-                  <p className="text-sm leading-6 text-ink-soft">{detail}</p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-caution/20 bg-caution/10 p-4 text-sm leading-6 text-ink-soft">
-                Detailed evidence points were not returned for this analysis.
-                AzaLens does not invent supporting reasons when the source data
-                is incomplete.
-              </div>
-            )}
-          </div>
-
-          <p className="mt-5 text-xs leading-5 text-ink-muted">
-            The thesis explains current evidence and invalidation—not a
-            guaranteed outcome or personalized instruction.
-          </p>
-        </section>
-      </div>
+      <ThesisWorkspace data={data} isLoading={isLoading} />
     ),
   } satisfies Record<WorkspaceId, ReactNode>;
 
@@ -229,7 +149,11 @@ export default function AnalysisPage() {
         </div>
       </div>
 
-      <main className="app-atmosphere min-h-[620px] px-3.5 py-4 pb-20 sm:px-6 sm:py-6 sm:pb-20 lg:px-8 lg:pb-6">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="app-atmosphere min-h-[620px] px-3.5 py-4 pb-20 sm:px-6 sm:py-6 sm:pb-20 lg:px-8 lg:pb-6"
+      >
         <div className="relative mx-auto max-w-[1680px]">
           {isError && (
             <div
@@ -260,10 +184,16 @@ export default function AnalysisPage() {
 
           <div
             key={activeWorkspace}
+            id={`workspace-panel-${activeWorkspace}`}
             role="tabpanel"
+            aria-labelledby={`workspace-tab-${activeWorkspace}`}
             className="az-workspace-enter"
           >
-            {workspaceContent[activeWorkspace]}
+            <Suspense
+              fallback={<WorkspaceLoader workspace={activeWorkspace} />}
+            >
+              {workspaceContent[activeWorkspace]}
+            </Suspense>
           </div>
         </div>
       </main>

@@ -11,7 +11,11 @@ import {
 
 export default function DashboardPage() {
   return (
-    <main className="app-atmosphere min-h-[calc(100dvh-68px)] px-5 py-8 sm:px-8 lg:px-10">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="app-atmosphere min-h-[calc(100dvh-68px)] px-5 py-8 sm:px-8 lg:px-10"
+    >
       <div className="relative mx-auto max-w-[1500px] space-y-8">
         <GreetingHero />
 

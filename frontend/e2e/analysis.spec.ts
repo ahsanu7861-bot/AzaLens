@@ -94,7 +94,6 @@ test("has no serious or critical automated accessibility violations", async ({
   ).toHaveAttribute("aria-selected", "true");
 
   const results = await new AxeBuilder({ page })
-    .disableRules(["color-contrast"])
     .analyze();
   const seriousViolations = results.violations.filter(
     ({ impact }) =>
@@ -102,6 +101,94 @@ test("has no serious or critical automated accessibility violations", async ({
   );
 
   expect(seriousViolations).toEqual([]);
+});
+
+test("supports keyboard workspace navigation", async ({ page }) => {
+  await page.goto("/analysis/AAPL");
+
+  const overview = page.getByRole("tab", { name: "Overview" });
+  await overview.focus();
+  await page.keyboard.press("ArrowRight");
+
+  const technical = page.getByRole("tab", { name: "Technical" });
+  await expect(technical).toBeFocused();
+  await expect(technical).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tabpanel")).toContainText(
+    /Technical Evidence/i,
+  );
+
+  await page.keyboard.press("End");
+  const thesis = page.getByRole("tab", { name: "AI Thesis" });
+  await expect(thesis).toBeFocused();
+  await expect(thesis).toHaveAttribute("aria-selected", "true");
+
+  await page.keyboard.press("Home");
+  await expect(overview).toBeFocused();
+  await expect(overview).toHaveAttribute("aria-selected", "true");
+});
+
+test("traps dialog focus and restores the invoking control", async ({
+  page,
+}) => {
+  await page.goto("/analysis/AAPL");
+
+  const searchTrigger = page.getByRole("button", {
+    name: /Search a company/i,
+  });
+  await searchTrigger.click();
+
+  const dialog = page.getByRole("dialog", {
+    name: "Search AzaLens",
+  });
+  await expect(dialog).toBeVisible();
+  await expect(
+    page.getByPlaceholder(/Search stocks by name/i),
+  ).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(searchTrigger).toBeFocused();
+
+  const exportTrigger = page.getByRole("button", {
+    name: "Export institutional report",
+  });
+  await exportTrigger.click();
+  await expect(
+    page.getByRole("dialog", { name: /Export/i }),
+  ).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("dialog", { name: /Export/i }),
+  ).toHaveCount(0);
+  await expect(exportTrigger).toBeFocused();
+});
+
+test("provides a working skip link and reduced-motion behavior", async ({
+  page,
+}) => {
+  await page.goto("/analysis/AAPL");
+
+  await page.keyboard.press("Tab");
+  const skipLink = page.getByRole("link", {
+    name: "Skip to main content",
+  });
+  await expect(skipLink).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#main-content")).toBeFocused();
+
+  const reducedMotion = await page.evaluate(
+    () =>
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  const animationDuration = await page
+    .getByRole("tabpanel")
+    .evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).animationDuration),
+    );
+
+  expect(reducedMotion).toBe(true);
+  expect(animationDuration).toBeLessThanOrEqual(0.001);
 });
 
 test("keeps workspace navigation usable on a phone viewport", async ({

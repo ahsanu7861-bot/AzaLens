@@ -1,18 +1,28 @@
 import { Command } from "cmdk";
 import { ArrowUpRight, Search } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { useDialogFocus } from "../../hooks/useDialogFocus";
 import { useCommandStore } from "../../store/commandStore";
 import { searchStocks } from "../../lib/searchStocks";
 
 export default function CommandCenter() {
   const { open, setOpen } = useCommandStore();
   const [query, setQuery] = useState("");
+  const dialogRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const closeDialog = useCallback(() => {
+    setOpen(false);
+  }, [setOpen]);
+
+  useDialogFocus({
+    open,
+    dialogRef,
+    onClose: closeDialog,
+  });
 
   if (!open) return null;
-
   const results = searchStocks(query);
 
   function openStock(ticker: string) {
@@ -23,15 +33,18 @@ export default function CommandCenter() {
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Search AzaLens"
       className="az-command-backdrop fixed inset-0 z-[80] flex items-start justify-center px-4 pt-[12vh] backdrop-blur-md"
-      onClick={() => setOpen(false)}
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target) closeDialog();
+      }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search AzaLens"
+        tabIndex={-1}
         className="az-command-dialog w-full max-w-2xl overflow-hidden rounded-[24px] border border-stroke bg-surface shadow-[0_30px_100px_var(--az-shadow-strong)]"
-        onClick={(e) => e.stopPropagation()}
       >
         <Command className="w-full bg-transparent">
           <div className="flex items-center border-b border-stroke px-4 sm:px-5">
