@@ -12,12 +12,14 @@ export default defineConfig({
       name: "desktop-chromium",
       use: {
         ...devices["Desktop Chrome"],
+        browserName: "chromium",
       },
     },
     {
       name: "mobile-chromium",
       use: {
         ...devices["iPhone 13"],
+        browserName: "chromium",
       },
     },
   ],
