@@ -2,6 +2,31 @@ import axios from "axios";
 import { api } from "./api";
 import type { AnalysisData, AnalysisResponse } from "../types/analysis";
 
+const REQUIRED_WORKSPACES = [
+  "market",
+  "indicators",
+  "fundamentals",
+  "risk",
+  "shariah",
+  "explanation",
+] as const satisfies ReadonlyArray<keyof AnalysisData>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasCompleteWorkspaceContract(
+  value: unknown,
+): value is AnalysisData {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return REQUIRED_WORKSPACES.every((workspace) =>
+    isRecord(value[workspace]),
+  );
+}
+
 export async function getStockAnalysis(
   symbol: string,
 ): Promise<AnalysisData> {
@@ -23,8 +48,7 @@ export async function getStockAnalysis(
 
     if (
       response.data?.success !== true ||
-      !response.data?.data ||
-      typeof response.data.data !== "object"
+      !hasCompleteWorkspaceContract(response.data?.data)
     ) {
       throw new Error(
         response.data?.error ||

@@ -42,7 +42,7 @@ jobs:
         run: npm run test:ci
 
   frontend-production:
-    name: Frontend lint, types, and production build
+    name: Frontend tests, lint, types, and production build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -65,6 +65,9 @@ jobs:
 
       - name: Lint frontend
         run: npm run lint
+
+      - name: Run deterministic frontend tests
+        run: npm test
 
       - name: Build frontend
         run: npm run build
