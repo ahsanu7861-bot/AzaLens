@@ -171,6 +171,7 @@ test("traps dialog focus and restores the invoking control", async ({
 test("provides a working skip link and reduced-motion behavior", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/analysis/AAPL");
 
   await page.keyboard.press("Tab");
