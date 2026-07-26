@@ -149,19 +149,23 @@ test("traps dialog focus and restores the invoking control", async ({
   await expect(dialog).toHaveCount(0);
   await expect(searchTrigger).toBeFocused();
 
-  const exportTrigger = page.getByRole("button", {
-    name: "Export institutional report",
+  const proFeatureTrigger = page.getByRole("button", {
+    name: /Choose a watchlist for/i,
   });
-  await exportTrigger.click();
+  await proFeatureTrigger.click();
   await expect(
-    page.getByRole("dialog", { name: /Export/i }),
+    page.getByRole("dialog", {
+      name: "Multi-watchlist workflows",
+    }),
   ).toBeVisible();
 
   await page.keyboard.press("Escape");
   await expect(
-    page.getByRole("dialog", { name: /Export/i }),
+    page.getByRole("dialog", {
+      name: "Multi-watchlist workflows",
+    }),
   ).toHaveCount(0);
-  await expect(exportTrigger).toBeFocused();
+  await expect(proFeatureTrigger).toBeFocused();
 });
 
 test("provides a working skip link and reduced-motion behavior", async ({

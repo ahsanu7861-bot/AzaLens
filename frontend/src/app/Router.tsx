@@ -96,12 +96,30 @@ function loadPage(page: ReactNode) {
 }
 
 function focusMainContent(event: MouseEvent<HTMLAnchorElement>) {
-  const main = document.querySelector<HTMLElement>("#main-content");
-  if (!main) return;
-
   event.preventDefault();
-  main.focus({ preventScroll: true });
-  main.scrollIntoView({ block: "start" });
+
+  const focusMain = () => {
+    const main = document.querySelector<HTMLElement>("#main-content");
+    if (!main) return false;
+
+    main.focus({ preventScroll: true });
+    main.scrollIntoView({ block: "start" });
+    return true;
+  };
+
+  if (focusMain()) return;
+
+  const root = document.querySelector("#root");
+  if (!root) return;
+
+  const observer = new MutationObserver(() => {
+    if (focusMain()) observer.disconnect();
+  });
+  observer.observe(root, {
+    childList: true,
+    subtree: true,
+  });
+  window.setTimeout(() => observer.disconnect(), 3_000);
 }
 
 export default function Router() {
