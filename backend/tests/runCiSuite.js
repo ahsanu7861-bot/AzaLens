@@ -14,6 +14,7 @@ const deterministicSuites = [
   "testObservability.js",
   "testPhase45Stability.js",
   "testReleaseHealthCheck.js",
+  "testReleaseScope.js",
   "testShariahAAOIFI.js",
   "testShariahCostProtection.js",
   "testSupportResistanceReliability.js",

@@ -36,11 +36,28 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: >-
+            ${{ github.event_name == 'workflow_run'
+              && github.event.workflow_run.head_sha
+              || github.sha }}
+          fetch-depth: 2
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Classify release deployment scope
+        id: release-scope
+        if: github.event_name == 'workflow_run'
+        env:
+          RELEASE_COMMIT: >-
+            ${{ github.event.workflow_run.head_sha }}
+        run: >-
+          git diff-tree --no-commit-id --name-only -r
+          "${{ github.event.workflow_run.head_sha }}"
+          | node backend/scripts/releaseScope.js
 
       - name: Run release-health checks
         env:
@@ -49,11 +66,11 @@ jobs:
           HEALTH_CHECK_SYMBOL: AAPL
           EXPECTED_COMMIT: >-
             ${{ github.event_name == 'workflow_run'
-              && github.event.workflow_run.head_sha
+              && steps.release-scope.outputs.expected_commit
               || inputs.expected_commit }}
           HEALTH_MAX_DEPLOYMENT_ATTEMPTS: >-
             ${{ github.event_name == 'workflow_run'
-              && '30'
+              && steps.release-scope.outputs.deployment_attempts
               || '1' }}
           HEALTH_DEPLOYMENT_POLL_INTERVAL_MS: "15000"
           HEALTH_REQUEST_TIMEOUT_MS: "45000"
