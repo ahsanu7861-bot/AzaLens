@@ -108,7 +108,9 @@ const historicalBars = Array.from(
     return {
       date: new Date(
         Date.UTC(2026, 5, index + 1),
-      ).toISOString(),
+      )
+        .toISOString()
+        .slice(0, 10),
       open: close - 0.4,
       high: close + 1,
       low: close - 1,
