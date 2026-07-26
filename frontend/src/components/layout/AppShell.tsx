@@ -181,6 +181,9 @@ export default function AppShell() {
 
           <button
             type="button"
+            aria-label="Search a company"
+            aria-haspopup="dialog"
+            aria-expanded={commandOpen}
             onClick={() => setCommandOpen(true)}
             onFocus={() => void loadCommandCenter()}
             onPointerEnter={() => void loadCommandCenter()}

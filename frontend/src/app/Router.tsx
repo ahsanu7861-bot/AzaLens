@@ -3,6 +3,7 @@ import {
   Suspense,
   useEffect,
   useRef,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 import {
@@ -94,10 +95,23 @@ function loadPage(page: ReactNode) {
   return <Suspense fallback={<PageLoader />}>{page}</Suspense>;
 }
 
+function focusMainContent(event: MouseEvent<HTMLAnchorElement>) {
+  const main = document.querySelector<HTMLElement>("#main-content");
+  if (!main) return;
+
+  event.preventDefault();
+  main.focus({ preventScroll: true });
+  main.scrollIntoView({ block: "start" });
+}
+
 export default function Router() {
   return (
     <BrowserRouter>
-      <a className="az-skip-link" href="#main-content">
+      <a
+        className="az-skip-link"
+        href="#main-content"
+        onClick={focusMainContent}
+      >
         Skip to main content
       </a>
       <RouteFocusManager />

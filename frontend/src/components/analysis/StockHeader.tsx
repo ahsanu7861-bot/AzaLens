@@ -229,7 +229,7 @@ export default function StockHeader({
     <section className="border-b border-stroke bg-canvas/92 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1680px] flex-col gap-3 px-3.5 py-3 sm:px-6 sm:py-4 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-brand/20 bg-brand/10 font-display text-sm font-bold text-brand">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-brand/20 bg-brand/10 font-display text-sm font-bold text-brand-strong">
             {symbol.slice(0, 2)}
           </div>
 

@@ -58,7 +58,6 @@ export default function CommandCenter() {
               onValueChange={setQuery}
               placeholder="Search stocks by name, ticker, or sector..."
               className="w-full bg-transparent py-5 text-sm text-ink outline-none placeholder:text-ink-muted"
-              autoFocus
             />
             <kbd className="rounded-lg border border-stroke bg-surface-soft px-2 py-1 text-[10px] font-semibold text-ink-muted">
               ESC
