@@ -32,8 +32,6 @@ const { getOBV } = require("./services/obvService");
 const { getRVOL } = require("./services/rvolService");
 const { getVolumeSpike } = require("./services/volumeSpikeService");
 const { getCandlestick } = require("./services/candlestickService");
-const { getTrend } = require("./services/trendService");
-const { getAgreement } = require("./services/agreementService");
 
 const {
   getMasterAnalysis
@@ -475,51 +473,13 @@ app.get("/candlestick/:symbol", async (req, res) => {
   }
 });
 
-// ============================
-// Trend Engine
-// ============================
-
-app.get("/trend/:symbol", async (req, res) => {
-  try {
-    const symbol = req.params.symbol
-      .trim()
-      .toUpperCase();
-
-    const result = await getTrend(symbol);
-
-    res.json(result);
-  } catch (error) {
-    console.error("Trend Route Error:", error);
-
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// ============================
-// Agreement Engine
-// ============================
-
-app.get("/agreement/:symbol", async (req, res) => {
-  try {
-    const symbol = req.params.symbol
-      .trim()
-      .toUpperCase();
-
-    const result = await getAgreement(symbol);
-
-    res.json(result);
-  } catch (error) {
-    console.error("Agreement Route Error:", error);
-
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
+/*
+  The legacy /trend and /agreement routes were removed:
+  they served the trade-optimization verdict directly and
+  bypassed the Shariah compliance gate. Verdict output is
+  only available through /api/analyze, where the gate is
+  enforced server-side.
+*/
 
 // ============================
 // Master Analysis Engine

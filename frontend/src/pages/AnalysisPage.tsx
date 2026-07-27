@@ -10,6 +10,7 @@ import {
 import { useParams, useSearchParams } from "react-router-dom";
 
 import StockHeader from "../components/analysis/StockHeader";
+import VerdictWithheld from "../components/analysis/VerdictWithheld";
 import WorkspaceTabs from "../components/analysis/WorkspaceTabs";
 import {
   workspaceIds,
@@ -80,6 +81,18 @@ export default function AnalysisPage() {
     ? requestedWorkspace
     : "overview";
 
+  /*
+    Default-deny on the client too: once data has arrived, the
+    verdict only renders when the backend gate explicitly says
+    unlocked. This mirrors the server-side gate in
+    complianceGateService.js, which already stripped the
+    trend/agreement/explanation fields for any non-confirmed
+    status before the response left the backend — this check
+    just decides what the UI shows in their place.
+  */
+  const verdictWithheld =
+    Boolean(data) && data?.complianceGate?.unlocked !== true;
+
   function changeWorkspace(workspace: WorkspaceId) {
     const nextSearchParams = new URLSearchParams(searchParams);
 
@@ -98,6 +111,8 @@ export default function AnalysisPage() {
         symbol={normalizedSymbol}
         data={data}
         isLoading={isLoading}
+        verdictWithheld={verdictWithheld}
+        onViewShariah={() => changeWorkspace("shariah")}
       />
     ),
     technical: (
@@ -125,7 +140,12 @@ export default function AnalysisPage() {
     shariah: (
       <IslamicCompliance data={data?.shariah} isLoading={isLoading} />
     ),
-    thesis: (
+    thesis: verdictWithheld ? (
+      <VerdictWithheld
+        message={data?.complianceGate?.message}
+        onViewShariah={() => changeWorkspace("shariah")}
+      />
+    ) : (
       <ThesisWorkspace data={data} isLoading={isLoading} />
     ),
   } satisfies Record<WorkspaceId, ReactNode>;

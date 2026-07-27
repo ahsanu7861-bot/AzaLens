@@ -31,3 +31,9 @@ frontend-backup/
 
 # Accidental root lockfile
 /package-lock.json
+
+# Shariah live-screening usage ledger (real spend data, not a secret,
+# but not meant to be shared across machines/deploys - see
+# backend/SHARIAH_COST_SAFETY.md)
+backend/storage/halal-terminal-usage.json
+backend/storage/halal-terminal-usage.json.lock

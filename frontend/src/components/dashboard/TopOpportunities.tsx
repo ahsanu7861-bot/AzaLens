@@ -21,12 +21,23 @@ export default function TopOpportunities() {
     watchlistQuery.isLoading ||
     verdicts.some((verdict) => verdict.isLoading);
 
-  const ranked: RankedEntry[] = verdicts
+  const evaluated: RankedEntry[] = verdicts
     .filter((verdict) => !verdict.isLoading && !verdict.isError && verdict.data)
     .map((verdict) => ({
       symbol: verdict.symbol,
       reasoned: buildReasonedVerdict(verdict.data!),
-    }))
+    }));
+
+  /*
+    Withheld verdicts never rank: without confirmed compliance
+    there is no verdict to compare.
+  */
+  const withheldCount = evaluated.filter(
+    (entry) => entry.reasoned.withheld,
+  ).length;
+
+  const ranked: RankedEntry[] = evaluated
+    .filter((entry) => !entry.reasoned.withheld)
     .sort(
       (first, second) =>
         (second.reasoned.confidence ?? -1) -
@@ -57,8 +68,13 @@ export default function TopOpportunities() {
         ) : ranked.length === 0 ? (
           <div className="rounded-lg border border-slate-800/60 bg-slate-950/40 p-4">
             <p className="text-sm leading-6 text-slate-300">
-              No live analysis is available for your watchlist right now.
-              AzaLens shows nothing here rather than invented entries.
+              {withheldCount > 0
+                ? `Verdicts are withheld for ${
+                    withheldCount === 1
+                      ? "the stock"
+                      : `all ${withheldCount} stocks`
+                  } in your watchlist because Shariah compliance is not confirmed. AzaLens only ranks stocks with confirmed compliance.`
+                : "No live analysis is available for your watchlist right now. AzaLens shows nothing here rather than invented entries."}
             </p>
 
             <Link

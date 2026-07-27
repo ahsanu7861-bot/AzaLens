@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 
 import type { AnalysisData } from "../../types/analysis";
 import AIVerdict from "./AIVerdict";
+import VerdictWithheld from "./VerdictWithheld";
 import ImportantLevels from "../dashboard/ImportantLevels";
 
 const StockChart = lazy(() => import("../StockChart"));
@@ -10,6 +11,8 @@ type OverviewWorkspaceProps = {
   symbol: string;
   data?: AnalysisData;
   isLoading: boolean;
+  verdictWithheld: boolean;
+  onViewShariah: () => void;
 };
 
 function ChartLoader() {
@@ -35,20 +38,29 @@ export default function OverviewWorkspace({
   symbol,
   data,
   isLoading,
+  verdictWithheld,
+  onViewShariah,
 }: OverviewWorkspaceProps) {
   return (
     <div className="space-y-5">
-      <AIVerdict
-        direction={data?.agreement?.direction ?? data?.agreement?.agreement}
-        trend={data?.trend?.trend}
-        confidence={data?.agreement?.confidence}
-        summary={
-          data?.agreement?.agreementSummary ??
-          data?.explanation?.overallAssessment
-        }
-        invalidation={data?.thesisInvalidation}
-        isLoading={isLoading}
-      />
+      {verdictWithheld ? (
+        <VerdictWithheld
+          message={data?.complianceGate?.message}
+          onViewShariah={onViewShariah}
+        />
+      ) : (
+        <AIVerdict
+          direction={data?.agreement?.direction ?? data?.agreement?.agreement}
+          trend={data?.trend?.trend}
+          confidence={data?.agreement?.confidence}
+          summary={
+            data?.agreement?.agreementSummary ??
+            data?.explanation?.overallAssessment
+          }
+          invalidation={data?.thesisInvalidation}
+          isLoading={isLoading}
+        />
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <Suspense fallback={<ChartLoader />}>

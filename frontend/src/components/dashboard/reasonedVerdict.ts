@@ -11,8 +11,10 @@ import type { AnalysisData } from "../../types/analysis";
 export type LeanTone = "bullish" | "bearish" | "mixed";
 
 export interface ReasonedVerdict {
-  lean: string;
-  tone: LeanTone;
+  withheld: boolean;
+  withheldMessage: string | null;
+  lean: string | null;
+  tone: LeanTone | null;
   confidence: number | null;
   why: string | null;
   invalidation: string | null;
@@ -23,6 +25,9 @@ export interface ReasonedVerdict {
   changePercent: number | null;
   currency: string;
 }
+
+const DEFAULT_WITHHELD_MESSAGE =
+  "AAOIFI Shariah compliance has not been confirmed for this stock, so AzaLens withholds its trade analysis. Details are in the Shariah Compliance workspace.";
 
 function toFinite(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -57,6 +62,61 @@ export function formatChangePercent(value: number | null): string | null {
 export function buildReasonedVerdict(
   data: AnalysisData,
 ): ReasonedVerdict {
+  const currency = data.market?.data?.currency || "USD";
+
+  const shariahStatus = data.shariah?.summary?.status;
+
+  const shariahLabel =
+    shariahStatus === "COMPLIANT"
+      ? "Compliant"
+      : shariahStatus === "NON_COMPLIANT"
+        ? "Non-compliant"
+        : "Review required";
+
+  const shariahTone =
+    shariahStatus === "COMPLIANT"
+      ? ("success" as const)
+      : shariahStatus === "NON_COMPLIANT"
+        ? ("danger" as const)
+        : ("warning" as const);
+
+  const livePrice = toFinite(data.market?.data?.price);
+  const analysisPrice = toFinite(data.priceContext?.analysisPrice);
+
+  const price = livePrice ?? analysisPrice;
+  const priceSource =
+    livePrice !== null
+      ? null
+      : data.priceContext?.analysisPriceSource ?? null;
+  const changePercent =
+    livePrice !== null
+      ? toFinite(data.market?.data?.changePercent)
+      : null;
+
+  /*
+    Default-deny: the verdict is only shown when the backend
+    gate explicitly unlocked it. A missing gate (older cached
+    response) withholds rather than guesses.
+  */
+  if (data.complianceGate?.unlocked !== true) {
+    return {
+      withheld: true,
+      withheldMessage:
+        data.complianceGate?.message ?? DEFAULT_WITHHELD_MESSAGE,
+      lean: null,
+      tone: null,
+      confidence: null,
+      why: null,
+      invalidation: null,
+      shariahLabel,
+      shariahTone,
+      price,
+      priceSource,
+      changePercent,
+      currency,
+    };
+  }
+
   const direction =
     data.agreement?.direction ?? data.agreement?.agreement ?? null;
 
@@ -81,8 +141,6 @@ export function buildReasonedVerdict(
     data.explanation?.overallAssessment ??
     null;
 
-  const currency = data.market?.data?.currency || "USD";
-
   let invalidation: string | null = null;
 
   if (tone === "bullish") {
@@ -101,26 +159,9 @@ export function buildReasonedVerdict(
     }
   }
 
-  const shariahStatus = data.shariah?.summary?.status;
-
-  const shariahLabel =
-    shariahStatus === "COMPLIANT"
-      ? "Compliant"
-      : shariahStatus === "NON_COMPLIANT"
-        ? "Non-compliant"
-        : "Review required";
-
-  const shariahTone =
-    shariahStatus === "COMPLIANT"
-      ? "success"
-      : shariahStatus === "NON_COMPLIANT"
-        ? "danger"
-        : "warning";
-
-  const livePrice = toFinite(data.market?.data?.price);
-  const analysisPrice = toFinite(data.priceContext?.analysisPrice);
-
   return {
+    withheld: false,
+    withheldMessage: null,
     lean,
     tone,
     confidence,
@@ -128,15 +169,9 @@ export function buildReasonedVerdict(
     invalidation,
     shariahLabel,
     shariahTone,
-    price: livePrice ?? analysisPrice,
-    priceSource:
-      livePrice !== null
-        ? null
-        : data.priceContext?.analysisPriceSource ?? null,
-    changePercent:
-      livePrice !== null
-        ? toFinite(data.market?.data?.changePercent)
-        : null,
+    price,
+    priceSource,
+    changePercent,
     currency,
   };
 }

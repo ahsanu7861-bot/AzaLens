@@ -210,11 +210,30 @@ export interface AnalysisResponse {
 
     fundamentals?: FundamentalsData
 
+    /*
+      The backend withholds trend, agreement, and explanation
+      unless Shariah compliance is CONFIRMED. When withheld,
+      these sections arrive as stubs with withheld: true and
+      the directional fields absent.
+    */
+    complianceGate?: {
+      status?: "UNLOCKED" | "WITHHELD" | string
+      unlocked?: boolean
+      requiredStatus?: string
+      shariahStatus?: ShariahStatus
+      staleEvidence?: boolean
+      reason?: string | null
+      message?: string | null
+    }
+
     trend: {
       success?: boolean
+      withheld?: boolean
+      reason?: string | null
+      error?: string | null
+      trend?: string
+      score?: number | null
       status?: "COMPLETE" | "PARTIAL" | "UNAVAILABLE"
-      trend: string
-      score: number | null
       provider?: string
       details?: string[]
       evidence?: {
@@ -230,9 +249,12 @@ export interface AnalysisResponse {
 
     agreement: {
       success?: boolean
+      withheld?: boolean
+      reason?: string | null
+      error?: string | null
       provider?: string
       symbol?: string
-      confidence: number
+      confidence?: number
       agreement?: string
       direction?: string
       agreementSummary?: string
@@ -377,7 +399,11 @@ export interface AnalysisResponse {
     confluence: ConfluenceData
 
     explanation: {
-      overallAssessment: string
+      success?: boolean
+      withheld?: boolean
+      reason?: string | null
+      error?: string | null
+      overallAssessment?: string
     }
 
     risk: {

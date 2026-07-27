@@ -31,6 +31,12 @@ const {
 );
 
 const {
+  applyComplianceGate
+} = require(
+  "./complianceGateService"
+);
+
+const {
   analyzeSupportResistance
 } = require(
   "../analysis/structure/supportResistanceEngine"
@@ -1968,9 +1974,15 @@ async function getMasterAnalysis(
 
     // ==============================================
     // Final API Contract
+    //
+    // applyComplianceGate is the enforcement point:
+    // unless Shariah compliance is CONFIRMED, the
+    // trend, agreement, and explanation sections are
+    // withheld server-side before the response leaves
+    // this service.
     // ==============================================
 
-    return {
+    return applyComplianceGate({
       success: true,
 
       apiVersion:
@@ -2022,7 +2034,7 @@ async function getMasterAnalysis(
         refactorStatus:
           buildRefactorStatus()
       }
-    };
+    });
   } catch (error) {
     console.error(
       `[${requestId}] Master Analysis Service Error:`,

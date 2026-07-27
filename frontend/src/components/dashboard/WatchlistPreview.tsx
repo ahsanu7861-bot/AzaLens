@@ -32,6 +32,53 @@ function VerdictRow({ verdict }: { verdict: WatchlistVerdict }) {
   const reasoned = buildReasonedVerdict(verdict.data);
   const change = formatChangePercent(reasoned.changePercent);
 
+  if (reasoned.withheld) {
+    return (
+      <Link
+        to={`/analysis/${verdict.symbol}?workspace=shariah`}
+        className="block rounded-2xl border border-white/5 bg-white/[0.02] p-4 transition hover:border-amber-400/20 hover:bg-white/[0.04]"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-white">
+              {verdict.symbol}
+            </span>
+
+            <Badge variant={reasoned.shariahTone}>
+              Shariah: {reasoned.shariahLabel}
+            </Badge>
+          </div>
+
+          <div className="text-right">
+            <p className="font-semibold text-white">
+              {formatMoney(reasoned.price, reasoned.currency)}
+            </p>
+
+            {change ? (
+              <p
+                className={`text-sm ${
+                  change.startsWith("+")
+                    ? "text-emerald-400"
+                    : "text-rose-400"
+                }`}
+              >
+                {change}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <p className="mt-3 text-sm leading-6 text-slate-400">
+          {reasoned.withheldMessage}
+        </p>
+
+        <p className="mt-2 text-xs font-semibold text-amber-400">
+          View Shariah screening →
+        </p>
+      </Link>
+    );
+  }
+
   return (
     <Link
       to={`/analysis/${verdict.symbol}`}

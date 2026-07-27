@@ -1,3 +1,4 @@
+import { ShieldAlert } from "lucide-react";
 import type { AnalysisData } from "../../types/analysis";
 import { Badge, Card } from "../ui";
 
@@ -129,6 +130,14 @@ export default function TechnicalEvidence({
   const rvol = indicators?.rvol;
   const volumeSpike = indicators?.volumeSpike;
   const candlestick = indicators?.candlestick;
+  /*
+    The backend already stubs `agreement` to { withheld: true, error }
+    when Shariah compliance is not confirmed - direction, confidence,
+    and the signal counts arrive undefined. This only decides what
+    replaces them in the UI; per-indicator readings below are raw
+    technical facts, not the compiled verdict, so they stay visible.
+  */
+  const verdictWithheld = agreement?.withheld === true;
   const direction =
     agreement?.direction?.trim() ||
     agreement?.agreement?.trim() ||
@@ -273,7 +282,9 @@ export default function TechnicalEvidence({
             <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight text-ink">
               {isLoading
                 ? "Reading the latest technical evidence"
-                : `Evidence behind the ${direction.toLowerCase()} case`}
+                : verdictWithheld
+                  ? "Technical evidence, without a compiled verdict"
+                  : `Evidence behind the ${direction.toLowerCase()} case`}
             </h2>
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
@@ -282,50 +293,67 @@ export default function TechnicalEvidence({
             </p>
           </div>
 
-          <Badge
-            variant={
-              isLoading
-                ? "neutral"
-                : getSignalVariant(agreement?.direction)
-            }
-          >
-            {isLoading
-              ? "Analyzing indicators"
-              : isFiniteNumber(agreement?.confidence)
-                ? `${Math.round(agreement.confidence)}% confidence`
-                : "Confidence unavailable"}
-          </Badge>
+          {!verdictWithheld && (
+            <Badge
+              variant={
+                isLoading
+                  ? "neutral"
+                  : getSignalVariant(agreement?.direction)
+              }
+            >
+              {isLoading
+                ? "Analyzing indicators"
+                : isFiniteNumber(agreement?.confidence)
+                  ? `${Math.round(agreement.confidence)}% confidence`
+                  : "Confidence unavailable"}
+            </Badge>
+          )}
         </div>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
-          {signalCounts.map((signal) => (
-            <div
-              key={signal.label}
-              className={`az-subcard rounded-2xl border p-4 ${signal.className}`}
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.16em]">
-                {signal.label}
+        {!isLoading && verdictWithheld ? (
+          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-caution/20 bg-caution/10 p-5">
+            <ShieldAlert
+              size={18}
+              className="mt-0.5 shrink-0 text-caution"
+            />
+            <p className="text-sm leading-6 text-ink-soft">
+              {agreement?.error ||
+                "AzaLens withholds the compiled directional lean and confidence score for this stock because AAOIFI Shariah compliance has not been confirmed. Individual indicator readings below are unaffected."}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              {signalCounts.map((signal) => (
+                <div
+                  key={signal.label}
+                  className={`az-subcard rounded-2xl border p-4 ${signal.className}`}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em]">
+                    {signal.label}
+                  </p>
+                  <p className="az-numeric mt-2 text-2xl font-bold text-ink">
+                    {isLoading || !isFiniteNumber(signal.value)
+                      ? "—"
+                      : signal.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="az-subcard mt-4 rounded-2xl border border-intelligence/20 bg-intelligence/5 p-5">
+              <p className="text-sm font-medium text-intelligence">
+                Indicator agreement
               </p>
-              <p className="az-numeric mt-2 text-2xl font-bold text-ink">
-                {isLoading || !isFiniteNumber(signal.value)
-                  ? "—"
-                  : signal.value}
+              <p className="mt-2 text-sm leading-6 text-ink-soft">
+                {isLoading
+                  ? "AzaLens is comparing the latest indicator signals."
+                  : agreement?.agreementSummary ||
+                    "The backend did not return an indicator-agreement summary for this analysis."}
               </p>
             </div>
-          ))}
-        </div>
-
-        <div className="az-subcard mt-4 rounded-2xl border border-intelligence/20 bg-intelligence/5 p-5">
-          <p className="text-sm font-medium text-intelligence">
-            Indicator agreement
-          </p>
-          <p className="mt-2 text-sm leading-6 text-ink-soft">
-            {isLoading
-              ? "AzaLens is comparing the latest indicator signals."
-              : agreement?.agreementSummary ||
-                "The backend did not return an indicator-agreement summary for this analysis."}
-          </p>
-        </div>
+          </>
+        )}
 
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {evidence.map((item) => (
