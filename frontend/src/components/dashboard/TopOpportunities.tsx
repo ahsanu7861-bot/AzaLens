@@ -1,51 +1,4 @@
-
-const opportunities = [
-  {
-    ticker: "NVDA",
-    company: "NVIDIA",
-    price: "$171.38",
-    change: "+2.74%",
-    aiScore: 95,
-    verdict: "BUY",
-    shariah: "Compliant",
-  },
-  {
-    ticker: "META",
-    company: "Meta Platforms",
-    price: "$742.11",
-    change: "+1.83%",
-    aiScore: 92,
-    verdict: "BUY",
-    shariah: "Compliant",
-  },
-  {
-    ticker: "MSFT",
-    company: "Microsoft",
-    price: "$521.62",
-    change: "+0.88%",
-    aiScore: 90,
-    verdict: "BUY",
-    shariah: "Compliant",
-  },
-  {
-    ticker: "GOOGL",
-    company: "Alphabet",
-    price: "$198.14",
-    change: "+1.16%",
-    aiScore: 89,
-    verdict: "BUY",
-    shariah: "Compliant",
-  },
-  {
-    ticker: "AMD",
-    company: "AMD",
-    price: "$164.92",
-    change: "-0.42%",
-    aiScore: 86,
-    verdict: "WATCH",
-    shariah: "Compliant",
-  },
-];
+import { Link } from "react-router-dom";
 
 export default function TopOpportunities() {
   return (
@@ -53,38 +6,27 @@ export default function TopOpportunities() {
       <h3 className="mb-4 text-sm font-semibold tracking-wide text-slate-300 uppercase">
         Top AI Opportunities
       </h3>
-      <div className="space-y-3">
-        {opportunities.map((item) => (
-          <div
-            key={item.ticker}
-            className="flex items-center justify-between rounded-lg border border-slate-800/60 bg-slate-950/40 p-3 hover:border-slate-700 transition-colors"
-          >
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-white">{item.ticker}</span>
-                <span className="text-xs text-slate-400">{item.company}</span>
-              </div>
-              <div className="mt-1 text-xs text-emerald-400">
-                Shariah: {item.shariah}
-              </div>
-            </div>
 
-            <div className="text-right">
-              <div className="font-mono text-sm font-semibold text-slate-100">
-                {item.price}
-              </div>
-              <div
-                className={`text-xs font-medium ${
-                  item.change.startsWith("+")
-                    ? "text-emerald-400"
-                    : "text-rose-400"
-                }`}
-              >
-                {item.change}
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="rounded-lg border border-slate-800/60 bg-slate-950/40 p-4">
+        <p className="text-sm leading-6 text-slate-300">
+          This panel is not connected to live data yet, so AzaLens
+          shows nothing here rather than invented tickers, prices, or
+          compliance labels.
+        </p>
+
+        <p className="mt-3 text-sm leading-6 text-slate-400">
+          When it goes live, each entry will be a reasoned verdict —
+          a directional lean, a confidence level, a plain-language
+          reason, and what would prove it wrong — never a blind
+          buy or sell call.
+        </p>
+
+        <Link
+          to="/analysis/AAPL"
+          className="mt-4 inline-block text-sm font-semibold text-emerald-400 hover:text-emerald-300"
+        >
+          Open a live analysis instead →
+        </Link>
       </div>
     </div>
   );
