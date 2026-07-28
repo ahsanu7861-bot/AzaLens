@@ -74,8 +74,12 @@ export default function AnalysisPage() {
   const { symbol = "AAPL" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const normalizedSymbol = symbol.trim().toUpperCase();
-  const { data, isLoading, isError, refetch, isFetching } =
+  const { data, isLoading, isError, error, refetch, isFetching } =
     useAnalysis(normalizedSymbol);
+  const errorMessage =
+    error instanceof Error && error.message
+      ? error.message
+      : `AzaLens could not analyze "${normalizedSymbol}". Confirm the ticker and try again.`;
   const requestedWorkspace = searchParams.get("workspace");
   const activeWorkspace = isWorkspaceId(requestedWorkspace)
     ? requestedWorkspace
@@ -182,10 +186,7 @@ export default function AnalysisPage() {
             >
               <div className="flex items-start gap-3">
                 <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-                <p>
-                  AzaLens could not analyze “{normalizedSymbol}”. Confirm the
-                  ticker and make sure the backend is running.
-                </p>
+                <p>{errorMessage}</p>
               </div>
               <button
                 type="button"

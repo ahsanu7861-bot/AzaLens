@@ -765,7 +765,7 @@ for (const workspaceId of expectedWorkspaceIds) {
 const shariahWorkspaceStart =
   analysisPageSource.indexOf("    shariah: (");
 const thesisWorkspaceStart =
-  analysisPageSource.indexOf("    thesis: (");
+  analysisPageSource.indexOf("    thesis:");
 
 assert.ok(
   shariahWorkspaceStart >= 0 &&

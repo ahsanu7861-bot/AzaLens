@@ -3,104 +3,133 @@ function analyzeAgreement(indicators) {
   const bearish = [];
   const neutral = [];
   const agreementDetails = [];
+  const unavailableIndicators = [];
+
+  function markUnavailable(name, label) {
+    unavailableIndicators.push(name);
+
+    agreementDetails.push(
+      `${label} data is unavailable for this analysis and was excluded from indicator agreement.`
+    );
+  }
 
   // ============================
   // RSI
   // ============================
 
-  if (indicators.rsi.signal === "Oversold") {
-    bullish.push("RSI");
+  if (indicators.rsi?.success === true) {
+    if (indicators.rsi.signal === "Oversold") {
+      bullish.push("RSI");
 
-    agreementDetails.push(
-      `RSI is ${indicators.rsi.rsi}, indicating oversold conditions.`
-    );
-  } else if (indicators.rsi.signal === "Overbought") {
-    bearish.push("RSI");
+      agreementDetails.push(
+        `RSI is ${indicators.rsi.rsi}, indicating oversold conditions.`
+      );
+    } else if (indicators.rsi.signal === "Overbought") {
+      bearish.push("RSI");
 
-    agreementDetails.push(
-      `RSI is ${indicators.rsi.rsi}, indicating overbought conditions.`
-    );
+      agreementDetails.push(
+        `RSI is ${indicators.rsi.rsi}, indicating overbought conditions.`
+      );
+    } else {
+      neutral.push("RSI");
+
+      agreementDetails.push(
+        `RSI is ${indicators.rsi.rsi}, currently neutral.`
+      );
+    }
   } else {
-    neutral.push("RSI");
-
-    agreementDetails.push(
-      `RSI is ${indicators.rsi.rsi}, currently neutral.`
-    );
+    markUnavailable("RSI", "RSI");
   }
 
   // ============================
   // EMA
   // ============================
 
-  if (indicators.ema.signal.includes("Above EMA")) {
-    bullish.push("EMA");
-    agreementDetails.push("Price is above EMA20.");
-  } else if (indicators.ema.signal.includes("Below EMA")) {
-    bearish.push("EMA");
-    agreementDetails.push("Price is below EMA20.");
+  if (indicators.ema?.success === true) {
+    if (indicators.ema.signal.includes("Above EMA")) {
+      bullish.push("EMA");
+      agreementDetails.push("Price is above EMA20.");
+    } else if (indicators.ema.signal.includes("Below EMA")) {
+      bearish.push("EMA");
+      agreementDetails.push("Price is below EMA20.");
+    } else {
+      neutral.push("EMA");
+      agreementDetails.push("Price is near EMA20.");
+    }
   } else {
-    neutral.push("EMA");
-    agreementDetails.push("Price is near EMA20.");
+    markUnavailable("EMA", "EMA");
   }
 
   // ============================
   // SMA
   // ============================
 
-  if (indicators.sma.signal.includes("Above SMA")) {
-    bullish.push("SMA");
-    agreementDetails.push("Price is above SMA50.");
-  } else if (indicators.sma.signal.includes("Below SMA")) {
-    bearish.push("SMA");
-    agreementDetails.push("Price is below SMA50.");
+  if (indicators.sma?.success === true) {
+    if (indicators.sma.signal.includes("Above SMA")) {
+      bullish.push("SMA");
+      agreementDetails.push("Price is above SMA50.");
+    } else if (indicators.sma.signal.includes("Below SMA")) {
+      bearish.push("SMA");
+      agreementDetails.push("Price is below SMA50.");
+    } else {
+      neutral.push("SMA");
+      agreementDetails.push("Price is near SMA50.");
+    }
   } else {
-    neutral.push("SMA");
-    agreementDetails.push("Price is near SMA50.");
+    markUnavailable("SMA", "SMA");
   }
 
   // ============================
   // MACD
   // ============================
 
-  if (indicators.macd.signal.includes("Bullish")) {
-    bullish.push("MACD");
-    agreementDetails.push("MACD indicates bullish momentum.");
-  } else if (indicators.macd.signal.includes("Bearish")) {
-    bearish.push("MACD");
-    agreementDetails.push("MACD indicates bearish momentum.");
+  if (indicators.macd?.success === true) {
+    if (indicators.macd.signal.includes("Bullish")) {
+      bullish.push("MACD");
+      agreementDetails.push("MACD indicates bullish momentum.");
+    } else if (indicators.macd.signal.includes("Bearish")) {
+      bearish.push("MACD");
+      agreementDetails.push("MACD indicates bearish momentum.");
+    } else {
+      neutral.push("MACD");
+      agreementDetails.push("MACD momentum is currently neutral.");
+    }
   } else {
-    neutral.push("MACD");
-    agreementDetails.push("MACD momentum is currently neutral.");
+    markUnavailable("MACD", "MACD");
   }
 
   // ============================
   // Bollinger Bands
   // ============================
 
-  if (
-    indicators.bollinger.signal === "Above Upper Band" ||
-    indicators.bollinger.signal === "Price Near Upper Band"
-  ) {
-    bullish.push("Bollinger Bands");
+  if (indicators.bollinger?.success === true) {
+    if (
+      indicators.bollinger.signal === "Above Upper Band" ||
+      indicators.bollinger.signal === "Price Near Upper Band"
+    ) {
+      bullish.push("Bollinger Bands");
 
-    agreementDetails.push(
-      "Price is trading in the upper Bollinger Band region."
-    );
-  } else if (
-    indicators.bollinger.signal === "Below Lower Band" ||
-    indicators.bollinger.signal === "Price Near Lower Band"
-  ) {
-    bearish.push("Bollinger Bands");
+      agreementDetails.push(
+        "Price is trading in the upper Bollinger Band region."
+      );
+    } else if (
+      indicators.bollinger.signal === "Below Lower Band" ||
+      indicators.bollinger.signal === "Price Near Lower Band"
+    ) {
+      bearish.push("Bollinger Bands");
 
-    agreementDetails.push(
-      "Price is trading in the lower Bollinger Band region."
-    );
+      agreementDetails.push(
+        "Price is trading in the lower Bollinger Band region."
+      );
+    } else {
+      neutral.push("Bollinger Bands");
+
+      agreementDetails.push(
+        "Price is trading near the middle Bollinger Band."
+      );
+    }
   } else {
-    neutral.push("Bollinger Bands");
-
-    agreementDetails.push(
-      "Price is trading near the middle Bollinger Band."
-    );
+    markUnavailable("Bollinger Bands", "Bollinger Bands");
   }
 
   // ============================
@@ -108,34 +137,42 @@ function analyzeAgreement(indicators) {
   // ============================
 
   // ADX measures trend strength, not direction.
-  neutral.push("ADX");
+  if (indicators.adx?.success === true) {
+    neutral.push("ADX");
 
-  agreementDetails.push(
-    `ADX is ${indicators.adx.adx} and reports "${indicators.adx.signal}".`
-  );
+    agreementDetails.push(
+      `ADX is ${indicators.adx.adx} and reports "${indicators.adx.signal}".`
+    );
+  } else {
+    markUnavailable("ADX", "ADX");
+  }
 
   // ============================
   // Candlestick
   // ============================
 
-  if (indicators.candlestick.bias === "Bullish") {
-    bullish.push("Candlestick");
+  if (indicators.candlestick?.success === true) {
+    if (indicators.candlestick.bias === "Bullish") {
+      bullish.push("Candlestick");
 
-    agreementDetails.push(
-      `${indicators.candlestick.pattern} provides bullish price-action evidence.`
-    );
-  } else if (indicators.candlestick.bias === "Bearish") {
-    bearish.push("Candlestick");
+      agreementDetails.push(
+        `${indicators.candlestick.pattern} provides bullish price-action evidence.`
+      );
+    } else if (indicators.candlestick.bias === "Bearish") {
+      bearish.push("Candlestick");
 
-    agreementDetails.push(
-      `${indicators.candlestick.pattern} provides bearish price-action evidence.`
-    );
+      agreementDetails.push(
+        `${indicators.candlestick.pattern} provides bearish price-action evidence.`
+      );
+    } else {
+      neutral.push("Candlestick");
+
+      agreementDetails.push(
+        "No directional candlestick pattern was detected."
+      );
+    }
   } else {
-    neutral.push("Candlestick");
-
-    agreementDetails.push(
-      "No directional candlestick pattern was detected."
-    );
+    markUnavailable("Candlestick", "Candlestick");
   }
 
   // ============================
@@ -143,25 +180,33 @@ function analyzeAgreement(indicators) {
   // ============================
 
   // RVOL measures participation, not direction.
-  neutral.push("RVOL");
+  if (indicators.rvol?.success === true) {
+    neutral.push("RVOL");
 
-  agreementDetails.push(
-    `Relative volume is ${indicators.rvol.rvol}× average volume.`
-  );
+    agreementDetails.push(
+      `Relative volume is ${indicators.rvol.rvol}× average volume.`
+    );
+  } else {
+    markUnavailable("RVOL", "Relative volume (RVOL)");
+  }
 
   // ============================
   // Volume Spike
   // ============================
 
   // A volume spike confirms participation, but not bullish/bearish direction.
-  neutral.push("Volume Spike");
+  if (indicators.volumeSpike?.success === true) {
+    neutral.push("Volume Spike");
 
-  if (indicators.volumeSpike.volumeSpikeDetected) {
-    agreementDetails.push(
-      `${indicators.volumeSpike.signal} detected; this confirms unusually strong participation but not direction by itself.`
-    );
+    if (indicators.volumeSpike.volumeSpikeDetected) {
+      agreementDetails.push(
+        `${indicators.volumeSpike.signal} detected; this confirms unusually strong participation but not direction by itself.`
+      );
+    } else {
+      agreementDetails.push("No unusual volume spike was detected.");
+    }
   } else {
-    agreementDetails.push("No unusual volume spike was detected.");
+    markUnavailable("Volume Spike", "Volume spike");
   }
 
   // ============================
@@ -200,6 +245,11 @@ function analyzeAgreement(indicators) {
    * Dominant directional signals receive full weight.
    * Neutral signals receive partial credit because they do not oppose
    * the dominant direction, but they also do not confirm it strongly.
+   *
+   * totalIndicators only counts indicators that actually produced a
+   * result, so a stock with one or more unavailable indicators is
+   * scored on the evidence that exists rather than diluted or
+   * blocked by the ones that didn't.
    */
 
   let confidence = 0;
@@ -246,7 +296,10 @@ function analyzeAgreement(indicators) {
   let agreementSummary =
     "Indicators are mixed and do not currently provide clear directional agreement.";
 
-  if (agreement === "aligned" && direction === "Bullish") {
+  if (totalIndicators === 0) {
+    agreementSummary =
+      "No indicators were available to establish directional agreement.";
+  } else if (agreement === "aligned" && direction === "Bullish") {
     agreementSummary =
       "Bullish indicators are aligned, although neutral signals may reduce conviction.";
   } else if (agreement === "aligned" && direction === "Bearish") {
@@ -258,6 +311,11 @@ function analyzeAgreement(indicators) {
   } else if (direction === "Bearish") {
     agreementSummary =
       "Bearish evidence is present, but confirmation is incomplete or conflicting.";
+  }
+
+  if (unavailableIndicators.length > 0) {
+    agreementSummary +=
+      ` (${unavailableIndicators.length} of ${unavailableIndicators.length + totalIndicators} indicators were unavailable and excluded.)`;
   }
 
   return {
@@ -275,7 +333,8 @@ function analyzeAgreement(indicators) {
     bearish,
     neutral,
 
-    totalIndicators
+    totalIndicators,
+    unavailableIndicators
   };
 }
 

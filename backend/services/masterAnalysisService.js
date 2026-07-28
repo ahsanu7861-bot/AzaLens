@@ -1450,6 +1450,11 @@ async function getMasterAnalysis(
 
     // ==============================================
     // Failed Indicators
+    //
+    // A single failed indicator no longer aborts the whole analysis.
+    // Downstream consumers exclude failed evidence honestly. Only a
+    // total loss of every indicator is treated as nothing useful to
+    // show.
     // ==============================================
 
     const failedIndicators =
@@ -1471,8 +1476,16 @@ async function getMasterAnalysis(
           })
         );
 
+    const successfulIndicatorCount =
+      Object.values(indicators)
+        .filter(
+          (result) =>
+            result?.success ===
+            true
+        ).length;
+
     if (
-      failedIndicators.length >
+      successfulIndicatorCount ===
       0
     ) {
       const shariahRun =
@@ -1522,7 +1535,7 @@ async function getMasterAnalysis(
         generatedAt,
 
         error:
-          "Unable to complete all indicator calculations.",
+          `Unable to calculate any technical indicators for ${normalizedSymbol}. There may not be enough historical trading data available yet.`,
 
         details:
           failedIndicators,
