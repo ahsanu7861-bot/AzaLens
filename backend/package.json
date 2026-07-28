@@ -16,6 +16,7 @@
     "test:rvol-session-awareness": "node tests/testRvolSessionAwareness.js",
     "test:partial-indicator-failure": "node tests/testPartialIndicatorFailure.js",
     "test:agreement-trend-degradation": "node tests/testAgreementTrendDegradation.js",
+    "test:cors-allowlist": "node tests/testCorsAllowlist.js",
     "test:confluence-actionability": "node tests/testConfluenceActionability.js",
     "test:analysis-trust": "node tests/testAnalysisTrustService.js",
     "test:finnhub-resilience": "node tests/testFinnhubProviderResilience.js",
