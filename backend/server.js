@@ -52,6 +52,59 @@ const PORT = process.env.PORT || 5000;
 const environmentConfig =
   getEnvironmentConfig(process.env);
 
+// ============================
+// CORS Allowlist
+// ============================
+
+const CORS_PRODUCTION_ORIGINS = [
+  "https://azalens.com",
+  "https://www.azalens.com",
+  "https://azalens.vercel.app"
+];
+
+/*
+  Vercel previews for this project only. Never broadly allow
+  *.vercel.app - that would let any other Vercel-hosted project
+  read cross-origin responses from this API.
+*/
+const CORS_VERCEL_PREVIEW_ORIGIN_PATTERN =
+  /^https:\/\/azalens-(?:git-[a-z0-9-]+|[a-z0-9]+)-ahsan-khan2\.vercel\.app$/i;
+
+const CORS_DEV_ORIGIN_PATTERN =
+  /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
+
+function isAllowedCorsOrigin(origin) {
+  if (!origin) {
+    // No Origin header: curl, CI, health checks, server-to-server
+    // calls. Not a browser cross-origin request - nothing to check.
+    return true;
+  }
+
+  if (
+    CORS_PRODUCTION_ORIGINS.includes(
+      origin
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    CORS_VERCEL_PREVIEW_ORIGIN_PATTERN.test(
+      origin
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    !environmentConfig.isProduction &&
+    CORS_DEV_ORIGIN_PATTERN.test(origin)
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 // ============================
 // Middleware
@@ -59,7 +112,16 @@ const environmentConfig =
 
 app.use(requestObservability);
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin(origin, callback) {
+      callback(
+        null,
+        isAllowedCorsOrigin(origin)
+      );
+    }
+  })
+);
 app.use(helmet());
 app.use(
   ["/health", "/ops/metrics"],

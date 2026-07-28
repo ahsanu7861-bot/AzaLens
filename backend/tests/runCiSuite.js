@@ -8,6 +8,7 @@ const {
 const deterministicSuites = [
   "testAnalysisTrustService.js",
   "testConfluenceActionability.js",
+  "testCorsAllowlist.js",
   "testEnvironmentStrategy.js",
   "testFinnhubProviderResilience.js",
   "testFundamentalsCoverage.js",
