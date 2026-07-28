@@ -260,6 +260,10 @@ async function getHistoricalData(
       metadata: {
         exchange:
           data?.meta?.exchange || null,
+        exchangeTimezone:
+          data?.meta?.exchange_timezone || null,
+        micCode:
+          data?.meta?.mic_code || null,
         currency:
           data?.meta?.currency || null,
         interval:

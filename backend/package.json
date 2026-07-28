@@ -12,6 +12,8 @@
     "check:environment": "node scripts/validateEnvironment.js",
     "check:migrations": "node scripts/checkMigrations.js",
     "test:compliance-gate": "node tests/testComplianceGate.js",
+    "test:market-session": "node tests/testMarketSession.js",
+    "test:rvol-session-awareness": "node tests/testRvolSessionAwareness.js",
     "test:confluence-actionability": "node tests/testConfluenceActionability.js",
     "test:analysis-trust": "node tests/testAnalysisTrustService.js",
     "test:finnhub-resilience": "node tests/testFinnhubProviderResilience.js",

@@ -361,6 +361,15 @@ export interface AnalysisResponse {
         signal?: string
         explanation?: string
         dataSource?: string
+        session?: {
+          status?: "OPEN" | "CLOSED" | "UNKNOWN" | string
+          exchange?: string | null
+          timezone?: string | null
+          latestBarDate?: string | null
+          exchangeLocalDate?: string | null
+          exchangeLocalTime?: string | null
+          reason?: string | null
+        }
       }
 
       volumeSpike?: {

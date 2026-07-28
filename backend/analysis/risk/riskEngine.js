@@ -40,6 +40,16 @@ function analyzeRisk(analysis) {
   const rvol = toNumber(indicators.rvol?.rvol);
   const confidence = toNumber(agreement.confidence, 0);
 
+  /*
+    A relative-volume ratio only means what it claims to mean when
+    it's comparing two complete trading sessions. When today's
+    session is still open (or its status can't be determined), a
+    low ratio is structurally expected and does not indicate real
+    risk - see backend/analysis/marketSession.js.
+  */
+  const rvolSessionStatus = indicators.rvol?.session?.status || null;
+  const rvolComparisonReliable = rvolSessionStatus === "CLOSED";
+
   if (currentPrice === null || currentPrice <= 0) {
     return {
       success: false,
@@ -153,7 +163,7 @@ function analyzeRisk(analysis) {
   }
 
   // Relative-volume contribution
-  if (rvol !== null) {
+  if (rvol !== null && rvolComparisonReliable) {
     if (rvol < 0.8) {
       riskScore += 18;
 
@@ -175,6 +185,14 @@ function analyzeRisk(analysis) {
         `Relative volume is ${rvol}× average, showing normal participation.`
       );
     }
+  } else if (rvol !== null && rvolSessionStatus === "OPEN") {
+    riskNotes.push(
+      `Relative volume is not yet factored into this score - today's trading session is still in progress, so it can't be fairly compared to a full day's average.`
+    );
+  } else if (rvol !== null) {
+    riskNotes.push(
+      "Relative volume is not yet factored into this score - the trading session status for this ticker's exchange could not be determined."
+    );
   }
 
   // Volume-spike contribution
@@ -279,7 +297,7 @@ function analyzeRisk(analysis) {
       " Trend strength is weak, which reduces the reliability of directional signals.";
   }
 
-  if (rvol !== null && rvol < 1) {
+  if (rvol !== null && rvolComparisonReliable && rvol < 1) {
     riskSummary +=
       " Below-average relative volume also reduces participation confirmation.";
   }

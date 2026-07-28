@@ -318,6 +318,17 @@ function analyzeExplanation(analysis) {
   if (indicators.rvol?.success === true) {
     const rvolValue = safeNumber(indicators.rvol.rvol);
 
+    /*
+      A low ratio only means weak participation when it's comparing
+      two complete trading sessions. Below rvolValue >= 1.5 (still a
+      genuine positive regardless of session status), only claim
+      "weak" once the session is confirmed CLOSED - see
+      backend/analysis/marketSession.js.
+    */
+    const sessionStatus =
+      indicators.rvol.session?.status || null;
+    const comparisonReliable = sessionStatus === "CLOSED";
+
     if (rvolValue !== null && rvolValue >= 1.5) {
       positives.push(
         `Relative volume is ${rvolValue}× average, showing strong market participation.`
@@ -329,9 +340,17 @@ function analyzeExplanation(analysis) {
       observations.push(
         `Relative volume is ${rvolValue}× average, showing normal participation.`
       );
-    } else {
+    } else if (rvolValue !== null && comparisonReliable) {
       cautions.push(
         `Relative volume is only ${rvolValue}× average, so participation is currently weak.`
+      );
+    } else if (rvolValue !== null && sessionStatus === "OPEN") {
+      observations.push(
+        "Today's trading session is still in progress, so relative volume can't yet be fairly compared to a full day's average."
+      );
+    } else if (rvolValue !== null) {
+      observations.push(
+        "Relative volume could not be reliably compared because the trading session status for this ticker's exchange is unknown."
       );
     }
   }
