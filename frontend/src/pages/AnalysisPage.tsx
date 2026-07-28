@@ -74,12 +74,9 @@ export default function AnalysisPage() {
   const { symbol = "AAPL" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const normalizedSymbol = symbol.trim().toUpperCase();
-  const { data, isLoading, isError, error, refetch, isFetching } =
+  const { data, isLoading, isError, refetch, isFetching } =
     useAnalysis(normalizedSymbol);
-  const errorMessage =
-    error instanceof Error && error.message
-      ? error.message
-      : `AzaLens could not analyze "${normalizedSymbol}". Confirm the ticker and try again.`;
+  const errorMessage = `AzaLens could not analyze "${normalizedSymbol}". Confirm the ticker and try again.`;
   const requestedWorkspace = searchParams.get("workspace");
   const activeWorkspace = isWorkspaceId(requestedWorkspace)
     ? requestedWorkspace
