@@ -49,7 +49,9 @@ test("reports an API failure and supports recovery", async ({
     "**/api/analyze/AAPL**",
     async (route) => {
       attempts += 1;
-      if (attempts <= 4) {
+      // The application makes the initial request plus one configured
+      // automatic retry. The explicit "Try again" action is attempt 3.
+      if (attempts <= 2) {
         await route.fulfill({
           status: 503,
           contentType: "application/json",

@@ -100,6 +100,12 @@ export const analysisData = {
       isStale: false,
     },
   },
+  complianceGate: {
+    unlocked: true,
+    status: "COMPLIANT",
+    message:
+      "AAOIFI compliance is confirmed for this deterministic fixture.",
+  },
   explanation: {
     overallAssessment:
       "The fixture explains evidence without promising an outcome.",
