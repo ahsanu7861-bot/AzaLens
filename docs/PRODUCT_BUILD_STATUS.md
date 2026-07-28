@@ -17,3 +17,10 @@ Last updated: 2026-07-24
 ## Release-capture rule
 
 - Crop editor chrome, branch/status bars, terminals, and other development tooling from production UI captures.
+
+## Verified Status (2026-07-28)
+
+- **Baseline commit:** No commit `bc3d978` exists in this repository. Current `main` HEAD should always be treated as the baseline of record.
+- **Sprint 4.2 (Security/Privacy): Not built.** No authentication, no authorization/tiers, no rate limiting, no audit logging. Present: helmet, gitignored secrets, partial input validation.
+- **Sprint 4.5 (Test Architecture): Not built.** No test framework, no coverage tooling, no CI. Present: manual Node scripts under `backend/tests/`, three of which are real assertion tests.
+- **Tier/permission gating: Not built.** No entitlement checks exist anywhere in the codebase. `frontend/src/permissions/` is an empty placeholder.
