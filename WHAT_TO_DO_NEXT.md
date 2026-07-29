@@ -111,9 +111,28 @@ Also: stale screening evidence only lowers the *confidence* label to LOW — it 
 
 ### 2.1 Wire the Watchlist and Portfolio pages to their existing backend — **Medium**
 
+**Implementation status (2026-07-30): BUILT LOCALLY, NOT YET DEPLOYED.** Both
+pages now use their existing CRUD routes and a provider-backed equities-only
+symbol search. Search is no longer limited to the old AAPL/NVDA static demo
+list. Eligible coverage is the listed-company-share universe returned by the
+configured licensed market-data provider; crypto, forex, funds/ETFs, futures,
+commodities and other non-equity instruments are rejected from discovery.
+Watchlist supports add/remove/open-analysis. Portfolio supports add/edit/remove,
+shares, average purchase price and explicitly labelled recorded cost basis.
+User-specific durable persistence still belongs to Items 3.1 and 3.3.
+
 `frontend/src/pages/WatchlistPage.tsx`, `PortfolioPage.tsx`, and `ScannerPage.tsx` are 14-line stubs with no data fetching, while working backend routes (`/api/watchlist`, `/api/portfolio` with portfolio intelligence) already exist. Either connect them or remove them from navigation for beta — an empty page reached from the main nav reads as broken.
 
 ### 2.2 One honest dashboard — **Medium**
+
+**Implementation status (2026-07-30): BUILT LOCALLY, NOT YET DEPLOYED.** The
+dashboard now reads only the real Watchlist and Portfolio records. It shows
+saved equities, holding count, total recorded shares, and recorded USD cost
+basis. It explicitly does not invent live market value, gains, risk, Shariah
+coverage, index prices, market sentiment, news, earnings, or market-wide scan
+results. Opening the dashboard also no longer launches full analyses for the
+first four watchlist symbols, preventing accidental Halal Terminal token spend;
+analysis begins only after the user explicitly opens a stock.
 
 After 1.1 strips the fake data, decide what the dashboard truthfully can show today: real watchlist quotes (backend exists), a real link into analysis, and honest placeholders for everything else. A smaller true dashboard beats a dense fabricated one.
 
@@ -140,6 +159,21 @@ Adopt a runner (Vitest fits the stack on both sides), convert the three real ass
 ### 3.3 Real storage and shared cache — **Large**
 
 Watchlists/portfolios live in JSON files (`backend/storage/*.json`) and all caches are per-process in-memory Maps (`utils/cache.js`, the Finnhub caches). This works for one server and one user; it breaks with accounts (3.1) or a second instance (two servers = two disagreeing caches and two ledgers). Move user data to a database (Postgres or a managed equivalent) and shared caching to Redis when you scale past one instance. The budget ledger's file lock is single-machine only — same migration.
+
+#### [PENDING BEFORE PUBLIC LAUNCH] Provision durable Render Key Value (Valkey) for Shariah cache and token-budget persistence
+
+Paid infrastructure is intentionally postponed until closer to the official public launch. Before allowing public traffic, provision a small paid, disk-backed Render Key Value instance in the same region as the backend and connect through Render's private/internal URL. Do not treat an in-memory `Map`, a JSON file on the web service's ephemeral filesystem, or a free/non-persistent Key Value instance as durable storage.
+
+Implementation requirements:
+
+- Replace the process-local Shariah screening cache with a shared Valkey-backed cache keyed by normalized symbol plus provider, screening-contract/version, and any other input that can change the result; retain the current 24-hour TTL unless provider terms or product policy require a different value.
+- Make cache reads/writes survive backend spin-downs, restarts, redeployments, and multiple backend instances. Preserve safe in-memory caching only as an explicitly degraded fallback; never present fallback data as durably cached.
+- Move the Halal Terminal token-budget ledger and reserve-before-provider-call operation into Valkey using an atomic transaction or Lua script. The monthly UTC budget check, estimated-token reservation, request count, and remaining locally estimated budget must update as one indivisible operation so concurrent requests and multiple instances cannot overspend.
+- Replace the single-machine JSON lock/file-ledger path for production. Define a UTC billing-period key strategy and expiry/rollover behavior that cannot accidentally carry spend into the wrong month or reset early.
+- Keep the provider dashboard authoritative. Operational metrics must continue to label AzaLens figures as `locallyEstimatedUsed` / `locallyEstimatedRemaining`, expose whether durable storage is healthy, and never imply that the configured estimate is the provider's exact billed usage.
+- Preserve the current fail-closed Shariah behavior: if Valkey, the budget guard, or Halal Terminal is unavailable—or the configured budget is exhausted—make no unreserved live provider call, return degraded/unknown screening, and withhold compliance-dependent verdict content rather than guessing.
+- Add zero-network tests for cache hit/miss and TTL expiry, restart/process sharing, concurrent duplicate requests, atomic budget exhaustion, billing-period rollover, Valkey outage/fallback behavior, and continued compliance-gate withholding.
+- Roll out behind explicit environment configuration, validate the protected `/ops/metrics` output, run the complete backend CI suite, and deploy only after a staging/production-readiness check. Do not provision or incur paid cloud resources until this task is intentionally resumed.
 
 ### 3.4 Edge-case behavior as designed states, not accidents — **Medium**
 

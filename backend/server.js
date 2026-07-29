@@ -6,6 +6,9 @@ const cors = require("cors");
 const {
   getEnvironmentConfig
 } = require("./config/environment");
+const {
+  getShariahRuntimeConfig
+} = require("./config/shariahRuntime");
 
 const {
   buildLivenessSnapshot,
@@ -15,6 +18,9 @@ const {
   requestObservability,
   writeLog
 } = require("./utils/observability");
+const {
+  getEstimatedBudgetSnapshot
+} = require("./utils/halalTerminalBudget");
 
 // ============================
 // Import Services
@@ -40,6 +46,9 @@ const {
 const {
   getExplanation
 } = require("./services/explanationService");
+const {
+  searchListedEquities
+} = require("./providers/finnhubProvider");
 // ============================
 // Routes
 // ============================
@@ -230,7 +239,13 @@ app.get("/ops/metrics", (req, res) => {
   return res.status(200).json({
     success: true,
     requestId: req.requestId,
-    data: getMetricsSnapshot()
+    data: {
+      ...getMetricsSnapshot(),
+      halalTerminalBudget:
+        getEstimatedBudgetSnapshot(
+          getShariahRuntimeConfig()
+        )
+    }
   });
 });
 
@@ -250,6 +265,37 @@ app.get("/version", (req, res) => {
 // ============================
 // Live Quote
 // ============================
+
+app.get("/api/search", async (req, res) => {
+  const query = String(req.query.q || "").trim();
+
+  if (!query || query.length > 80) {
+    return res.status(400).json({
+      success: false,
+      message: "Enter a company name or stock symbol."
+    });
+  }
+
+  try {
+    const data = await searchListedEquities(query);
+    return res.status(200).json({
+      success: true,
+      message: "Listed equities retrieved successfully.",
+      assetClass: "equity",
+      data
+    });
+  } catch (error) {
+    writeLog("warn", "Equity symbol search failed", {
+      requestId: req.requestId,
+      provider: "Finnhub",
+      error: error?.message
+    });
+    return res.status(503).json({
+      success: false,
+      message: "Stock search is temporarily unavailable."
+    });
+  }
+});
 
 app.get("/stock/:symbol", async (req, res) => {
   try {

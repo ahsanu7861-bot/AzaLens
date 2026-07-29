@@ -116,9 +116,20 @@ function createPortfolioRouter({ intelligenceLimiter } = {}) {
 
   router.put("/:symbol", async (req, res) => {
     try {
+      const symbol = String(req.params.symbol || "").trim().toUpperCase();
+      const { shares, averagePrice } = req.body || {};
+      const validationError = validateHolding(symbol, shares, averagePrice);
+
+      if (validationError) {
+        return res.status(400).json({
+          success: false,
+          message: validationError,
+        });
+      }
+
       const updated = await updateHolding(
-        req.params.symbol,
-        req.body
+        symbol,
+        { shares, averagePrice }
       );
 
       res.json({

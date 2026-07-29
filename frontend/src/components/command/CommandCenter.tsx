@@ -1,15 +1,20 @@
 import { Command } from "cmdk";
 import { ArrowUpRight, Search } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useDialogFocus } from "../../hooks/useDialogFocus";
 import { useCommandStore } from "../../store/commandStore";
-import { searchStocks } from "../../lib/searchStocks";
+import {
+  searchEquities,
+  type EquitySearchResult,
+} from "../../services/equitySearch";
 
 export default function CommandCenter() {
   const { open, setOpen } = useCommandStore();
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState<EquitySearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const closeDialog = useCallback(() => {
@@ -22,8 +27,33 @@ export default function CommandCenter() {
     onClose: closeDialog,
   });
 
+  useEffect(() => {
+    if (!open || !query.trim()) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setSearching(true);
+      try {
+        const nextResults = await searchEquities(query);
+        if (!cancelled) setResults(nextResults);
+      } catch {
+        if (!cancelled) setResults([]);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, query]);
+
   if (!open) return null;
-  const results = searchStocks(query);
 
   function openStock(ticker: string) {
     navigate(`/analysis/${encodeURIComponent(ticker)}`);
@@ -66,36 +96,38 @@ export default function CommandCenter() {
 
           <Command.List className="max-h-[380px] space-y-1 overflow-y-auto p-2.5">
             <Command.Empty className="px-5 py-10 text-center text-sm text-ink-muted">
-              {query.trim()
+              {searching
+                ? "Searching listed company shares…"
+                : query.trim()
                 ? "No matching listed company found."
                 : "Start typing a symbol or company name."}
             </Command.Empty>
 
             {results.map((stock) => (
               <Command.Item
-                key={stock.id}
-                value={`${stock.ticker} ${stock.company} ${stock.exchange}`}
-                onSelect={() => openStock(stock.ticker)}
+                key={stock.symbol}
+                value={`${stock.symbol} ${stock.name} ${stock.exchange || ""}`}
+                onSelect={() => openStock(stock.symbol)}
                 className="group flex cursor-pointer items-center justify-between rounded-2xl px-3 py-3 text-sm text-ink-soft transition-colors data-[selected=true]:bg-brand/10 data-[selected=true]:text-ink sm:px-4"
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-brand/20 bg-brand/10 font-display text-xs font-bold text-brand">
-                    {stock.ticker.slice(0, 2)}
+                    {stock.symbol.slice(0, 2)}
                   </span>
 
                   <span className="min-w-0">
                     <span className="block font-semibold text-ink">
-                      {stock.ticker}
+                      {stock.symbol}
                     </span>
                     <span className="block truncate text-xs text-ink-muted">
-                      {stock.company}
+                      {stock.name}
                     </span>
                   </span>
                 </div>
 
                 <div className="ml-4 flex items-center gap-3">
                   <span className="hidden rounded-full border border-stroke bg-surface-soft px-2.5 py-1 text-[10px] font-semibold text-ink-muted sm:inline-flex">
-                    {stock.exchange}
+                    {stock.exchange || "Listed equity"}
                   </span>
                   <ArrowUpRight
                     size={16}

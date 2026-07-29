@@ -338,6 +338,22 @@ async function run() {
       operations.body.success,
       true
     );
+    assert.equal(
+      operations.body.data
+        .halalTerminalBudget.source,
+      "local-estimate"
+    );
+    assert.equal(
+      operations.body.data
+        .halalTerminalBudget.ledgerPersistence,
+      "not-guaranteed"
+    );
+    assert.equal(
+      typeof operations.body.data
+        .halalTerminalBudget
+        .configuredMonthlyBudget,
+      "number"
+    );
     assert.equal(missing.response.status, 404);
     assert.equal(
       missing.body.requestId,

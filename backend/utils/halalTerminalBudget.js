@@ -136,6 +136,67 @@ function buildBlockedResult(code, message, details = {}) {
   };
 }
 
+function getEstimatedBudgetSnapshot(config, now = new Date()) {
+  const month = getUtcMonth(now);
+  const configuredMonthlyBudget =
+    Number.isFinite(config.monthlyTokenBudget) &&
+    config.monthlyTokenBudget >= 0
+      ? config.monthlyTokenBudget
+      : 0;
+  const { ledger, error } = readLedger(
+    config.usageLedgerPath
+  );
+
+  const base = {
+    source: "local-estimate",
+    month,
+    configuredMonthlyBudget,
+    ledgerStorage: "local-filesystem",
+    ledgerPersistence: "not-guaranteed",
+  };
+
+  if (error) {
+    return {
+      ...base,
+      available: false,
+      errorCode: "HALAL_TERMINAL_LEDGER_UNAVAILABLE",
+    };
+  }
+
+  const current = ledger.months[month] || {
+    estimatedTokensUsed: 0,
+    requests: 0,
+  };
+  const validCurrent =
+    current &&
+    typeof current === "object" &&
+    !Array.isArray(current) &&
+    Number.isFinite(current.estimatedTokensUsed) &&
+    current.estimatedTokensUsed >= 0 &&
+    Number.isFinite(current.requests) &&
+    current.requests >= 0;
+
+  if (!validCurrent) {
+    return {
+      ...base,
+      available: false,
+      errorCode: "HALAL_TERMINAL_LEDGER_UNAVAILABLE",
+    };
+  }
+
+  return {
+    ...base,
+    available: true,
+    locallyEstimatedUsed: current.estimatedTokensUsed,
+    locallyEstimatedRemaining: Math.max(
+      configuredMonthlyBudget -
+        current.estimatedTokensUsed,
+      0
+    ),
+    locallyRecordedRequests: current.requests,
+  };
+}
+
 function reserveEstimatedTokens(config, symbol, now = new Date()) {
   const monthlyBudget = config.monthlyTokenBudget;
   const estimatedCost = config.estimatedTokensPerRequest;
@@ -258,6 +319,7 @@ function reserveEstimatedTokens(config, symbol, now = new Date()) {
 }
 
 module.exports = {
+  getEstimatedBudgetSnapshot,
   getUtcMonth,
   readLedger,
   reserveEstimatedTokens,

@@ -1,10 +1,5 @@
 import {
   GreetingHero,
-  MarketSnapshot,
-  MarketSentiment,
-  TopOpportunities,
-  MarketNews,
-  UpcomingEarnings,
   WatchlistPreview,
   PortfolioSummary,
 } from "../components/dashboard";
@@ -18,18 +13,6 @@ export default function DashboardPage() {
     >
       <div className="relative mx-auto max-w-[1500px] space-y-8">
         <GreetingHero />
-
-        <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-          <MarketSnapshot />
-          <MarketSentiment />
-        </div>
-
-        <TopOpportunities />
-
-        <div className="grid gap-6 xl:grid-cols-2">
-          <MarketNews />
-          <UpcomingEarnings />
-        </div>
 
         <div className="grid gap-6 xl:grid-cols-2">
           <WatchlistPreview />

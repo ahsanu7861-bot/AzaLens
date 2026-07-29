@@ -11,13 +11,16 @@ const {
   clearAllCache,
 } = require("../utils/cache");
 const {
+  getEstimatedBudgetSnapshot,
   readLedger,
 } = require("../utils/halalTerminalBudget");
 
 const ENVIRONMENT_KEYS = [
+  "NODE_ENV",
   "SHARIAH_DATA_MODE",
   "SHARIAH_FIXTURE_DIRECTORY",
   "HALAL_TERMINAL_API_KEY",
+  "HALAL_TERMINAL_ALLOW_LIVE_IN_DEV",
   "HALAL_TERMINAL_LIVE_ENABLED",
   "HALAL_TERMINAL_MONTHLY_TOKEN_BUDGET",
   "HALAL_TERMINAL_ESTIMATED_TOKENS_PER_REQUEST",
@@ -42,6 +45,7 @@ function restoreEnvironment(snapshot) {
 }
 
 function setSafeTestEnvironment(temporaryDirectory) {
+  process.env.NODE_ENV = "test";
   process.env.SHARIAH_FIXTURE_DIRECTORY = path.join(
     temporaryDirectory,
     "fixtures"
@@ -142,6 +146,19 @@ async function run() {
     assert.strictEqual(networkCalls, 0);
 
     process.env.HALAL_TERMINAL_LIVE_ENABLED = "true";
+    delete process.env.HALAL_TERMINAL_ALLOW_LIVE_IN_DEV;
+    process.env.HALAL_TERMINAL_MONTHLY_TOKEN_BUDGET = "10";
+
+    const developmentGuardResult =
+      await fetchScreening("DEVGUARD1");
+    assert.strictEqual(developmentGuardResult.success, false);
+    assert.strictEqual(
+      developmentGuardResult.error.code,
+      "HALAL_TERMINAL_LIVE_OPT_IN_REQUIRED"
+    );
+    assert.strictEqual(networkCalls, 0);
+
+    process.env.HALAL_TERMINAL_ALLOW_LIVE_IN_DEV = "true";
     process.env.HALAL_TERMINAL_MONTHLY_TOKEN_BUDGET = "0";
 
     const zeroBudgetResult = await fetchScreening("BUDGET0");
@@ -189,6 +206,32 @@ async function run() {
     assert.strictEqual(
       ledger.months[month].estimatedTokensUsed,
       10
+    );
+
+    const budgetSnapshot =
+      getEstimatedBudgetSnapshot(
+        {
+          monthlyTokenBudget: 500,
+          usageLedgerPath:
+            process.env
+              .HALAL_TERMINAL_USAGE_LEDGER_PATH,
+        },
+        new Date(`${month}-15T12:00:00.000Z`)
+      );
+
+    assert.deepStrictEqual(
+      budgetSnapshot,
+      {
+        source: "local-estimate",
+        month,
+        configuredMonthlyBudget: 500,
+        ledgerStorage: "local-filesystem",
+        ledgerPersistence: "not-guaranteed",
+        available: true,
+        locallyEstimatedUsed: 10,
+        locallyEstimatedRemaining: 490,
+        locallyRecordedRequests: 1,
+      }
     );
     assert.strictEqual(ledger.months[month].requests, 1);
 

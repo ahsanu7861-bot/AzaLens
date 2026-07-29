@@ -35,6 +35,9 @@ const profileCache = new Map();
 */
 const pendingQuoteRequests = new Map();
 const pendingProfileRequests = new Map();
+const symbolSearchCache = new Map();
+const pendingSymbolSearchRequests = new Map();
+const SYMBOL_SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
 
 // ==================================================
 // Helpers
@@ -176,6 +179,87 @@ function isValidQuote(quote) {
     Number.isFinite(Number(quote.c)) &&
     Number(quote.c) > 0
   );
+}
+
+function isListedEquitySearchResult(result) {
+  const type = String(result?.type || "").trim().toLowerCase();
+  const symbol = normalizeSymbol(result?.symbol);
+
+  return (
+    symbol.length > 0 &&
+    symbol.length <= 15 &&
+    /^[A-Z0-9.\-]+$/.test(symbol) &&
+    (type === "common stock" ||
+      type === "ordinary shares" ||
+      type === "preferred stock" ||
+      type === "preferred shares")
+  );
+}
+
+async function searchListedEquities(query, limit = 12) {
+  const normalizedQuery = String(query || "").trim();
+
+  if (normalizedQuery.length < 1 || normalizedQuery.length > 80) {
+    return [];
+  }
+
+  const cacheKey = normalizedQuery.toLowerCase();
+  const cachedEntry = readFreshCache(symbolSearchCache, cacheKey);
+
+  if (cachedEntry) {
+    return cachedEntry.value.slice(0, limit);
+  }
+
+  if (pendingSymbolSearchRequests.has(cacheKey)) {
+    const pending = await pendingSymbolSearchRequests.get(cacheKey);
+    return pending.slice(0, limit);
+  }
+
+  const requestPromise = (async () => {
+    const response = await axios.get(`${FINNHUB_BASE_URL}/search`, {
+      params: {
+        q: normalizedQuery,
+        token: getApiKey()
+      },
+      timeout: REQUEST_TIMEOUT_MS
+    });
+
+    const results = Array.isArray(response?.data?.result)
+      ? response.data.result
+      : [];
+    const equities = results
+      .filter(isListedEquitySearchResult)
+      .map((result) => ({
+        symbol: normalizeSymbol(result.symbol),
+        name: String(result.description || result.symbol).trim(),
+        exchange: String(result.displaySymbol || "").includes(":")
+          ? String(result.displaySymbol).split(":")[0]
+          : null,
+        securityType: String(result.type || "Common Stock")
+      }))
+      .filter(
+        (result, index, all) =>
+          all.findIndex((candidate) => candidate.symbol === result.symbol) ===
+          index
+      );
+
+    writeCache(
+      symbolSearchCache,
+      cacheKey,
+      equities,
+      SYMBOL_SEARCH_CACHE_TTL_MS
+    );
+    return equities;
+  })();
+
+  pendingSymbolSearchRequests.set(cacheKey, requestPromise);
+
+  try {
+    const results = await requestPromise;
+    return results.slice(0, limit);
+  } finally {
+    pendingSymbolSearchRequests.delete(cacheKey);
+  }
 }
 
 // ==================================================
@@ -717,5 +801,6 @@ module.exports = {
   getHistoricalCandles,
   clearFinnhubQuoteCache,
   clearFinnhubProfileCache,
-  getFinnhubCacheStats
+  getFinnhubCacheStats,
+  searchListedEquities
 };

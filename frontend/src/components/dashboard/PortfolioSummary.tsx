@@ -1,13 +1,21 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { Badge, Card } from "../ui";
-
-const allocation = [
-  { sector: "Technology", value: 48 },
-  { sector: "Healthcare", value: 22 },
-  { sector: "Industrials", value: 18 },
-  { sector: "Cash", value: 12 },
-];
+import { getPortfolio } from "../../services/portfolio";
 
 export default function PortfolioSummary() {
+  const portfolioQuery = useQuery({
+    queryKey: ["portfolio"],
+    queryFn: getPortfolio,
+    staleTime: 60 * 1000,
+  });
+  const holdings = portfolioQuery.data ?? [];
+  const totalShares = holdings.reduce((sum, holding) => sum + holding.shares, 0);
+  const costBasis = holdings.reduce(
+    (sum, holding) => sum + holding.shares * holding.averagePrice,
+    0,
+  );
+
   return (
     <Card variant="brand" padding="lg">
       <div className="flex items-center justify-between">
@@ -25,50 +33,46 @@ export default function PortfolioSummary() {
           </p>
         </div>
 
-        <Badge variant="success">
-          +2.18%
-        </Badge>
+        <Badge variant="info">Recorded data</Badge>
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-4">
-        <Metric title="Portfolio Value" value="$128,420" />
-        <Metric title="Today's Gain" value="+$2,731" />
-        <Metric title="Risk Score" value="74 / 100" />
-        <Metric title="Shariah" value="98% Pass" />
-      </div>
-
-      <div className="mt-8">
-        <p className="text-sm font-semibold text-white">
-          Allocation
+      {portfolioQuery.isLoading ? (
+        <div className="mt-8 h-28 animate-pulse rounded-xl border border-white/5 bg-white/[0.02]" />
+      ) : portfolioQuery.isError ? (
+        <p className="mt-8 rounded-xl border border-white/5 bg-white/[0.02] p-5 text-sm leading-6 text-slate-300">
+          Your portfolio could not be loaded. AzaLens does not substitute
+          demo holdings or estimated values.
         </p>
+      ) : (
+        <>
+          <div className="mt-8 grid grid-cols-2 gap-4">
+            <Metric title="Holdings" value={holdings.length.toLocaleString()} />
+            <Metric title="Total shares" value={totalShares.toLocaleString()} />
+            <Metric
+              title="Recorded cost basis"
+              value={costBasis.toLocaleString(undefined, {
+                style: "currency",
+                currency: "USD",
+                maximumFractionDigits: 2,
+              })}
+            />
+            <Metric title="Live market value" value="Not calculated" />
+          </div>
 
-        <div className="mt-5 space-y-5">
-          {allocation.map((item) => (
-            <div key={item.sector}>
-              <div className="mb-2 flex justify-between">
-                <span className="text-sm text-slate-300">
-                  {item.sector}
-                </span>
+          <p className="mt-6 text-xs leading-5 text-slate-500">
+            Cost basis uses your recorded shares and average purchase prices.
+            Gains, live value, risk, and Shariah coverage are not shown until
+            AzaLens can calculate them from verified current data.
+          </p>
+        </>
+      )}
 
-                <span className="text-sm font-semibold text-white">
-                  {item.value}%
-                </span>
-              </div>
-
-              <div className="h-2 rounded-full bg-white/5">
-                <div
-                  className="h-full rounded-full bg-emerald-400"
-                  style={{ width: `${item.value}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <button className="mt-8 text-sm font-semibold text-emerald-400 hover:text-emerald-300">
+      <Link
+        to="/portfolio"
+        className="mt-8 inline-block text-sm font-semibold text-emerald-400 hover:text-emerald-300"
+      >
         Open Portfolio →
-      </button>
+      </Link>
     </Card>
   );
 }

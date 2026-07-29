@@ -61,16 +61,24 @@ function getShariahRuntimeConfig(env = process.env) {
   const dataMode = VALID_DATA_MODES.has(requestedMode)
     ? requestedMode
     : DATA_MODES.OFFLINE;
+  const liveApiRequested = parseBoolean(
+    env.HALAL_TERMINAL_LIVE_ENABLED,
+    false
+  );
+  const isProduction = env.NODE_ENV === "production";
+  const liveInDevelopmentAllowed = parseBoolean(
+    env.HALAL_TERMINAL_ALLOW_LIVE_IN_DEV,
+    false
+  );
 
   return {
     dataMode,
     requestedMode: requestedMode || null,
     invalidMode:
       Boolean(requestedMode) && !VALID_DATA_MODES.has(requestedMode),
-    liveApiEnabled: parseBoolean(
-      env.HALAL_TERMINAL_LIVE_ENABLED,
-      false
-    ),
+    liveApiEnabled:
+      liveApiRequested &&
+      (isProduction || liveInDevelopmentAllowed),
     monthlyTokenBudget: parseNonNegativeInteger(
       env.HALAL_TERMINAL_MONTHLY_TOKEN_BUDGET,
       0
