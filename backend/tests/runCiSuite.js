@@ -26,6 +26,7 @@ const deterministicSuites = [
   "testShariahCostProtection.js",
   "testSupportResistanceReliability.js",
   "testTrendReliability.js",
+  "testTrustProxy.js",
 ];
 
 for (const suite of deterministicSuites) {

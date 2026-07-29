@@ -52,6 +52,14 @@ const {
 } = require("./utils/rateLimit");
 
 const app = express();
+
+// Render places this service behind two trusted proxy hops (an edge
+// proxy, then an internal proxy) before requests reach this process.
+// Trusting exactly 3 hops means req.ip resolves to the genuine client
+// address and ignores any values a client prepends to X-Forwarded-For
+// itself - see backend/tests/testTrustProxy.js for the verified chain.
+app.set("trust proxy", 3);
+
 const globalLimiter = createGlobalLimiter();
 const strictLimiter = createStrictLimiter();
 const portfolioRoutes = createPortfolioRouter({
