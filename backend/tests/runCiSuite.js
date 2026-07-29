@@ -16,12 +16,17 @@ const deterministicSuites = [
   "testMultiSymbolConsistency.js",
   "testObservability.js",
   "testPhase45Stability.js",
+  "testPortfolioRouterFactory.js",
+  "testRateLimitPaths.js",
+  "testRateLimitBuckets.js",
+  "testRateLimitHttp.js",
   "testReleaseHealthCheck.js",
   "testReleaseScope.js",
   "testShariahAAOIFI.js",
   "testShariahCostProtection.js",
   "testSupportResistanceReliability.js",
   "testTrendReliability.js",
+  "testTrustProxy.js",
 ];
 
 for (const suite of deterministicSuites) {

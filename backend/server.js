@@ -45,9 +45,26 @@ const {
 // ============================
 
 const watchlistRoutes = require("./routes/watchlistRoutes");
-const portfolioRoutes = require("./routes/portfolioRoutes");
+const createPortfolioRouter = require("./routes/portfolioRoutes");
+const {
+  createGlobalLimiter,
+  createStrictLimiter
+} = require("./utils/rateLimit");
 
 const app = express();
+
+// Render places this service behind two trusted proxy hops (an edge
+// proxy, then an internal proxy) before requests reach this process.
+// Trusting exactly 3 hops means req.ip resolves to the genuine client
+// address and ignores any values a client prepends to X-Forwarded-For
+// itself - see backend/tests/testTrustProxy.js for the verified chain.
+app.set("trust proxy", 3);
+
+const globalLimiter = createGlobalLimiter();
+const strictLimiter = createStrictLimiter();
+const portfolioRoutes = createPortfolioRouter({
+  intelligenceLimiter: strictLimiter
+});
 const PORT = process.env.PORT || 5000;
 const environmentConfig =
   getEnvironmentConfig(process.env);
@@ -133,6 +150,7 @@ app.use(
     next();
   }
 );
+app.use(globalLimiter);
 
 // ============================
 // API Routes
@@ -547,7 +565,7 @@ app.get("/candlestick/:symbol", async (req, res) => {
 // Master Analysis Engine
 // ============================
 
-app.get("/api/analyze/:symbol", async (req, res) => {
+app.get("/api/analyze/:symbol", strictLimiter, async (req, res) => {
   try {
     const symbol = req.params.symbol
       .trim()
@@ -581,7 +599,7 @@ app.get("/api/analyze/:symbol", async (req, res) => {
 // Explanation Engine
 // ============================
 
-app.get("/api/explanation/:symbol", async (req, res) => {
+app.get("/api/explanation/:symbol", strictLimiter, async (req, res) => {
   try {
     const symbol = req.params.symbol
       .trim()
