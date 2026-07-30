@@ -76,6 +76,9 @@ jobs:
       - name: Verify WCAG AA color contrast tokens
         run: npm run test:contrast
 
+      - name: Verify Shariah design token registration
+        run: npm run test:design-tokens
+
       - name: Build frontend
         run: npm run build
 
