@@ -6,7 +6,7 @@ Last updated: 2026-07-24
 
 - Premium dual-theme application shell: built and under pre-commit QA.
 - Analysis workspaces: foundation built; live modules remain subject to data and product validation.
-- Settings: **UNBUILT — placeholder UI only.** The page contains layout placeholders and saved theme behavior, but account, notification, privacy, and research controls are not implemented.
+- Settings: **BUILT LOCALLY — browser-scoped preferences only.** Theme, reduced motion, and default analysis workspace are functional and saved locally. Account, cross-device sync, alerts, and user-isolated storage are explicitly labelled unavailable until the accounts phase.
 
 ## Premium Experience Foundation backlog
 

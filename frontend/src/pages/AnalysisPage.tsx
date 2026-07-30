@@ -17,6 +17,7 @@ import {
   type WorkspaceId,
 } from "../components/analysis/workspaces";
 import { useAnalysis } from "../hooks/useAnalysis";
+import { readLocalSettings } from "../app/preferences";
 
 const FundamentalsWorkspace = lazy(
   () => import("../components/analysis/FundamentalsWorkspace"),
@@ -80,7 +81,7 @@ export default function AnalysisPage() {
   const requestedWorkspace = searchParams.get("workspace");
   const activeWorkspace = isWorkspaceId(requestedWorkspace)
     ? requestedWorkspace
-    : "overview";
+    : readLocalSettings().defaultWorkspace;
 
   /*
     Default-deny on the client too: once data has arrived, the
@@ -96,8 +97,9 @@ export default function AnalysisPage() {
 
   function changeWorkspace(workspace: WorkspaceId) {
     const nextSearchParams = new URLSearchParams(searchParams);
+    const defaultWorkspace = readLocalSettings().defaultWorkspace;
 
-    if (workspace === "overview") {
+    if (workspace === defaultWorkspace) {
       nextSearchParams.delete("workspace");
     } else {
       nextSearchParams.set("workspace", workspace);

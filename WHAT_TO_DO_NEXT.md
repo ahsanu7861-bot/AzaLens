@@ -138,6 +138,13 @@ After 1.1 strips the fake data, decide what the dashboard truthfully can show to
 
 ### 2.3 Settings page — label it or build it — **Quick for the label**
 
+**Implementation status (2026-07-30): BUILT LOCALLY, NOT YET DEPLOYED.**
+Settings now provides functional, browser-scoped theme, reduced-motion and
+default-analysis-workspace preferences. It explicitly labels accounts,
+cross-device sync, notifications and user-isolated storage as unavailable
+instead of presenting inert controls. No preference is represented as
+server-synced.
+
 `docs/PRODUCT_BUILD_STATUS.md` already admits Settings is placeholder-only. Make the UI admit it too, or hide the page for beta.
 
 ### 2.4 Market-session awareness for all freshness displays — **Medium**
