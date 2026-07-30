@@ -1,217 +1,101 @@
-# AzaLens — What To Do Next
+# AzaLens — What To Do Next (Master Roadmap)
 
-**Date:** 2026-07-28 · **Audited commit:** `355295a` (note: the claimed baseline `bc3d978` does not exist in this repository — see item 1.9)
+**Date:** 2026-07-30 · **Baseline commit:** `92d483c` (`main`, clean, synced with origin)
+**Status vocabulary (Rule 7):** Verified / Partially Verified / Planned / Blocked / Not Built.
+**This file replaces the 2026-07-28 version entirely** — that version was stale in both directions (it denied the compliance gate, INTACT/VIOLATED, rate limiting and CI, all of which exist; full reconciliation in `docs/AUDIT_2026-07-30.md`).
 
-This file combines the full technical audit of the actual code with the earlier design/product review. It is ordered by priority: work top to bottom. Truth and integrity fixes come first, then structure and density, then motion and polish. Each item says what to fix, why it matters in plain language, and a rough size:
-
-- **Quick** — under half a day for a developer or AI tool
-- **Medium** — one to three days
-- **Large** — a week or more, or needs product decisions first
-
----
-
-## PART 1 — BEFORE BETA (truth and integrity)
-
-These are the items where the product currently says something that is not true, or where the core trust promise is not actually enforced. Nothing else matters until these are done, because the entire brand is "truth over hype."
-
-### 1.1 Fix the fabricated dashboard data — replace blind BUY/SELL commands with reasoned verdicts; delete fake prices and fake "Compliant" labels — **Quick to Medium**
-
-**What:** The dashboard components `frontend/src/components/dashboard/WatchlistPreview.tsx` and `TopOpportunities.tsx` contain hardcoded, invented data presented as real:
-
-- AAPL at **$212.43** while the analysis page shows the live price (the exact contradiction the design review caught)
-- Hardcoded **"BUY"** command badges and invented "AI scores" (92, 95…) — these violate the no-blind-calls principle
-- Hardcoded **`shariah: "Compliant"`** labels on five tickers — this is the worst one: it fabricates religious-compliance claims with no screening behind them
-
-The other dashboard panels (MarketSnapshot, MarketSentiment, MarketNews, UpcomingEarnings, PortfolioSummary) are also fully static — **no dashboard component fetches any data at all**.
-
-**Why it matters:** A user who compares the dashboard price to the analysis page price will conclude the whole product invents numbers. A Muslim user who buys a stock because the dashboard said "Compliant" has been given a fabricated religious assurance. This is the single fastest way to destroy the product's only differentiator.
-
-**Fix — the rule is: kill the COMMAND, keep the UNDERSTANDING.**
-
-- **Fake prices, fake AI scores, fake "Compliant" labels:** delete outright. Either wire these panels to real data (the backend `/api/watchlist` route already exists) or replace them with honest empty/preview states ("Connect your watchlist to see live data"). Quick to delete; Medium to wire real data.
-- **BUY/SELL badges:** do NOT simply remove the directional insight — replace blind BUY/SELL command badges with **reasoned verdicts**, each showing: a clear directional lean (e.g. "Leaning Bullish"), a confidence %, a one-line plain-language "why" summarizing the signal confluence, and a tie-in to the invalidation level (what would prove it wrong). The goal is to give users the buy/sell *understanding* without ever issuing a buy/sell *command*. This keeps the no-blind-calls promise intact while making the product genuinely more useful than a raw indicator dashboard anyone could get free elsewhere. The AI Thesis and Thesis Invalidation components are the home for this reasoned understanding. Note for the developer: the backend already produces the ingredients — `agreement.direction`/`confidence`, `agreementSummary`, and the confluence/risk levels in the master analysis response — so this is a presentation change, not a new engine.
-
-### 1.2 Shariah screening is OFF in the current configuration — every stock returns "unknown" — **Quick (config) + verification**
-
-**What:** The screening pipeline is safe-by-default: `backend/config/shariahRuntime.js` defaults to `offline` mode unless `SHARIAH_DATA_MODE`, `HALAL_TERMINAL_LIVE_ENABLED`, and a positive `HALAL_TERMINAL_MONTHLY_TOKEN_BUDGET` are all set. The current `backend/.env` sets **none of them**. Result: in production as configured, every screening call is blocked ("Live Shariah screening is disabled to protect API quota") and every stock shows "Review required."
-
-**Why it matters:** The good news: the system fails safe — it never claims a stock is compliant without evidence. The bad news: the headline feature of the product is effectively switched off. A beta user will see "could not be verified" on every single ticker.
-
-**Fix:** Decide the launch posture and set the three environment variables on the production backend (with a real monthly budget). Then verify one known-compliant and one known-non-compliant ticker end to end. The cost-safety guard (`backend/utils/halalTerminalBudget.js`) is genuinely well built — ledger, lock file, atomic writes — so turning live mode on is safe.
-
-### 1.3 The Shariah "guardrail" does not actually gate the analysis output — **Medium**
-
-**What:** Verified in code: the compliance *panel* is honest (`shariahComplianceService.js` only ever returns COMPLIANT when the provider explicitly says so; `IslamicCompliance.tsx` line 247 refuses to infer compliance). **But nothing blocks or annotates the rest of the analysis for a non-compliant or unverified stock.** `masterAnalysisService.js` computes and returns the full technical verdict regardless of compliance status. `AIVerdict.tsx` contains zero references to Shariah. The explanation engine (`analysis/explanation/explanationEngine.js`) contains zero references to Shariah. A stock that fails AAOIFI screening still gets a full bullish technical verdict with no warning on that verdict.
-
-Also: stale screening evidence only lowers the *confidence* label to LOW — it does not change the status. A stale "COMPLIANT" still displays as compliant.
-
-**Why it matters:** The product promise is that compliance is a first-class gate, not a side panel. Right now a user can read an enthusiastic AI verdict for a non-compliant stock and never open the Shariah tab.
-
-**Fix:** In the master analysis response (and in `AIVerdict.tsx` / the thesis workspace), when status is NON_COMPLIANT or UNKNOWN, visibly gate or annotate the verdict ("This stock does not pass / has not been verified against AAOIFI screening — AzaLens does not present opportunities on unverified stocks"). Decide and encode the stale-evidence rule: stale evidence should downgrade to "Review required," not remain "Compliant · low confidence."
-
-### 1.4 The INTACT / VIOLATED / REVIEW data-contract states do not exist anywhere — **Large (or Quick if you descope the claim)**
-
-**What:** A repo-wide search for INTACT, VIOLATED, and REVIEW-as-a-state returns **zero code hits** in backend and frontend. The "Day 15 data contract" as described (deterministic trust-state mapping) is not implemented. What *does* exist: provider lineage (Finnhub / TwelveData / Halal Terminal names carried through `dataQuality.providers`), cache states (HIT / MISS / COALESCED / BYPASS / ERROR), a Good / Degraded / Unavailable data-quality status, and honest freshness display (`StockHeader.tsx` shows "Freshness unavailable" rather than inventing a timestamp — verified, no invented defaults).
-
-**Why it matters:** If investor or partner material describes the INTACT/VIOLATED/REVIEW contract, that claim is currently unverifiable against source. Either build it or stop claiming it.
-
-**Fix:** Option A (honest, Quick): update docs/pitch to describe what exists — lineage, cache states, Good/Degraded/Unavailable. Option B (Large): implement the deterministic mapping as a real module with tests, driven by the existing dataQuality inputs.
-
-### 1.5 Relative volume reports "low participation" when the market is simply closed — **Medium**
-
-**What:** Confirmed truth bug. `backend/analysis/rvol.js` divides the **last bar's volume** by the prior-30-bar average, and `rvolService.js` labels the result "today" with **zero market-session awareness** — there is no market clock anywhere in the backend. If the data feed includes the current in-progress day, volume is understated all day (and after hours), producing "Low Volume — trading activity is below its recent average" when participation is actually normal or the market is closed.
-
-**Why it matters:** This is a data statement that is false in a predictable, daily-recurring way — exactly the kind of thing the product promises never to do.
-
-**Fix:** Add a minimal market-session check (exchange hours + weekend/holiday awareness, or drop the last bar when it is an incomplete session) and change the copy to say "vs. last completed session" when the market is closed. Same clock work also feeds item 2.4.
-
-### 1.6 A Finnhub profile failure throws away a perfectly valid quote — **Quick**
-
-**What:** Confirmed at `backend/providers/finnhubProvider.js:255–269`: the live quote and the company profile are fetched with `Promise.all`, and `fetchCompanyProfile` has no error handling of its own. If the profile call fails (rate limit, timeout), the whole function rejects and the **valid quote is discarded** — the app reports "unable to fetch live market data" when the price was actually available.
-
-**Fix:** Wrap the profile fetch so its failure degrades to `company: null` instead of rejecting the quote. One small change.
-
-### 1.7 One failed indicator kills the entire analysis — **Medium**
-
-**What:** In `masterAnalysisService.js` (~line 1349), if **any** of the 11 indicators fails, the whole response becomes `success: false`, the route returns HTTP 500, the frontend service throws, and the user sees "AzaLens could not analyze X. Confirm the ticker and make sure the backend is running" — which is both all-or-nothing and a misleading message (the backend *was* running).
-
-**Why it matters:** Thinly traded and OTC tickers with under 31 volume bars will fail RVOL, which then blanks the entire analysis — including the ten indicators that worked. This is the opposite of the graceful-degradation story.
-
-**Fix:** Return partial results with per-indicator failure flags (the `failedIndicators` structure already exists — it's just used to abort instead of degrade), keep `success: true` with `dataQuality: "Degraded"`, and make the frontend render available modules with honest per-module "unavailable" states.
-
-### 1.8 Minimum API protection before anyone outside can reach the backend — **Medium**
-
-**What:** `server.js` has **no authentication, no rate limiting, no audit logging, and wide-open CORS**, and error handlers return raw internal error messages (`details: error.message`) to callers. The watchlist and portfolio routes accept unauthenticated writes to JSON files on disk (`backend/storage/*.json`) — anyone on the internet can modify them. Symbol input on `/api/analyze` is only trimmed/uppercased (the watchlist routes have a proper regex — reuse it).
-
-**Why it matters:** A public beta with an open, unlimited API means your Finnhub/TwelveData/Halal Terminal quotas can be drained by anyone, and your users' watchlists are world-writable.
-
-**Fix (minimum for beta):** add `express-rate-limit`, restrict CORS to your frontend origin, apply the existing symbol regex to all routes, and stop echoing internal error details. Full auth is item 3.1.
-
-### 1.9 Reconcile the claims that don't match the repository — **Quick**
-
-**What:** Three honesty corrections to your own materials:
-
-1. The stated production baseline commit **`bc3d978` does not exist** in this repository (HEAD is `355295a`). Fix the reference before anyone diligences it.
-2. **Sprints 4.1–4.6 cannot be verified** because no sprint definitions exist in the repo (`docs/` contains one 19-line status file). Of the two you described: **Sprint 4.2 Security/Privacy — NOT FOUND** (no auth, no authorization/tiers, no rate limiting, no audit logging; only helmet, gitignored secrets, and partial input validation exist). **Sprint 4.5 Test Architecture — NOT FOUND as an architecture** (no test framework, no coverage, no CI; what exists is ~12 manual Node scripts, of which three are real assertion tests — `testShariahAAOIFI.js`, `testShariahCostProtection.js`, `testPhase45Stability.js` — and several others print output with no assertions; the frontend has zero tests). Do not present 4.2 or 4.5 as complete to investors.
-3. The **tier/permission gating service does not exist at all** — zero matches for tier/entitlement/subscription in backend or frontend; `frontend/src/permissions/` is an empty folder. There is no Pro feature boundary to audit because there is no boundary.
-
-### 1.10 Commit the pending fix and clean the repository — **Quick**
-
-**What:**
-- `frontend/src/types/analysis.ts` has an uncommitted two-line fix (adds `success`/`error` to the response type) that the deployed validation code depends on. Commit it.
-- Delete from disk and git: `frontend-backup/`, `frontend-undo-backup-20260721-023415/` (18 files git-tracked), `backend/phase45-backup-20260719-033529/`, `AlphaLensAI-backend.tar.gz` (**a full backend snapshot is tracked in git history**), the other three tarballs, `backend/phase5-source.txt`, and the stray `aapl-analysis.json` files.
-- Delete or consciously shelve dead code: `backend/providers/alphaVantageProvider.js` and `yahooProvider.js` (imported by nothing), and `decisionEngineService.js`, `riskPlanningService.js`, `scenarioPlanningService.js` (reachable from no route — only test scripts use them). If the decision engine is the future of the verdict, wire it; if not, remove it.
-- Empty folders promising things that don't exist: `ai-engine/`, `database/`, `docker/`, `models/`, `scripts/`, `backend/middleware/`, `backend/models/`, `frontend/src/permissions/`. Remove them or add what they promise.
-
-**Why it matters:** Anyone who opens this repo (developer, auditor, acquirer) reads the backups, tarballs, and empty folders as the true state of engineering discipline.
+Companion documents: `docs/AUDIT_2026-07-30.md` (verification evidence), `docs/CONSTITUTION_COMPLIANCE.md` (rule-by-rule), `docs/DESIGN_SYSTEM.md` (visual plan).
+**Cost note convention:** every item states its provider/infrastructure cost. Current budget reality: Halal Terminal free plan, ~177 tokens to 28 Aug 2026, ~5 tokens per screening (single data point); Render Free; Vercel free.
 
 ---
 
-## PART 2 — BEFORE BETA (density and structure)
+## THE SINGLE NEXT TASK
 
-### 2.1 Wire the Watchlist and Portfolio pages to their existing backend — **Medium**
+**Phase 0 — Specialist Readiness** (Part 1 below), as one small session. Reason: both upcoming reviews — Mufti Ejaz Ahmed Samadani sahib and Tahir Khan sahib — depend on it; it is the largest credibility gain available; and it costs **zero provider tokens** (the only optional spend is deliberately pre-screening 2–3 demo tickers, ~10–15 tokens, only with your explicit go-ahead on the day).
 
-**Implementation status (2026-07-30): BUILT LOCALLY, NOT YET DEPLOYED.** Both
-pages now use their existing CRUD routes and a provider-backed equities-only
-symbol search. Search is no longer limited to the old AAPL/NVDA static demo
-list. Eligible coverage is the listed-company-share universe returned by the
-configured licensed market-data provider; crypto, forex, funds/ETFs, futures,
-commodities and other non-equity instruments are rejected from discovery.
-Watchlist supports add/remove/open-analysis. Portfolio supports add/edit/remove,
-shares, average purchase price and explicitly labelled recorded cost basis.
-User-specific durable persistence still belongs to Items 3.1 and 3.3.
-
-`frontend/src/pages/WatchlistPage.tsx`, `PortfolioPage.tsx`, and `ScannerPage.tsx` are 14-line stubs with no data fetching, while working backend routes (`/api/watchlist`, `/api/portfolio` with portfolio intelligence) already exist. Either connect them or remove them from navigation for beta — an empty page reached from the main nav reads as broken.
-
-### 2.2 One honest dashboard — **Medium**
-
-**Implementation status (2026-07-30): BUILT LOCALLY, NOT YET DEPLOYED.** The
-dashboard now reads only the real Watchlist and Portfolio records. It shows
-saved equities, holding count, total recorded shares, and recorded USD cost
-basis. It explicitly does not invent live market value, gains, risk, Shariah
-coverage, index prices, market sentiment, news, earnings, or market-wide scan
-results. Opening the dashboard also no longer launches full analyses for the
-first four watchlist symbols, preventing accidental Halal Terminal token spend;
-analysis begins only after the user explicitly opens a stock.
-
-After 1.1 strips the fake data, decide what the dashboard truthfully can show today: real watchlist quotes (backend exists), a real link into analysis, and honest placeholders for everything else. A smaller true dashboard beats a dense fabricated one.
-
-### 2.3 Settings page — label it or build it — **Quick for the label**
-
-**Implementation status (2026-07-30): BUILT LOCALLY, NOT YET DEPLOYED.**
-Settings now provides functional, browser-scoped theme, reduced-motion and
-default-analysis-workspace preferences. It explicitly labels accounts,
-cross-device sync, notifications and user-isolated storage as unavailable
-instead of presenting inert controls. No preference is represented as
-server-synced.
-
-`docs/PRODUCT_BUILD_STATUS.md` already admits Settings is placeholder-only. Make the UI admit it too, or hide the page for beta.
-
-### 2.4 Watchlist Scanner v1 — **Built locally, not yet deployed**
-
-Scanner now runs manually against a user-selected watchlist universe of no more
-than 20 listed equities. The backend enforces both watchlist membership and the
-20-symbol input cap, performs one daily-history request per symbol
-sequentially, and makes zero Shariah or fundamentals calls. Results contain
-price, relative-volume, range and RSI observations only; they are explicitly
-not trade signals. Full analysis and on-demand Shariah screening remain behind
-the stock-analysis link.
-
-### 2.5 Market-session awareness for all freshness displays — **Medium**
-
-The same market clock from item 1.5 should drive: "Market closed — last price from [date/time]" on the analysis header, and suppress intraday-only language after hours. There is currently **no delayed-feed state anywhere** — if any of your feeds is 15-minute delayed, the UI has no way to say so. Verify what your Finnhub tier actually delivers and label accordingly.
+My honest sequencing recommendation, even where it differs from prior assumptions: **specialist readiness → crash fix + CI registration → docs truth sweep → design Phases 1–2 → accounts/DB/tiers as one project → beta gate.** Durable storage stays deliberately parked (below). Nothing design-signature or Momentum-Room-shaped before that.
 
 ---
 
-## PART 3 — BEFORE v1.0 LAUNCH
+## PART 1 — PHASE 0: SPECIALIST READINESS (do first)
 
-### 3.1 Accounts, authentication, and the real tier-gating service — **Large**
+| # | Item | Status today | Rules | Cost |
+|---|---|---|---|---|
+| 1.1 | **Rebuild landing page honestly**: remove the "Verdict: BUY / AI confidence 92%" mockup and fake trade plan; show the real withheld-vs-compliant verdict composition; unify onto app design tokens; add footer with disclaimers | Violation live (audit V8) | 6, 10, 7 | None |
+| 1.2 | **Remove/relabel the "AzaLens Pro — Upgrade to unlock" upsell** (`ProFeatureWrapper`, `StockHeader`): no such tier exists | Violation live (audit V7) | 7, 21, 26 | None |
+| 1.3 | **Methodology & Limitations page** (user-facing): AAOIFI version, thresholds (30% debt/assets, 5% impermissible income), screening source description (within Rule 12 limits), 24h-cache / 7-day-stale rules, swing horizon + data delays, purification explanation, "not a fatwa" | Not Built (audit A6) | 11, 15, 25 | None |
+| 1.4 | **Purification section in the Shariah workspace** (today it is one metric row) | Partially Verified (audit A4) | 4, 11 | None |
+| 1.5 | **Fix the Finnhub crash path** — add `.catch` to the derived pending-quote promise (`finnhubProvider.js:581–586`); an unhandled rejection can kill the process mid-demo | Confirmed bug (audit item 13) | 8 | None |
+| 1.6 | Title → "AzaLens" (drop "AI"); purge the `AlphaLens` remnant in `StockChart.tsx` | Violation (audit V12) | 2 | None |
+| 1.7 | **Docs truth sweep**: refresh `docs/PRODUCT_BUILD_STATUS.md` (its "Verified Status 2026-07-28" is now false about rate limiting/CI); this file supersedes the old roadmap | Stale (audit V1–V6) | 7 | None |
+| 1.8 | **Demo-day runbook**: warm the backend ~10 min before each meeting (Render Free cold start looks broken); optionally pre-screen the demo tickers with your explicit approval | Planned (audit N3) | 17 | 0 or ~10–15 tokens, user-approved |
+| 1.9 | Delete dead fabricated code: `App.tsx` (hardcoded BUY plan), `LiveAnalysisTest.tsx`, unused `components/dashboard/*` legacy panels, empty `features/analysis` + `features/auth` dirs | Dead code present (audit V11) | 6, 7 | None |
 
-Nothing exists today (see 1.9.3). v1.0 with a paid tier needs: user accounts, session/token auth on every API route, an entitlement check server-side (never only in the UI), and the empty `frontend/src/permissions/` folder made real. Design the entitlement check as one middleware so there is exactly one place a Pro feature can leak from.
-
-### 3.2 Real test architecture with CI — **Large**
-
-Adopt a runner (Vitest fits the stack on both sides), convert the three real assertion scripts into the suite, and add: Shariah safety regression tests (the "never claim compliant without evidence" invariant, the stale rule from 1.3, the gate from 1.3), provider contract tests with recorded fixtures for Finnhub/TwelveData/Halal Terminal (the `fixtures/shariah/` folder exists but contains only a README), error-state tests for the degradation behavior built in 1.7, and frontend tests for the truth-critical components (StockHeader freshness, IslamicCompliance states, verdict gating). Add GitHub Actions — **there is currently no CI of any kind** — running lint + tests on every push, blocking merge on failure.
-
-### 3.3 Real storage and shared cache — **Large**
-
-Watchlists/portfolios live in JSON files (`backend/storage/*.json`) and all caches are per-process in-memory Maps (`utils/cache.js`, the Finnhub caches). This works for one server and one user; it breaks with accounts (3.1) or a second instance (two servers = two disagreeing caches and two ledgers). Move user data to a database (Postgres or a managed equivalent) and shared caching to Redis when you scale past one instance. The budget ledger's file lock is single-machine only — same migration.
-
-#### [PENDING BEFORE PUBLIC LAUNCH] Provision durable Render Key Value (Valkey) for Shariah cache and token-budget persistence
-
-Paid infrastructure is intentionally postponed until closer to the official public launch. Before allowing public traffic, provision a small paid, disk-backed Render Key Value instance in the same region as the backend and connect through Render's private/internal URL. Do not treat an in-memory `Map`, a JSON file on the web service's ephemeral filesystem, or a free/non-persistent Key Value instance as durable storage.
-
-Implementation requirements:
-
-- Replace the process-local Shariah screening cache with a shared Valkey-backed cache keyed by normalized symbol plus provider, screening-contract/version, and any other input that can change the result; retain the current 24-hour TTL unless provider terms or product policy require a different value.
-- Make cache reads/writes survive backend spin-downs, restarts, redeployments, and multiple backend instances. Preserve safe in-memory caching only as an explicitly degraded fallback; never present fallback data as durably cached.
-- Move the Halal Terminal token-budget ledger and reserve-before-provider-call operation into Valkey using an atomic transaction or Lua script. The monthly UTC budget check, estimated-token reservation, request count, and remaining locally estimated budget must update as one indivisible operation so concurrent requests and multiple instances cannot overspend.
-- Replace the single-machine JSON lock/file-ledger path for production. Define a UTC billing-period key strategy and expiry/rollover behavior that cannot accidentally carry spend into the wrong month or reset early.
-- Keep the provider dashboard authoritative. Operational metrics must continue to label AzaLens figures as `locallyEstimatedUsed` / `locallyEstimatedRemaining`, expose whether durable storage is healthy, and never imply that the configured estimate is the provider's exact billed usage.
-- Preserve the current fail-closed Shariah behavior: if Valkey, the budget guard, or Halal Terminal is unavailable—or the configured budget is exhausted—make no unreserved live provider call, return degraded/unknown screening, and withhold compliance-dependent verdict content rather than guessing.
-- Add zero-network tests for cache hit/miss and TTL expiry, restart/process sharing, concurrent duplicate requests, atomic budget exhaustion, billing-period rollover, Valkey outage/fallback behavior, and continued compliance-gate withholding.
-- Roll out behind explicit environment configuration, validate the protected `/ops/metrics` output, run the complete backend CI suite, and deploy only after a staging/production-readiness check. Do not provision or incur paid cloud resources until this task is intentionally resumed.
-
-### 3.4 Edge-case behavior as designed states, not accidents — **Medium**
-
-Current behavior verified in code: live-quote failure degrades gracefully (analysis continues on historical close, correctly labeled "Latest Historical Close" — good); history failure fails everything (acceptable); halted stocks are indistinguishable from active ones (no halt state exists); OTC/thin tickers break the whole analysis via 1.7; volatile tickers can show a quote up to 20s old and history up to 30min old with `pricesMatch` exposed but not surfaced in the UI. After 1.5/1.7/2.4, add: a halted/suspended state, and surface the live-vs-close divergence when it is material.
-
-### 3.5 Audit logging and operational visibility — **Medium**
-
-Morgan dev logging is all there is. For v1.0: structured request logs with request IDs (the backend already generates `requestId` — it just never reaches logs users can be supported from), provider failure counters, and budget-ledger alerts before the Shariah quota exhausts mid-month.
-
-### 3.6 Motion and polish — **After everything above**
-
-From your own `PRODUCT_BUILD_STATUS.md` backlog, in this order only after correctness: the high-emphasis type treatment for price/verdict/confidence, and one signature visual treatment for the evidence/confluence or AI Verdict panel. Your doc already says to keep these below correctness and data provenance — the audit agrees.
+All Phase 0 items need one later, separately approved code session (this session was read-only + docs by instruction).
 
 ---
 
-## What is genuinely good (keep it)
+## PART 2 — FIX (correctness and truth, after Phase 0)
 
-- **The fail-safe Shariah core is real.** `shariahComplianceService.js` cannot emit COMPLIANT without an explicit provider `isCompliant === true`; every failure path lands on UNKNOWN with an honest headline. The frontend compliance panel explicitly refuses to infer compliance.
-- **The cost-safety system is real and careful** — mode gating, explicit live opt-in, monthly token ledger with locking and atomic writes.
-- **The shared-OHLCV architecture is genuinely implemented** — one history fetch feeds all 11 indicators plus structure/confluence engines, exactly as described.
-- **No invented freshness** — the analysis header shows "Freshness unavailable" rather than a fake timestamp.
-- **The analysis page is honestly wired** to the live backend, including honest empty states ("AzaLens does not invent supporting reasons when the source data is incomplete").
+| # | Item | Status | Rules | Cost |
+|---|---|---|---|---|
+| 2.1 | **Register unregistered CI suites.** The 5 known CI-safe ones (`testComplianceGate`, `testMarketSession`, `testRvolSessionAwareness`, `testPartialIndicatorFailure`, `testAgreementTrendDegradation`) plus triage of the other 6 the audit found (`testDecisionEngine`, `testHalalterminalProvider`, `testMasterAnalysisShariah`, `testRiskPlanning`, `testScenarioPlanning`, `testShariahComplianceService`). The compliance-gate invariant currently has **no CI protection** via its focused suite | Partially Verified (audit item 12) | 8 | None |
+| 2.2 | **Run the full 22-suite backend CI locally on this Mac** for `92d483c` — the recorded pass came from another environment; Rule 7 requires local confirmation | Blocked on a local run only | 7, 8 | None |
+| 2.3 | **Scanner rate-limit double-count decision**: `/api/scanner` is on the strict limiter *and* counted by the global limiter (audit items 3–4). Either exempt scanner from global, or move scanner off strict. Recommendation: keep scanner on strict (it is provider-backed), add scanner paths to the global exemption list, and exclude `GET /policy` from strict | Partially Verified | 8, 17 | None |
+| 2.4 | **Unmount `/api/portfolio/intelligence`** until a page uses it — it is unauthenticated, unused, and spends ~5 tokens per holding per cold call; when re-mounted, make its withheld state honest (currently degrades to "Unknown") | Live and unused (audit N2, item 11-A) | 13, 17, 23 | Saves tokens |
+| 2.5 | **Minimal API access control before any public link circulates**: today any stranger can drain the 177-token budget via `/api/analyze` (audit N1). A simple app-token header checked server-side is enough pre-accounts | Not Built | 17, 23 | None |
+| 2.6 | Strict budget ergonomics: opening one stock costs 2 strict requests (analyze + explanation); 10/min caps a user at ~5 stocks/min (open item 6). Revisit after 2.3; consider serving explanation from the analyze response the frontend already has | Known constraint | 5, 17 | None |
+| 2.7 | Delete `diag/proxy-capture` (local **and** origin) after saving the three captured proxy log lines outside the repo (open item 2); prune the other stale branches and the `legacy-platform` remote | Pending | 7 | None |
+| 2.8 | `trust proxy = 3` topology watch: correct today, silently wrong if Render changes its edge (open item 7). Add a startup log of the observed hop count to `/ops/metrics` for periodic eyeballing | Verified, fragile | 8 | None |
+| 2.9 | Review/remove the leftover `alpha-lens-ai` Vercel project (open item 5) — harmless (doesn't own the domain) but an attack/typo-confusion surface | Unverifiable from repo | 3, 23 | None |
+| 2.10 | Reconcile `design/*.ts` with `index.css` (two conflicting token sources; audit V9) — resolved by Design Phase 1 | Stale files | 7 | None |
+| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6) | Undecided | 12, 17 | None |
+| 2.12 | Watchlist server-side size cap (audit N7) | Not Built | 17, 23 | None |
 
-The gap is not the philosophy — it is that the philosophy is enforced on the analysis page and nowhere else (dashboard, verdict gating, contract states, sprint claims). Close that gap and the product matches its promise.
+## PART 3 — ADD (in order)
+
+| # | Item | Status | Rules | Cost |
+|---|---|---|---|---|
+| 3.1 | **Design System Phases 1–2** (token migration; truth-chip/state system) per `docs/DESIGN_SYSTEM.md`; update the 4 visual snapshots + add 2 Shariah ones | Planned | 5, 14, 18 | None |
+| 3.2 | **Terms of Use + Privacy Policy pages** — draft with Tahir Khan sahib's input so wording matches UAE positioning from the start | Not Built (audit N4) | 20, 23, 24 | Legal drafting (non-code) |
+| 3.3 | **Accounts + database + tier flags as ONE project on Supabase** — not three projects. Includes: auth on every API route, per-user watchlist/portfolio (replacing the shared world-writable JSON files), server-side entitlement middleware (single choke point), tier *flags* only. **Payments must NOT go live before the UAE regulatory memo exists (Rules 24/26).** | Not Built | 21, 23, 26 | Supabase free tier initially; verify limits before relying on it |
+| 3.4 | Token-economics hardening: treat 5 tokens/screening as a one-sample estimate; verify against the provider dashboard after the next few screenings and adjust `HALAL_TERMINAL_ESTIMATED_TOKENS_PER_REQUEST` if wrong | Single data point | 17 | None (observation only) |
+| 3.5 | Trust/understanding metrics (privacy-respecting, designed after 3.3) | Not Built | 22, 23 | Depends on tooling; prefer free/self-hosted |
+| 3.6 | Historical verdict evaluation (store verdicts + outcomes for honesty review) | Not Built | 18, 22 | Needs 3.3's database first |
+| 3.7 | Design Phases 3–4 (density/motion; signature aperture) — beauty last, per your own rule | Planned | 18 | None |
+
+### [PENDING BEFORE PUBLIC LAUNCH] Durable storage (carried forward deliberately — do not start yet)
+Paid Render Key Value (Valkey) or Supabase-backed storage is intentionally parked: at one user with 177 tokens the problem does not exist, and it must be built **once, together with accounts (3.3), not twice**. When resumed, the requirements stand as previously specified: durable Shariah cache with TTL and versioned keys (symbol + provider + contract version); atomic token reservation with UTC monthly rollover that cannot carry spend across months or reset early; multi-instance concurrency safety; authoritative-vs-estimated balance labelling preserved (`locallyEstimatedUsed`/`locallyEstimatedRemaining`, provider dashboard authoritative); fail-closed behaviour on storage/provider outage (no unreserved live call, degraded/unknown screening, verdict withheld — never guessed); zero-network tests for hit/miss/TTL/restart/concurrency/rollover/outage; rollout behind explicit env config with staged verification. **Cost when built:** small paid Valkey instance or Supabase paid tier — approve explicitly at that time. Current reality it mitigates: the in-memory Shariah cache dies on every Render spin-down (so the 24h cache rarely helps), and a wiped ledger makes the budget guard *more permissive*, not dangerous.
+
+## PART 4 — REMOVE / STOP CLAIMING
+
+- The **"AzaLens Pro" upsell** (1.2) — stop claiming a paid tier exists.
+- The landing **BUY mockup** (1.1) — stop displaying a verdict style the product forbids.
+- The stale claims in **PRODUCT_BUILD_STATUS.md** and the old roadmap (1.7) — both under- and over-claimed.
+- Dead code: `App.tsx`, `LiveAnalysisTest.tsx`, legacy dashboard panels, stale `design/colors.ts`/`typography.ts`, empty feature dirs (1.9, 2.10).
+- `backend/fixtures/shariah/` either gets real fixture files (from the recorded META response, sanitized) or fixture mode should say clearly it has no data (audit V10).
+
+## PART 5 — NON-CODE TRACKS (run in parallel, gate launches)
+
+- **Track A — Scholarly review** (Mufti Ejaz Ahmed Samadani sahib): prerequisite artifacts = Phase 0 items 1.1–1.4; frame as review/correction, never endorsement (Rule 25); afterwards, record his corrections as roadmap items.
+- **Track B — UAE regulatory memo** (Tahir Khan sahib): written perimeter memo covering permitted activities, licensing, wording, countries, entity type (Rule 26). **Hard gate:** no external beta, no payments, until it exists. Product boundaries determine the licence — not vice versa (his review of the current no-execution/no-custody/no-advice posture in audit Part 3-B is the starting evidence).
+- **Track C — Controlled beta gate** (Rule 20): opens only after Phase 0 + 2.1–2.5 + 3.2 + Track B, with incident ownership named.
+
+## OPEN-ITEMS REGISTER (all seven originals + audit additions)
+
+| Item | Where handled |
+|---|---|
+| 1. Local CI run not confirmed for `92d483c` | 2.2 |
+| 2. `diag/proxy-capture` branch cleanup | 2.7 |
+| 3. Finnhub missing `.catch` crash path | **1.5 (promoted to Phase 0)** |
+| 4. Five CI-safe suites unregistered | 2.1 (now eleven unregistered total) |
+| 5. Leftover `alpha-lens-ai` Vercel project | 2.9 |
+| 6. Shared strict 10/min budget tight | 2.6 |
+| 7. `trust proxy = 3` fragility | 2.8 |
+| New: stranger token-drain (N1), unused intelligence endpoint (N2), cold-start (N3), no legal pages (N4), landing divergence (N5), provider attribution (N6), watchlist cap (N7) | 2.5, 2.4, 1.8, 3.2, 1.1, 2.11, 2.12 |
+
+## WHAT IS GENUINELY DONE AND HOLDS (carry no anxiety about these)
+
+Verified at `92d483c` (evidence in the audit): the server-side Shariah compliance gate on every verdict-bearing surface; INTACT/VIOLATED/REVIEW end to end with CI-registered tests; CORS allowlist (project-and-account-scoped previews, no `*.vercel.app`); layered rate limiting with a genuinely shared strict budget and verified `trust proxy = 3`; the cost-safe scanner (server-side membership + 20-cap, one history call per symbol, zero Shariah calls); the honest dashboard with no auto-analysis token leak; functional local settings; equities-only dynamic search; the fail-closed Shariah runtime with dev guard and budget ledger; blocking CI on every push/PR.
+
+The philosophy is now enforced in the product core. What remains is making the *outside* of the product — landing, docs, legal surface, and the paid-tier fiction — as honest as the inside.
