@@ -28,7 +28,7 @@ export default function SearchBox() {
   return (
     <form
       onSubmit={submitAnalysis}
-      className="rounded-3xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-xl"
+      className="rounded-3xl border border-stroke bg-surface-soft p-3 backdrop-blur-xl"
     >
       <div className="flex flex-col gap-3 sm:flex-row">
         <Input
@@ -54,14 +54,14 @@ export default function SearchBox() {
             variant="ghost"
             size="sm"
             onClick={() => analyzeSymbol(symbol)}
-            className="min-h-0 rounded-full border border-white/10 px-4 py-2 text-slate-400 hover:border-emerald-500/30 hover:text-emerald-400"
+            className="min-h-0 rounded-full border border-stroke px-4 py-2 text-ink-soft hover:border-brand/30 hover:text-brand"
           >
             {symbol}
           </Button>
         ))}
       </div>
 
-      <p className="px-1 pt-3 text-left text-xs leading-5 text-slate-500">
+      <p className="px-1 pt-3 text-left text-xs leading-5 text-ink-muted">
         Enter a listed stock ticker. Crypto, forex, commodities, CFDs,
         options and leveraged products are not supported.
       </p>

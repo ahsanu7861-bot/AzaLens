@@ -1,0 +1,140 @@
+import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+
+import ComplianceDemo from "./ComplianceDemo";
+import {
+  confirmedDemoAnalysis,
+  withheldDemoAnalysis,
+} from "../../data/landingDemo";
+
+// A "standalone" verdict command is an element whose entire text is just
+// the word BUY, SELL or HOLD — the shape of the old mockup's `<p>BUY</p>`.
+// This intentionally does not flag prose like "solicitation to buy or
+// sell any security" (a disclaimer, not a command), since that sentence
+// is not the full text of any single element.
+const STANDALONE_VERDICT_COMMAND = /^(buy|sell|hold)$/i;
+
+// Rule 4 requires a directional lean plus a confidence percentage — the
+// 60% figure is legitimate, real-product output, not a fabrication. What
+// must never appear is an unsupported claim that the product predicts
+// outcomes (accuracy / win rate / success rate / probability of profit).
+const UNSUPPORTED_PERFORMANCE_CLAIMS = [
+  /%\s*accurate/i,
+  /accura(te|cy)/i,
+  /win[\s-]?rate/i,
+  /%\s*success/i,
+  /success[\s-]?rate/i,
+  /probability of profit/i,
+];
+
+// Every percentage figure the demo renders must come from one of the
+// fixtures' documented, explained values — never an unexplained number
+// dropped in beside a performance-sounding label.
+const ALLOWED_PERCENTAGES = new Set(["60%", "18%", "0.6%", "0.4%"]);
+
+function renderedPercentages(text: string): string[] {
+  return text.match(/\d+(?:\.\d+)?%/g) ?? [];
+}
+
+describe("ComplianceDemo honesty regression", () => {
+  it("withholds the verdict using the real product copy when compliance is unconfirmed", () => {
+    render(<ComplianceDemo />);
+
+    const withheldCard = screen.getByTestId("landing-demo-withheld");
+
+    expect(
+      within(withheldCard).getByText("Compliance comes before the verdict"),
+    ).toBeInTheDocument();
+  });
+
+  it("never renders a directional verdict or confidence figure while compliance is unconfirmed", () => {
+    render(<ComplianceDemo />);
+
+    const withheldCard = screen.getByTestId("landing-demo-withheld");
+
+    expect(
+      within(withheldCard).queryByText("AI Verdict"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(withheldCard).queryByText("AI Confidence"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a reasoned directional lean (not a bare command) once compliance is confirmed", () => {
+    render(<ComplianceDemo />);
+
+    const confirmedCard = screen.getByTestId("landing-demo-confirmed");
+
+    expect(within(confirmedCard).getByText("AI Verdict")).toBeInTheDocument();
+    expect(
+      within(confirmedCard).getByText("BULLISH"),
+    ).toBeInTheDocument();
+  });
+
+  it("permits the confidence figure only when its stated calculation basis is shown alongside it", () => {
+    render(<ComplianceDemo />);
+
+    const confirmedCard = screen.getByTestId("landing-demo-confirmed");
+
+    // The confidence figure is legitimate, real-product output (Rule 4) —
+    // it must not stand alone without the plain-language basis for it.
+    expect(within(confirmedCard).getByText("AI Confidence")).toBeInTheDocument();
+    expect(within(confirmedCard).getByText("60%")).toBeInTheDocument();
+    expect(
+      within(confirmedCard).getByText(/\d+ of \d+ technical indicators agree/i),
+    ).toBeInTheDocument();
+  });
+
+  it("never renders a standalone BUY, SELL or HOLD verdict command anywhere", () => {
+    render(<ComplianceDemo />);
+
+    expect(
+      screen.queryByText(STANDALONE_VERDICT_COMMAND),
+    ).not.toBeInTheDocument();
+  });
+
+  it("never renders an accuracy, win-rate, success-rate or profit-probability claim", () => {
+    const { container } = render(<ComplianceDemo />);
+
+    for (const pattern of UNSUPPORTED_PERFORMANCE_CLAIMS) {
+      expect(container.textContent).not.toMatch(pattern);
+    }
+  });
+
+  it("never renders the fabricated 92% confidence figure", () => {
+    render(<ComplianceDemo />);
+
+    expect(screen.queryByText("92%")).not.toBeInTheDocument();
+  });
+
+  it("never renders a percentage figure that isn't one of the fixtures' documented values", () => {
+    const { container } = render(<ComplianceDemo />);
+
+    const found = renderedPercentages(container.textContent ?? "");
+    const unexpected = found.filter((value) => !ALLOWED_PERCENTAGES.has(value));
+
+    expect(unexpected).toEqual([]);
+  });
+
+  it("labels both demonstration cards so a visitor cannot mistake them for live data", () => {
+    render(<ComplianceDemo />);
+
+    expect(screen.getAllByText(/demonstration/i).length).toBeGreaterThanOrEqual(
+      2,
+    );
+  });
+
+  it("does not name the screening provider in the demo fixtures", () => {
+    expect(withheldDemoAnalysis.shariah.provider).toBeUndefined();
+    expect(confirmedDemoAnalysis.shariah.provider).toBeUndefined();
+  });
+
+  it("stacks the two demo cards in a single column below the lg breakpoint", () => {
+    const { container } = render(<ComplianceDemo />);
+    const grid = container.querySelector(".grid");
+
+    expect(grid).not.toBeNull();
+    expect(grid?.className).toContain("lg:grid-cols-2");
+    expect(grid?.className).not.toMatch(/(?<!lg:)grid-cols-2/);
+  });
+});
