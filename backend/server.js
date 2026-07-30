@@ -54,6 +54,7 @@ const {
 // ============================
 
 const watchlistRoutes = require("./routes/watchlistRoutes");
+const scannerRoutes = require("./routes/scannerRoutes");
 const createPortfolioRouter = require("./routes/portfolioRoutes");
 const {
   createGlobalLimiter,
@@ -165,6 +166,7 @@ app.use(globalLimiter);
 // API Routes
 // ============================
 app.use("/api/watchlist", watchlistRoutes);
+app.use("/api/scanner", strictLimiter, scannerRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 // ============================
 // Home

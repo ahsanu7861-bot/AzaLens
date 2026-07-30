@@ -147,7 +147,17 @@ server-synced.
 
 `docs/PRODUCT_BUILD_STATUS.md` already admits Settings is placeholder-only. Make the UI admit it too, or hide the page for beta.
 
-### 2.4 Market-session awareness for all freshness displays — **Medium**
+### 2.4 Watchlist Scanner v1 — **Built locally, not yet deployed**
+
+Scanner now runs manually against a user-selected watchlist universe of no more
+than 20 listed equities. The backend enforces both watchlist membership and the
+20-symbol input cap, performs one daily-history request per symbol
+sequentially, and makes zero Shariah or fundamentals calls. Results contain
+price, relative-volume, range and RSI observations only; they are explicitly
+not trade signals. Full analysis and on-demand Shariah screening remain behind
+the stock-analysis link.
+
+### 2.5 Market-session awareness for all freshness displays — **Medium**
 
 The same market clock from item 1.5 should drive: "Market closed — last price from [date/time]" on the analysis header, and suppress intraday-only language after hours. There is currently **no delayed-feed state anywhere** — if any of your feeds is 15-minute delayed, the UI has no way to say so. Verify what your Finnhub tier actually delivers and label accordingly.
 
