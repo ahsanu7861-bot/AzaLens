@@ -1,4 +1,4 @@
-import { Crown, X } from "lucide-react";
+import { Hammer, X } from "lucide-react";
 import {
   cloneElement,
   isValidElement,
@@ -11,22 +11,22 @@ import {
 } from "react";
 
 import { useDialogFocus } from "../../hooks/useDialogFocus";
-import type { ProFeatureTrigger } from "../../types/overview";
+import type { PlannedFeatureTrigger } from "../../types/overview";
 
 const DEFAULT_DESCRIPTION =
-  "Export PDF Institutional Reports is available on AzaLens Pro. Upgrade to unlock full exports, continuous monitoring alerts, and multi-watchlist workflows.";
+  "This feature has not been built yet. AzaLens has no paid tier today — everything currently in the app, including Shariah screening and all baseline analysis, is free.";
 
-interface ProFeatureWrapperProps {
-  feature: ProFeatureTrigger;
+interface PlannedFeatureWrapperProps {
+  feature: PlannedFeatureTrigger;
   children: ReactElement<{ className?: string; onClick?: () => void }>;
   footer?: ReactNode;
 }
 
-export default function ProFeatureWrapper({
+export default function PlannedFeatureWrapper({
   feature,
   children,
   footer,
-}: ProFeatureWrapperProps) {
+}: PlannedFeatureWrapperProps) {
   const [open, setOpen] = useState(false);
   const titleId = useId();
   const descriptionId = useId();
@@ -57,9 +57,9 @@ export default function ProFeatureWrapper({
         })}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -right-1 -top-1 rounded-full border border-intelligence/30 bg-intelligence/15 px-1.5 py-0.5 font-mono text-[11px] font-bold leading-none text-intelligence"
+          className="pointer-events-none absolute -right-1 -top-1 rounded-full border border-stroke-strong bg-surface-soft px-1.5 py-0.5 font-mono text-[11px] font-bold leading-none text-ink-muted"
         >
-          PRO
+          NOT BUILT
         </span>
       </span>
 
@@ -80,12 +80,12 @@ export default function ProFeatureWrapper({
             className="az-popover w-full max-w-md rounded-3xl p-5 sm:p-6"
           >
             <div className="flex items-start gap-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-intelligence/15 text-intelligence">
-                <Crown size={20} />
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-soft text-ink-muted">
+                <Hammer size={20} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-mono text-[11px] font-bold uppercase tracking-wider text-intelligence">
-                  AzaLens Pro preview
+                <p className="font-mono text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                  Not built yet
                 </p>
                 <h2
                   id={titleId}
@@ -96,7 +96,7 @@ export default function ProFeatureWrapper({
               </div>
               <button
                 type="button"
-                aria-label="Close Pro preview"
+                aria-label="Close"
                 onClick={closeDialog}
                 className="az-icon-button !h-11 !w-11"
               >
@@ -111,9 +111,6 @@ export default function ProFeatureWrapper({
               {feature.description ?? DEFAULT_DESCRIPTION}
             </p>
 
-            <div className="mt-4 rounded-xl border border-positive/25 bg-positive/10 p-3 text-[12px] leading-5 text-positive">
-              Shariah screening and all core baseline analysis remain 100% free.
-            </div>
             {footer}
           </section>
         </div>

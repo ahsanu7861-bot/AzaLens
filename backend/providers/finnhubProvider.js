@@ -578,11 +578,27 @@ async function getFinnhubQuote(symbol) {
     };
   })();
 
+  const derivedQuotePromise = requestPromise.then(
+    ({ result }) => result
+  );
+
+  /*
+    This derived promise is only awaited by a concurrent
+    caller that happens to arrive while it is pending (see
+    the coalescing branch above). If no such caller shows
+    up, nothing ever attaches a handler to it, and a
+    rejection here becomes an unhandled rejection that can
+    crash the process. Attaching a no-op .catch marks the
+    promise as handled for Node's tracking without
+    swallowing the rejection for any real awaiter, since
+    .catch() returns a new promise rather than mutating
+    this one.
+  */
+  derivedQuotePromise.catch(() => {});
+
   pendingQuoteRequests.set(
     normalizedSymbol,
-    requestPromise.then(
-      ({ result }) => result
-    )
+    derivedQuotePromise
   );
 
   try {

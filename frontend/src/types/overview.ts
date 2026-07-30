@@ -85,7 +85,7 @@ export interface ThesisInvalidation {
   };
 }
 
-export interface ProFeatureTrigger {
+export interface PlannedFeatureTrigger {
   id: "export-report" | "continuous-alert" | "multi-watchlist";
   label: string;
   title: string;

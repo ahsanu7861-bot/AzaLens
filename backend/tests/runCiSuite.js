@@ -11,6 +11,7 @@ const deterministicSuites = [
   "testCorsAllowlist.js",
   "testEnvironmentStrategy.js",
   "testFinnhubProviderResilience.js",
+  "testFinnhubQuoteRejectionSafety.js",
   "testFundamentalsCoverage.js",
   "testLoadResilience.js",
   "testMultiSymbolConsistency.js",

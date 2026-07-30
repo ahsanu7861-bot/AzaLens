@@ -16,10 +16,10 @@ import { useNavigate } from "react-router-dom";
 import type { AnalysisData, ShariahStatus } from "../../types/analysis";
 import type {
   DataFreshnessStatus,
-  ProFeatureTrigger,
+  PlannedFeatureTrigger,
 } from "../../types/overview";
 import { useCommandStore } from "../../store/commandStore";
-import ProFeatureWrapper from "./ProFeatureWrapper";
+import PlannedFeatureWrapper from "./PlannedFeatureWrapper";
 
 type StockHeaderProps = {
   symbol: string;
@@ -151,9 +151,9 @@ function DataProvenanceBadge({
   );
 }
 
-const proFeatures: Record<
+const plannedFeatures: Record<
   "export" | "alert" | "watchlist",
-  ProFeatureTrigger
+  PlannedFeatureTrigger
 > = {
   export: {
     id: "export-report",
@@ -292,7 +292,7 @@ export default function StockHeader({
             {formatShariahStatus(shariahStatus)}
           </span>
 
-          <ProFeatureWrapper feature={proFeatures.export}>
+          <PlannedFeatureWrapper feature={plannedFeatures.export}>
             <button
               type="button"
               aria-label="Export institutional report"
@@ -300,9 +300,9 @@ export default function StockHeader({
             >
               <FileDown size={18} strokeWidth={1.8} />
             </button>
-          </ProFeatureWrapper>
+          </PlannedFeatureWrapper>
 
-          <ProFeatureWrapper feature={proFeatures.alert}>
+          <PlannedFeatureWrapper feature={plannedFeatures.alert}>
             <button
               type="button"
               aria-label="Add continuous alert"
@@ -310,9 +310,9 @@ export default function StockHeader({
             >
               <Bell size={18} strokeWidth={1.8} />
             </button>
-          </ProFeatureWrapper>
+          </PlannedFeatureWrapper>
 
-          <ProFeatureWrapper feature={proFeatures.watchlist}>
+          <PlannedFeatureWrapper feature={plannedFeatures.watchlist}>
             <button
               type="button"
               aria-label={`Choose a watchlist for ${symbol}`}
@@ -326,7 +326,7 @@ export default function StockHeader({
                 />
               </span>
             </button>
-          </ProFeatureWrapper>
+          </PlannedFeatureWrapper>
 
           <button
             type="button"
