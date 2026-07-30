@@ -175,7 +175,7 @@ export default function IslamicCompliance({
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <p className="az-eyebrow text-shariah">
+              <p className="az-eyebrow" style={{ color: "var(--az-shariah)" }}>
                 Islamic Compliance
               </p>
               <Badge variant="brand" className="border-shariah/20 bg-shariah/15 text-shariah">AAOIFI</Badge>

@@ -16,6 +16,7 @@
   --color-caution: var(--az-caution);
   --color-critical: var(--az-critical);
   --color-intelligence: var(--az-intelligence);
+  --color-shariah: var(--az-shariah);
   --font-sans: var(--az-font-body);
   --font-display: var(--az-font-display);
 }
