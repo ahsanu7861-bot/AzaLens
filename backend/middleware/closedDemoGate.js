@@ -80,7 +80,7 @@ function registerClosedDemoRoutes(app) {
     res.cookie(COOKIE_NAME, token(secret, expiresAt), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: MAX_AGE_SECONDS * 1000,
       path: "/",
     });
