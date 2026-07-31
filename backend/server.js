@@ -47,8 +47,12 @@ const {
   getExplanation
 } = require("./services/explanationService");
 const {
-  searchListedEquities
-} = require("./providers/finnhubProvider");
+  searchSymbols
+} = require("./providers/marketDataProvider");
+const {
+  middleware: closedDemoGate,
+  registerClosedDemoRoutes
+} = require("./middleware/closedDemoGate");
 // ============================
 // Routes
 // ============================
@@ -141,6 +145,7 @@ app.use(requestObservability);
 app.use(express.json());
 app.use(
   cors({
+    credentials: true,
     origin(origin, callback) {
       callback(
         null,
@@ -161,6 +166,26 @@ app.use(
   }
 );
 app.use(globalLimiter);
+
+registerClosedDemoRoutes(app);
+
+// Protect every provider-backed/product-data route, including legacy routes.
+app.use([
+  "/api",
+  "/stock",
+  "/history",
+  "/rsi",
+  "/ema",
+  "/sma",
+  "/macd",
+  "/bollinger",
+  "/atr",
+  "/adx",
+  "/obv",
+  "/rvol",
+  "/volume-spike",
+  "/candlestick"
+], closedDemoGate);
 
 // ============================
 // API Routes
@@ -279,7 +304,7 @@ app.get("/api/search", async (req, res) => {
   }
 
   try {
-    const data = await searchListedEquities(query);
+    const data = await searchSymbols(query);
     return res.status(200).json({
       success: true,
       message: "Listed equities retrieved successfully.",

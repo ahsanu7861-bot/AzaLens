@@ -42,6 +42,28 @@ function validateEnvironment(env = process.env) {
     );
   }
 
+  const closedDemoEnabled = ["1", "true", "yes", "on"].includes(
+    String(env.CLOSED_DEMO_ENABLED || "").trim().toLowerCase()
+  );
+
+  if (
+    closedDemoEnabled &&
+    String(env.CLOSED_DEMO_ACCESS_CODE || "").trim().length < 8
+  ) {
+    errors.push(
+      "CLOSED_DEMO_ENABLED requires CLOSED_DEMO_ACCESS_CODE with at least 8 characters."
+    );
+  }
+
+  if (
+    closedDemoEnabled &&
+    String(env.CLOSED_DEMO_SIGNING_SECRET || "").trim().length < 32
+  ) {
+    errors.push(
+      "CLOSED_DEMO_ENABLED requires CLOSED_DEMO_SIGNING_SECRET with at least 32 characters."
+    );
+  }
+
   if (
     config.featureFlags.liveShariah &&
     !String(env.HALAL_TERMINAL_API_KEY || "").trim()

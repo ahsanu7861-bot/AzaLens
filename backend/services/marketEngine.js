@@ -1,10 +1,7 @@
 const {
-  getFinnhubQuote
-} = require("../providers/finnhubProvider");
-
-const {
-  getHistoricalData
-} = require("../providers/twelveDataProvider");
+  getHistoricalCandles,
+  getQuote
+} = require("../providers/marketDataProvider");
 
 const {
   getCache,
@@ -470,7 +467,7 @@ async function getMarketDataUnobserved(symbol) {
 
   try {
     const result =
-      await getFinnhubQuote(
+      await getQuote(
         normalizedSymbol
       );
 
@@ -758,7 +755,7 @@ async function getHistoryUnobserved(
     // ==============================================
 
     const result =
-      await getHistoricalData(
+      await getHistoricalCandles(
         normalizedSymbol,
         normalizedInterval
       );

@@ -127,6 +127,7 @@ export default function StockChart({
           )}`,
           {
             signal: controller.signal,
+            credentials: 'include',
           },
         );
 

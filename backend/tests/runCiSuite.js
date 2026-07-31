@@ -6,6 +6,7 @@ const {
 } = require("node:child_process");
 
 const deterministicSuites = [
+  "testClosedDemoGate.js",
   "testAnalysisTrustService.js",
   "testConfluenceActionability.js",
   "testCorsAllowlist.js",
@@ -18,6 +19,7 @@ const deterministicSuites = [
   "testObservability.js",
   "testPhase45Stability.js",
   "testPortfolioRouterFactory.js",
+  "testProviderAdapter.js",
   "testRateLimitPaths.js",
   "testRateLimitBuckets.js",
   "testRateLimitHttp.js",
