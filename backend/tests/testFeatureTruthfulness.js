@@ -19,18 +19,22 @@ async function run() {
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
   try {
+    const rootResponse = await fetch(`${baseUrl}/`);
     const versionResponse = await fetch(`${baseUrl}/version`);
     const healthResponse = await fetch(`${baseUrl}/health`);
     const scannerResponse = await fetch(
       `${baseUrl}/api/scanner`
     );
 
+    const root = await rootResponse.json();
     const version = await versionResponse.json();
     const health = await healthResponse.json();
     const scanner = await scannerResponse.json();
 
+    assert.equal(rootResponse.status, 200);
     assert.equal(versionResponse.status, 200);
     assert.equal(healthResponse.status, 200);
+    assert.equal(root.version, version.version);
     assert.equal(version.version, "9.8.7-test");
     assert.equal(
       health.deployment.version,
