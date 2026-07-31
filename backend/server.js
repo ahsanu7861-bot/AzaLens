@@ -202,7 +202,7 @@ app.use("/api/portfolio", portfolioRoutes);
 app.get("/", (req, res) => {
   res.json({
     project: "AzaLens",
-    version: "0.1.0",
+    version: environmentConfig.releaseVersion,
     status: "Running",
     message: "Welcome to AzaLens 🚀"
   });
