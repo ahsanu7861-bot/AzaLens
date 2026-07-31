@@ -191,7 +191,9 @@ app.use([
 // API Routes
 // ============================
 app.use("/api/watchlist", watchlistRoutes);
-app.use("/api/scanner", strictLimiter, scannerRoutes);
+if (environmentConfig.featureFlags.scanner) {
+  app.use("/api/scanner", strictLimiter, scannerRoutes);
+}
 app.use("/api/portfolio", portfolioRoutes);
 // ============================
 // Home

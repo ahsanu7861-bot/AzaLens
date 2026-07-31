@@ -1,5 +1,9 @@
 "use strict";
 
+const {
+  getReleaseVersion,
+} = require("./releaseVersion");
+
 const ENVIRONMENTS = new Set([
   "development",
   "test",
@@ -52,9 +56,7 @@ function getEnvironmentConfig(env = process.env) {
     environment,
     isProduction: environment === "production",
     isStaging: environment === "staging",
-    releaseVersion: String(
-      env.SERVICE_VERSION || env.API_VERSION || "0.1.0"
-    ).trim(),
+    releaseVersion: getReleaseVersion(env),
     featureFlags: {
       scanner: parseFlag(env.FEATURE_SCANNER_ENABLED),
       portfolioPro: parseFlag(

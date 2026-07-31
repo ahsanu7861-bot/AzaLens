@@ -1,5 +1,9 @@
 "use strict";
 
+const {
+  getReleaseVersion,
+} = require("../config/releaseVersion");
+
 const crypto = require("node:crypto");
 const {
   AsyncLocalStorage,
@@ -499,10 +503,7 @@ function recordProviderResult({
 
 function getDeploymentMetadata(env = process.env) {
   return {
-    version:
-      env.SERVICE_VERSION ||
-      env.API_VERSION ||
-      "1.0.0",
+    version: getReleaseVersion(env),
     commit:
       env.RENDER_GIT_COMMIT ||
       env.VERCEL_GIT_COMMIT_SHA ||
