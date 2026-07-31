@@ -21,6 +21,18 @@ function configuredProvider(capability, env = process.env) {
   return String(env[key] || DEFAULTS[capability]).trim().toLowerCase();
 }
 
+function enabled(value) {
+  return ["1", "true", "yes", "on"].includes(
+    String(value || "").trim().toLowerCase(),
+  );
+}
+
+function getProviderCapabilities(env = process.env) {
+  return {
+    twelveDataProfile: enabled(env.TWELVE_DATA_PROFILE_ENABLED),
+  };
+}
+
 function unsupported(capability, provider) {
   const error = new Error(
     `${provider} does not implement the ${capability} capability.`,
@@ -48,6 +60,10 @@ async function getCompanyProfile(symbol) {
   const provider = configuredProvider("profile");
   if (provider === "finnhub") return finnhub().getFinnhubCompanyProfile(symbol);
   if (provider === "twelve_data") {
+    if (!getProviderCapabilities().twelveDataProfile) {
+      return finnhub().getFinnhubCompanyProfile(symbol);
+    }
+
     const primary = await twelveData().getTwelveDataCompanyProfile(symbol);
     if (!primary?.success) return finnhub().getFinnhubCompanyProfile(symbol);
 
@@ -90,6 +106,7 @@ module.exports = {
   DEFAULTS,
   getCapabilityProviders,
   getCompanyProfile,
+  getProviderCapabilities,
   getFundamentals,
   getHistoricalCandles,
   getQuote,
