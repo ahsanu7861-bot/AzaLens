@@ -2,6 +2,10 @@ const axios = require("axios");
 
 const TWELVE_DATA_URL =
   "https://api.twelvedata.com/time_series";
+const TWELVE_DATA_BASE_URL = "https://api.twelvedata.com";
+const PROFILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const profileCache = new Map();
+const pendingProfileRequests = new Map();
 
 const SUPPORTED_INTERVALS = new Set([
   "1min",
@@ -54,6 +58,112 @@ function getProviderError(data) {
   }
 
   return null;
+}
+
+function sameText(first, second) {
+  return Boolean(first && second) &&
+    String(first).trim().toUpperCase() === String(second).trim().toUpperCase();
+}
+
+function selectCanonicalListing(rows, profile, symbol) {
+  const candidates = (Array.isArray(rows) ? rows : []).filter(
+    (row) => sameText(row?.symbol, symbol)
+  );
+  if (candidates.length === 0) return null;
+
+  const exactMic = candidates.find((row) =>
+    sameText(row?.mic_code, profile?.mic_code)
+  );
+  if (exactMic) return exactMic;
+
+  const exactExchange = candidates.find((row) =>
+    sameText(row?.exchange, profile?.exchange) &&
+    sameText(row?.type, "Common Stock")
+  );
+  if (exactExchange) return exactExchange;
+
+  return candidates.find((row) =>
+    sameText(row?.country, "United States") &&
+    sameText(row?.type, "Common Stock") &&
+    ["XNAS", "XNGS", "XNMS", "XNYS", "ARCX"].includes(
+      String(row?.mic_code || "").toUpperCase()
+    )
+  ) || null;
+}
+
+async function fetchTwelveDataProfile(symbol) {
+  const apiKey = String(process.env.TWELVE_DATA_API_KEY || "").trim();
+  if (!apiKey) throw new Error("Twelve Data API key is not configured.");
+
+  const request = (endpoint) => axios.get(`${TWELVE_DATA_BASE_URL}/${endpoint}`, {
+    params: { symbol, apikey: apiKey },
+    timeout: 15000
+  });
+  const [profileResponse, stocksResponse, logoResult] = await Promise.all([
+    request("profile"),
+    request("stocks"),
+    request("logo").then((response) => response.data).catch(() => null)
+  ]);
+  const profile = profileResponse?.data;
+  const profileError = getProviderError(profile);
+  const stocksError = getProviderError(stocksResponse?.data);
+  if (profileError || stocksError) throw new Error(profileError || stocksError);
+
+  const listing = selectCanonicalListing(stocksResponse?.data?.data, profile, symbol);
+  if (!listing) throw new Error(`No canonical listing was identified for ${symbol}.`);
+
+  return {
+    name: profile?.name || listing?.name || null,
+    ticker: profile?.symbol || listing?.symbol || symbol,
+    country: profile?.country || listing?.country || null,
+    currency: listing?.currency || null,
+    exchange: profile?.exchange || listing?.exchange || null,
+    sector: profile?.sector || null,
+    industry: profile?.industry || null,
+    ipoDate: null,
+    website: profile?.website || null,
+    logo: logoResult?.url || null,
+    source: "Twelve Data Company Profile",
+    retrievedAt: new Date().toISOString()
+  };
+}
+
+async function getTwelveDataCompanyProfile(symbol) {
+  const normalizedSymbol = normalizeSymbol(symbol);
+  if (!normalizedSymbol) return { success: false, provider: "TwelveData",
+    symbol: normalizedSymbol, data: null, error: "A valid ticker symbol is required." };
+
+  const cached = profileCache.get(normalizedSymbol);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { success: true, provider: "TwelveData", symbol: normalizedSymbol,
+      data: cached.data, error: null, cache: { hit: true, status: "HIT" } };
+  }
+  if (pendingProfileRequests.has(normalizedSymbol)) {
+    return pendingProfileRequests.get(normalizedSymbol);
+  }
+
+  const promise = fetchTwelveDataProfile(normalizedSymbol)
+    .then((data) => {
+      profileCache.set(normalizedSymbol, {
+        data,
+        expiresAt: Date.now() + PROFILE_CACHE_TTL_MS
+      });
+      return { success: true, provider: "TwelveData", symbol: normalizedSymbol,
+        data, error: null, cache: { hit: false, status: "MISS" } };
+    })
+    .catch((error) => ({ success: false, provider: "TwelveData",
+      symbol: normalizedSymbol, data: null, error: error.message }));
+  pendingProfileRequests.set(normalizedSymbol, promise);
+  try {
+    return await promise;
+  } finally {
+    pendingProfileRequests.delete(normalizedSymbol);
+  }
+}
+
+function clearTwelveDataProfileCache() {
+  profileCache.clear();
+  pendingProfileRequests.clear();
 }
 
 async function getHistoricalData(
@@ -308,7 +418,10 @@ async function getHistoricalData(
 }
 
 module.exports = {
+  clearTwelveDataProfileCache,
   getHistoricalData,
+  getTwelveDataCompanyProfile,
   normalizeInterval,
+  selectCanonicalListing,
   SUPPORTED_INTERVALS
 };

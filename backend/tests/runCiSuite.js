@@ -20,6 +20,7 @@ const deterministicSuites = [
   "testPhase45Stability.js",
   "testPortfolioRouterFactory.js",
   "testProviderAdapter.js",
+  "testTwelveDataProfileProvider.js",
   "testRateLimitPaths.js",
   "testRateLimitBuckets.js",
   "testRateLimitHttp.js",

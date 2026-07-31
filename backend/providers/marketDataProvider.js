@@ -46,14 +46,18 @@ async function getQuote(symbol) {
 
 async function getCompanyProfile(symbol) {
   const provider = configuredProvider("profile");
-  if (provider === "finnhub") {
-    const result = await finnhub().getFinnhubQuote(symbol);
+  if (provider === "finnhub") return finnhub().getFinnhubCompanyProfile(symbol);
+  if (provider === "twelve_data") {
+    const primary = await twelveData().getTwelveDataCompanyProfile(symbol);
+    if (!primary?.success) return finnhub().getFinnhubCompanyProfile(symbol);
+
+    const enrichment = await finnhub().getFinnhubCompanyProfile(symbol);
     return {
-      success: result?.success === true && Boolean(result.companyProfile),
-      provider: result?.provider || "Finnhub",
-      symbol: result?.symbol || String(symbol || "").trim().toUpperCase(),
-      data: result?.companyProfile || null,
-      error: result?.companyProfile ? null : result?.error || "Company profile unavailable.",
+      ...primary,
+      data: {
+        ...primary.data,
+        ipoDate: primary.data?.ipoDate || enrichment?.data?.ipoDate || null,
+      },
     };
   }
   return unsupported("profile", provider);

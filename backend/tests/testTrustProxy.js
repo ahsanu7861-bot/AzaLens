@@ -36,6 +36,7 @@ const axios = require("axios");
 // ============================================================
 
 process.env.NODE_ENV = "test";
+process.env.CLOSED_DEMO_ENABLED = "false";
 process.env.FINNHUB_API_KEY = "trust-proxy-test-key";
 process.env.TWELVE_DATA_API_KEY = "trust-proxy-test-key";
 process.env.SHARIAH_DATA_MODE = "offline";

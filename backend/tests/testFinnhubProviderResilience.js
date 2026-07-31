@@ -7,13 +7,19 @@ process.env.FINNHUB_API_KEY = "test-key";
 
 const {
   getFinnhubQuote,
+  getFinnhubCompanyProfile,
   clearFinnhubQuoteCache,
   clearFinnhubProfileCache
 } = require("../providers/finnhubProvider");
 
 async function run() {
+  let quoteRequestCount = 0;
+  let profileRequestCount = 0;
+
   axios.get = async (url) => {
     if (url.endsWith("/quote")) {
+      quoteRequestCount += 1;
+
       return {
         data: {
           c: 250,
@@ -29,8 +35,12 @@ async function run() {
     }
 
     if (url.endsWith("/stock/profile2")) {
+      profileRequestCount += 1;
+
       const error =
-        new Error("Request failed with status code 429");
+        new Error(
+          "Request failed with status code 429"
+        );
 
       error.response = {
         status: 429,
@@ -40,28 +50,84 @@ async function run() {
       throw error;
     }
 
-    throw new Error(`Unexpected Finnhub URL: ${url}`);
+    throw new Error(
+      `Unexpected Finnhub URL: ${url}`
+    );
   };
 
   clearFinnhubQuoteCache();
   clearFinnhubProfileCache();
 
-  const result =
+  const quoteResult =
     await getFinnhubQuote("tsla");
 
-  assert.strictEqual(result.success, true);
-  assert.strictEqual(result.symbol, "TSLA");
-  assert.strictEqual(result.data.price, 250);
-  assert.strictEqual(result.data.company, null);
+  assert.strictEqual(
+    quoteResult.success,
+    true
+  );
+  assert.strictEqual(
+    quoteResult.symbol,
+    "TSLA"
+  );
+  assert.strictEqual(
+    quoteResult.data.price,
+    250
+  );
+  assert.strictEqual(
+    quoteResult.data.company,
+    null
+  );
+  assert.strictEqual(
+    quoteResult.companyProfile,
+    null
+  );
   assert.deepStrictEqual(
-    result.limitations,
-    [
-      "Company profile enrichment is unavailable: Finnhub rate limit was reached."
-    ]
+    quoteResult.limitations,
+    []
+  );
+  assert.strictEqual(
+    quoteRequestCount,
+    1
+  );
+  assert.strictEqual(
+    profileRequestCount,
+    0
+  );
+
+  const profileResult =
+    await getFinnhubCompanyProfile("tsla");
+
+  assert.strictEqual(
+    profileResult.success,
+    false
+  );
+  assert.strictEqual(
+    profileResult.provider,
+    "Finnhub"
+  );
+  assert.strictEqual(
+    profileResult.symbol,
+    "TSLA"
+  );
+  assert.strictEqual(
+    profileResult.data,
+    null
+  );
+  assert.strictEqual(
+    profileResult.error,
+    "Finnhub rate limit was reached."
+  );
+  assert.strictEqual(
+    quoteRequestCount,
+    1
+  );
+  assert.strictEqual(
+    profileRequestCount,
+    1
   );
 
   console.log(
-    "Finnhub provider resilience tests passed."
+    "Finnhub quote/profile resilience tests passed."
   );
 }
 

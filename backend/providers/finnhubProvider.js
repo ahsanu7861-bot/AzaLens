@@ -328,49 +328,15 @@ async function fetchCompanyProfile(symbol) {
 
 async function fetchFreshFinnhubQuote(symbol) {
   const apiKey = getApiKey();
-
-  /*
-    Quote and profile calls run in parallel.
-
-    The profile itself is cached for six hours, so after
-    the first request this normally results in only one
-    Finnhub network request per quote refresh. A company
-    profile is enrichment only: a profile failure must not
-    discard an otherwise valid market quote.
-  */
-  const [quoteResponse, profileResult] =
-    await Promise.all([
-      axios.get(
-        `${FINNHUB_BASE_URL}/quote`,
-        {
-          params: {
-            symbol,
-            token: apiKey
-          },
-          timeout: REQUEST_TIMEOUT_MS
-        }
-      ),
-
-      fetchCompanyProfile(symbol)
-        .then((profile) => ({
-          profile,
-          error: null
-        }))
-        .catch((error) => ({
-          profile: {},
-          error:
-            getAxiosErrorMessage(error)
-        }))
-    ]);
+  const quoteResponse = await axios.get(
+    `${FINNHUB_BASE_URL}/quote`,
+    {
+      params: { symbol, token: apiKey },
+      timeout: REQUEST_TIMEOUT_MS
+    }
+  );
 
   const quote = quoteResponse?.data;
-  const profile =
-    profileResult?.profile || {};
-  const profileError =
-    profileResult?.error || null;
-  const profileAvailable =
-    !profileError &&
-    Object.keys(profile).length > 0;
 
   if (!isValidQuote(quote)) {
     throw new Error(
@@ -385,18 +351,9 @@ async function fetchFreshFinnhubQuote(symbol) {
 
     data: {
       symbol,
-
-      company:
-        profile?.name ||
-        null,
-
-      exchange:
-        profile?.exchange ||
-        null,
-
-      currency:
-        profile?.currency ||
-        null,
+      company: null,
+      exchange: null,
+      currency: null,
 
       price:
         toFiniteNumber(quote.c),
@@ -422,34 +379,48 @@ async function fetchFreshFinnhubQuote(symbol) {
       timestamp:
         toFiniteNumber(quote.t)
     },
-
-    companyProfile:
-      profileAvailable
-        ? {
-            name: profile?.name || null,
-            ticker: profile?.ticker || symbol,
-            country: profile?.country || null,
-            currency: profile?.currency || null,
-            exchange: profile?.exchange || null,
-            industry:
-              profile?.finnhubIndustry || null,
-            ipoDate: profile?.ipo || null,
-            website: profile?.weburl || null,
-            logo: profile?.logo || null,
-            source:
-              "Finnhub Company Profile",
-            retrievedAt:
-              new Date().toISOString()
-          }
-        : null,
-
-    limitations:
-      profileError
-        ? [
-            `Company profile enrichment is unavailable: ${profileError}`
-          ]
-        : []
+    companyProfile: null,
+    limitations: []
   };
+}
+
+async function getFinnhubCompanyProfile(symbol) {
+  const normalizedSymbol = normalizeSymbol(symbol);
+  if (!normalizedSymbol) {
+    return { success: false, provider: "Finnhub", symbol: normalizedSymbol,
+      data: null, error: "A valid ticker symbol is required." };
+  }
+
+  try {
+    const profile = await fetchCompanyProfile(normalizedSymbol);
+    if (!profile || Object.keys(profile).length === 0) {
+      return { success: false, provider: "Finnhub", symbol: normalizedSymbol,
+        data: null, error: "Company profile unavailable." };
+    }
+    return {
+      success: true,
+      provider: "Finnhub",
+      symbol: normalizedSymbol,
+      data: {
+        name: profile.name || null,
+        ticker: profile.ticker || normalizedSymbol,
+        country: profile.country || null,
+        currency: profile.currency || null,
+        exchange: profile.exchange || null,
+        sector: null,
+        industry: profile.finnhubIndustry || null,
+        ipoDate: profile.ipo || null,
+        website: profile.weburl || null,
+        logo: profile.logo || null,
+        source: "Finnhub Company Profile",
+        retrievedAt: new Date().toISOString()
+      },
+      error: null
+    };
+  } catch (error) {
+    return { success: false, provider: "Finnhub", symbol: normalizedSymbol,
+      data: null, error: getAxiosErrorMessage(error) };
+  }
 }
 
 // ==================================================
@@ -814,6 +785,7 @@ function getFinnhubCacheStats() {
 
 module.exports = {
   getFinnhubQuote,
+  getFinnhubCompanyProfile,
   getHistoricalCandles,
   clearFinnhubQuoteCache,
   clearFinnhubProfileCache,

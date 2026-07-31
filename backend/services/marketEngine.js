@@ -1,4 +1,5 @@
 const {
+  getCompanyProfile,
   getHistoricalCandles,
   getQuote
 } = require("../providers/marketDataProvider");
@@ -466,23 +467,43 @@ async function getMarketDataUnobserved(symbol) {
   }
 
   try {
-    const result =
-      await getQuote(
-        normalizedSymbol
-      );
+    const [result, profileResult] = await Promise.all([
+      getQuote(normalizedSymbol),
+      getCompanyProfile(normalizedSymbol)
+    ]);
+
+    const companyProfile = profileResult?.success
+      ? profileResult.data
+      : null;
+    const mergedResult = {
+      ...result,
+      data: result?.data ? {
+        ...result.data,
+        company: companyProfile?.name || result.data.company || null,
+        exchange: companyProfile?.exchange || result.data.exchange || null,
+        currency: companyProfile?.currency || result.data.currency || null
+      } : result?.data,
+      companyProfile,
+      limitations: [
+        ...(Array.isArray(result?.limitations) ? result.limitations : []),
+        ...(companyProfile ? [] : [
+          `Company profile enrichment is unavailable: ${profileResult?.error || "unknown provider error"}`
+        ])
+      ]
+    };
 
     const cache =
       normalizeLiveCacheMetadata(
         result?.cache
       );
 
-    if (result?.success === true) {
+    if (mergedResult?.success === true) {
       return {
-        ...result,
+        ...mergedResult,
 
         symbol:
-          result.symbol ||
-          result.data?.symbol ||
+          mergedResult.symbol ||
+          mergedResult.data?.symbol ||
           normalizedSymbol,
 
         cache,

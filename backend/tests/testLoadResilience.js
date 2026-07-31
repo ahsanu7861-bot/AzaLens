@@ -232,7 +232,7 @@ async function testProviderRequestCoalescing() {
     );
 
   assert.equal(quoteCalls, 1);
-  assert.equal(profileCalls, 1);
+  assert.equal(profileCalls, 0);
   assert.equal(
     cacheStatuses.filter(
       (status) => status === "MISS"
@@ -259,7 +259,7 @@ async function testProviderRequestCoalescing() {
     "HIT"
   );
   assert.equal(quoteCalls, 1);
-  assert.equal(profileCalls, 1);
+  assert.equal(profileCalls, 0);
   assert.deepEqual(
     getFinnhubCacheStats(),
     {
@@ -269,7 +269,7 @@ async function testProviderRequestCoalescing() {
         pendingRequests: 0,
       },
       profileCache: {
-        entries: 1,
+        entries: 0,
         ttlSeconds: 21600,
         pendingRequests: 0,
       },

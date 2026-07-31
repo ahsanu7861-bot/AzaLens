@@ -41,6 +41,7 @@ axios.get = async (url) => {
 };
 
 const {
+  getFinnhubCompanyProfile,
   getFinnhubQuote
 } = require("../providers/finnhubProvider");
 
@@ -50,8 +51,18 @@ const {
 
 (async () => {
   try {
-    const result =
-      await getFinnhubQuote("EXM");
+    const quote = await getFinnhubQuote("EXM");
+    const profile = await getFinnhubCompanyProfile("EXM");
+    const result = {
+      ...quote,
+      companyProfile: profile.data,
+      data: {
+        ...quote.data,
+        company: profile.data?.name,
+        exchange: profile.data?.exchange,
+        currency: profile.data?.currency
+      }
+    };
 
     assert.equal(result.success, true);
     assert.equal(
