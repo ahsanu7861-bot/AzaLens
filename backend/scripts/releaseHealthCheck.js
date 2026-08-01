@@ -8,13 +8,11 @@ const DEFAULT_FRONTEND_URL =
   "https://azalens.vercel.app";
 const DEFAULT_API_URL =
   "https://api.azalens.com";
-const DEFAULT_SYMBOL = "AAPL";
 const DEFAULT_REQUEST_TIMEOUT_MS = 45_000;
 const DEFAULT_DEPLOYMENT_ATTEMPTS = 1;
 const DEFAULT_DEPLOYMENT_POLL_INTERVAL_MS =
   15_000;
 const MAX_RESPONSE_AGE_MS = 10 * 60 * 1000;
-const SYMBOL_PATTERN = /^[A-Z0-9.^-]{1,15}$/;
 
 function isObject(value) {
   return Boolean(
@@ -54,18 +52,6 @@ function toPositiveInteger(
 }
 
 function createConfig(env = process.env) {
-  const symbol = String(
-    env.HEALTH_CHECK_SYMBOL || DEFAULT_SYMBOL
-  )
-    .trim()
-    .toUpperCase();
-
-  if (!SYMBOL_PATTERN.test(symbol)) {
-    throw new Error(
-      "HEALTH_CHECK_SYMBOL contains unsupported characters."
-    );
-  }
-
   return {
     frontendUrl: normalizeBaseUrl(
       env.HEALTH_FRONTEND_URL,
@@ -75,7 +61,6 @@ function createConfig(env = process.env) {
       env.HEALTH_API_URL,
       DEFAULT_API_URL
     ),
-    symbol,
     expectedCommit: String(
       env.EXPECTED_COMMIT || ""
     ).trim(),
@@ -471,86 +456,6 @@ async function checkReadiness(
   });
 }
 
-function getMissingWorkspaces(data) {
-  const requirements = {
-    overview: ["confluence", "agreement"],
-    technical: [
-      "indicators",
-      "marketStructure",
-      "trend",
-    ],
-    fundamentals: ["fundamentals"],
-    risk: ["risk"],
-    shariah: ["shariah"],
-    aiThesis: [
-      "thesisInvalidation",
-      "explanation",
-    ],
-  };
-
-  return Object.entries(requirements)
-    .filter(([, fields]) =>
-      fields.some(
-        (field) => !isObject(data?.[field])
-      )
-    )
-    .map(([workspace]) => workspace);
-}
-
-async function checkAnalysis(
-  config,
-  fetchImpl
-) {
-  const requestId =
-    createCheckRequestId("analysis");
-  const result = await fetchResult(
-    fetchImpl,
-    `${config.apiUrl}/api/analyze/${encodeURIComponent(
-      config.symbol
-    )}`,
-    {
-      headers: {
-        "X-Request-ID": requestId,
-      },
-      timeoutMs: config.requestTimeoutMs,
-    }
-  );
-  const body = result.body;
-  const missingWorkspaces =
-    getMissingWorkspaces(body?.data);
-  const success =
-    !result.error &&
-    result.response?.status === 200 &&
-    body?.success === true &&
-    body?.meta?.symbol === config.symbol &&
-    body?.meta?.requestId === requestId &&
-    requestIdMatches(result, requestId) &&
-    isRecentTimestamp(body?.meta?.generatedAt) &&
-    isObject(body?.dataQuality) &&
-    missingWorkspaces.length === 0;
-
-  return createCheck({
-    id: "analysis_contract",
-    success,
-    message: success
-      ? "Representative analysis returned all six workspace contracts."
-      : result.error
-        ? result.error.message
-        : "Representative analysis contract failed.",
-    durationMs: result.durationMs,
-    details: {
-      httpStatus:
-        result.response?.status || null,
-      symbol: body?.meta?.symbol || null,
-      requestIdCorrelated:
-        requestIdMatches(result, requestId),
-      dataQualityStatus:
-        body?.dataQuality?.status || null,
-      missingWorkspaces,
-    },
-  });
-}
-
 async function checkMetrics(
   config,
   fetchImpl
@@ -655,7 +560,6 @@ async function runReleaseHealthCheck(
         fetchImpl,
         deployment.deployedCommit
       ),
-      checkAnalysis(config, fetchImpl),
       checkMetrics(config, fetchImpl),
     ]);
 
@@ -688,7 +592,6 @@ async function runReleaseHealthCheck(
     target: {
       frontendUrl: config.frontendUrl,
       apiUrl: config.apiUrl,
-      symbol: config.symbol,
       expectedCommit:
         config.expectedCommit || null,
       deployedCommit:
@@ -798,14 +701,12 @@ if (require.main === module) {
 }
 
 module.exports = {
-  checkAnalysis,
   checkFrontend,
   checkLiveness,
   checkMetrics,
   checkReadiness,
   commitsMatch,
   createConfig,
-  getMissingWorkspaces,
   isRecentTimestamp,
   runReleaseHealthCheck,
 };

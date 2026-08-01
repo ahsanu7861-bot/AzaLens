@@ -61,35 +61,8 @@ function requestHeader(options, name) {
   return match?.[1] || null;
 }
 
-function createAnalysisBody(requestId) {
-  return {
-    success: true,
-    meta: {
-      requestId,
-      symbol: "AAPL",
-      generatedAt: new Date().toISOString(),
-    },
-    dataQuality: {
-      status: "Complete",
-    },
-    data: {
-      confluence: {},
-      agreement: {},
-      indicators: {},
-      marketStructure: {},
-      trend: {},
-      fundamentals: {},
-      risk: {},
-      shariah: {},
-      thesisInvalidation: {},
-      explanation: {},
-    },
-  };
-}
-
 function createFetchMock({
   deployedCommit = DEPLOYED_COMMIT,
-  missingWorkspace = null,
   expectMetricsToken = false,
   calls = [],
 } = {}) {
@@ -160,22 +133,6 @@ function createFetchMock({
       );
     }
 
-    if (url.endsWith("/api/analyze/AAPL")) {
-      const body = createAnalysisBody(
-        requestId
-      );
-
-      if (missingWorkspace) {
-        delete body.data[missingWorkspace];
-      }
-
-      return createResponse(
-        200,
-        body,
-        commonHeaders
-      );
-    }
-
     if (url.endsWith("/ops/metrics")) {
       const authorization = requestHeader(
         options,
@@ -225,7 +182,6 @@ function createTestConfig(overrides = {}) {
     HEALTH_FRONTEND_URL:
       "https://frontend.test",
     HEALTH_API_URL: "https://api.test",
-    HEALTH_CHECK_SYMBOL: "AAPL",
     EXPECTED_COMMIT: DEPLOYED_COMMIT,
     HEALTH_REQUEST_TIMEOUT_MS: "1000",
     HEALTH_MAX_DEPLOYMENT_ATTEMPTS: "1",
@@ -252,7 +208,7 @@ async function run() {
   );
   assert.equal(
     failClosedReport.checks.length,
-    5
+    4
   );
   assert.equal(
     failClosedReport.limitations.length,
@@ -303,6 +259,16 @@ async function run() {
     ),
     true
   );
+  assert.equal(
+    authenticatedCalls.some(
+      ({ url }) =>
+        url.includes("/api/") ||
+        url.includes("/stock/") ||
+        url.includes("/history/")
+    ),
+    false,
+    "Release health must never invoke provider-backed product routes."
+  );
 
   const staleDeploymentReport =
     await runReleaseHealthCheck(
@@ -329,29 +295,6 @@ async function run() {
   assert.equal(
     staleDeploymentReport.failures[0].check,
     "backend_liveness"
-  );
-
-  const incompleteAnalysisReport =
-    await runReleaseHealthCheck(
-      createTestConfig(),
-      {
-        fetchImpl: createFetchMock({
-          missingWorkspace: "shariah",
-        }),
-      }
-    );
-  const analysisCheck =
-    incompleteAnalysisReport.checks.find(
-      ({ id }) => id === "analysis_contract"
-    );
-
-  assert.equal(
-    incompleteAnalysisReport.success,
-    false
-  );
-  assert.deepEqual(
-    analysisCheck.details.missingWorkspaces,
-    ["shariah"]
   );
 
   console.log(
