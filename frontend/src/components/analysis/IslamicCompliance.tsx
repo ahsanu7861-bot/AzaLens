@@ -80,6 +80,28 @@ function formatCheckedAt(value?: string | null) {
   }).format(date);
 }
 
+function buildAAOIFIExplanation(data?: ShariahComplianceData) {
+  const primary =
+    data?.primaryMethodology ?? data?.methodologies?.results?.AAOIFI;
+
+  if (primary?.reason) {
+    return primary.reason;
+  }
+
+  const businessStatus = data?.businessActivity?.status;
+  const financialStatus = data?.financialScreen?.status;
+
+  if (businessStatus === "PASS" && financialStatus === "PASS") {
+    return "The provider reports that the AAOIFI business-activity and financial-ratio screens passed.";
+  }
+
+  if (businessStatus === "FAIL" || financialStatus === "FAIL") {
+    return "The provider reports that at least one AAOIFI company-level screen did not pass.";
+  }
+
+  return "The AAOIFI result is not currently available. AzaLens will not infer a compliant status without verified screening data.";
+}
+
 export default function IslamicCompliance({
   data,
   isLoading = false,
@@ -110,7 +132,7 @@ export default function IslamicCompliance({
       value: screenLabel(data?.financialScreen?.status),
       badge: screenVariant(data?.financialScreen?.status),
       description:
-        "Financial ratios are evaluated using the AAOIFI screening result.",
+        "Provider-reported outcome of the AAOIFI company-level financial screen.",
     },
     {
       label: "Debt to assets",
@@ -121,7 +143,7 @@ export default function IslamicCompliance({
         ? "info"
         : "neutral",
       description:
-        "Provider-reported debt ratio from the latest available financial data.",
+        "Provider-reported total debt divided by total assets. This is not debt divided by market capitalization.",
     },
     {
       label: "Interest income",
@@ -135,7 +157,7 @@ export default function IslamicCompliance({
           ? "info"
           : "neutral",
       description:
-        "Interest income as a share of reported revenue, when available.",
+        "Provider-reported interest income divided by total revenue, when available.",
     },
     {
       label: "Impure revenue",
@@ -149,7 +171,7 @@ export default function IslamicCompliance({
           ? "info"
           : "neutral",
       description:
-        "Estimated non-permissible revenue captured by the business screen.",
+        "Provider-reported combined impure-revenue ratio. It may include interest income and other impermissible revenue.",
     },
     {
       label: "Dividend purification",
@@ -160,7 +182,7 @@ export default function IslamicCompliance({
         ? "info"
         : "neutral",
       description:
-        "Estimated dividend portion requiring purification, when applicable.",
+        "Provider-reported purification rate. It is guidance for dividends, not the investor’s calculated purification amount.",
     },
   ] satisfies Array<{
     label: string;
@@ -242,9 +264,7 @@ export default function IslamicCompliance({
               </p>
 
               <p className="mt-2 text-sm leading-6 text-ink-soft">
-                {data?.summary?.explanation ||
-                  primary?.reason ||
-                  "The AAOIFI result is not currently available. AzaLens will not infer a compliant status without verified screening data."}
+                {buildAAOIFIExplanation(data)}
               </p>
             </div>
 

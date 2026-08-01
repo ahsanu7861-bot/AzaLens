@@ -34,7 +34,7 @@ describe("IslamicCompliance truth states", () => {
 
     expect(screen.getAllByText("Review required")).not.toHaveLength(0);
     expect(
-      screen.getByText("Provider evidence requires review."),
+      screen.getByText(/will not infer a compliant status/i),
     ).toBeInTheDocument();
   });
 
@@ -43,12 +43,47 @@ describe("IslamicCompliance truth states", () => {
       summary: {
         status: "COMPLIANT",
         confidence: "High",
-        explanation: "AAOIFI checks passed.",
+        explanation:
+          "Compliant under AAOIFI, DJIM, FTSE, MSCI and S&P.",
       },
+      businessActivity: { status: "PASS" },
+      financialScreen: { status: "PASS" },
     });
 
     expect(screen.getByText("Compliant")).toBeInTheDocument();
     expect(screen.getByText("Confidence: High")).toBeInTheDocument();
+    expect(
+      screen.getByText(/AAOIFI business-activity and financial-ratio screens passed/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/DJIM|FTSE|MSCI|S&P/)).not.toBeInTheDocument();
+  });
+
+  it("keeps equal provider ratios distinct and explains their meaning", () => {
+    renderCompliance({
+      summary: {
+        status: "COMPLIANT",
+        purificationRateFormatted: "3.37%",
+      },
+      businessActivity: {
+        status: "PASS",
+        revenueRatios: {
+          combinedImpureFormatted: "3.37%",
+        },
+      },
+      financialScreen: {
+        status: "PASS",
+        ratios: {
+          debtToAssetsFormatted: "23.16%",
+          interestIncomeToRevenueFormatted: "3.37%",
+        },
+      },
+    });
+
+    expect(screen.getAllByText("3.37%")).toHaveLength(3);
+    expect(screen.getByText(/interest income divided by total revenue/i)).toBeInTheDocument();
+    expect(screen.getByText(/combined impure-revenue ratio/i)).toBeInTheDocument();
+    expect(screen.getByText(/guidance for dividends/i)).toBeInTheDocument();
+    expect(screen.getByText(/not debt divided by market capitalization/i)).toBeInTheDocument();
   });
 
   it("discloses stale evidence", () => {
