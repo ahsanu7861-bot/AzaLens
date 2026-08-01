@@ -145,7 +145,7 @@ function DataProvenanceBadge({
       <span className="break-words">
         Data: {feedLabel}
         {source ? ` · ${source}` : ""}
-        {cautious ? " · Review Required" : ""}
+        {cautious ? " · Data caution" : ""}
       </span>
     </span>
   );
