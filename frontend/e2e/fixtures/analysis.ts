@@ -135,6 +135,23 @@ export const historicalBars = Array.from(
 );
 
 export async function mockHealthyAnalysis(page: Page) {
+  // Browser journeys exercise the UI in an isolated Vite test server.
+  // Authorize the gate at its public status contract instead of storing or
+  // teaching CI a production access code.
+  await page.route(
+    "**/auth/demo/status",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          enabled: true,
+          authorized: true,
+        }),
+      });
+    },
+  );
   await page.route(
     "**/api/analyze/AAPL**",
     async (route) => {

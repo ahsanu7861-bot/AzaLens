@@ -14,7 +14,10 @@ import {
 } from "react-router-dom";
 
 import AppShell from "../components/layout/AppShell";
-import ClosedDemoGate from "../components/auth/ClosedDemoGate";
+
+const ClosedDemoGate = lazy(
+  () => import("../components/auth/ClosedDemoGate"),
+);
 
 const AnalysisPage = lazy(() => import("../pages/AnalysisPage"));
 const DashboardPage = lazy(() => import("../pages/DashboardPage"));
@@ -136,7 +139,13 @@ export default function Router() {
       <RouteFocusManager />
       <Routes>
         <Route path="/" element={loadPage(<LandingPage />)} />
-        <Route element={<ClosedDemoGate><AppShell /></ClosedDemoGate>}>
+        <Route
+          element={loadPage(
+            <ClosedDemoGate>
+              <AppShell />
+            </ClosedDemoGate>,
+          )}
+        >
           <Route path="/dashboard" element={loadPage(<DashboardPage />)} />
           <Route path="/analysis/:symbol" element={loadPage(<AnalysisPage />)} />
           <Route path="/scanner" element={loadPage(<ScannerPage />)} />

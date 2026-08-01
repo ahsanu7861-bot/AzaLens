@@ -51,7 +51,6 @@ jobs:
           HEALTH_FRONTEND_URL: ${{ vars.FRONTEND_URL }}
           HEALTH_API_URL: ${{ vars.API_URL }}
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
-          HEALTH_CHECK_SYMBOL: AAPL
           HEALTH_MAX_DEPLOYMENT_ATTEMPTS: "30"
           HEALTH_DEPLOYMENT_POLL_INTERVAL_MS: "15000"
           OBSERVABILITY_METRICS_TOKEN: ${{ secrets.OBSERVABILITY_METRICS_TOKEN }}
