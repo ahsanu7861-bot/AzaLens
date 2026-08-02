@@ -42,14 +42,19 @@ function inspectMigrations(directory) {
   return { valid: errors.length === 0, files, errors };
 }
 
+// Up migrations live in supabase/migrations because the Supabase CLI cannot be
+// pointed elsewhere - see db/README.md for the evidence.
+const MIGRATIONS_DIRECTORY = path.resolve(
+  __dirname,
+  "../../supabase/migrations"
+);
+
 function main() {
-  const result = inspectMigrations(
-    path.resolve(__dirname, "../migrations")
-  );
+  const result = inspectMigrations(MIGRATIONS_DIRECTORY);
   console.log(JSON.stringify(result, null, 2));
   if (!result.valid) process.exitCode = 1;
 }
 
 if (require.main === module) main();
 
-module.exports = { inspectMigrations };
+module.exports = { MIGRATIONS_DIRECTORY, inspectMigrations };
