@@ -1,11 +1,13 @@
 # Accounts, database and authentication — design
 
-Status: **Design only. No code written. No migrations written. Nothing built.**
-Revision 3 — incorporates 15 review corrections, 4 refinements, and 4 final-review
-fixes. See the change log at the end.
+Status: **Slice 1 built** — migrations 001 and 002, row-level security, and the
+two database tests. Everything else remains design only: no authentication code,
+no token ledger, no hosted-project migrations.
+Revision 4 — incorporates 15 review corrections, 4 refinements, 4 final-review
+fixes, and the Slice 1 implementation findings. See the change logs at the end.
 Covers roadmap item 3.3, plus the part of the parked durable-storage work
 (`WHAT_TO_DO_NEXT.md` lines 63 and 70) that is not blocked on provider terms.
-Date: 2026-08-02. Committed to `main` at `88d358a`.
+Design dated 2026-08-02, first committed to `main` at `88d358a`.
 
 ---
 
@@ -100,8 +102,8 @@ backend stays the single choke point the audit asked for.
 **Chosen: a hybrid, and it is the important decision in this document.**
 
 - The **browser** talks to Supabase for one thing only: logging in and holding
-  the session. It uses the *anon key*, which is designed to be public and can
-  read nothing on its own.
+  the session. It uses the *publishable key* (`sb_publishable_…`), which is
+  designed to be public and can read nothing on its own.
 - The browser sends its login token to **our Express backend** on every API call.
 - The backend does all data reads and writes — but using **the logged-in person's
   own token**, not an admin key. So Postgres applies that person's row-level rules
@@ -113,10 +115,20 @@ return rows that aren't yours. If I write a bug in the backend and forget a
 `where user_id = ...` filter, the database still returns nothing. One mistake is
 not enough to leak data.
 
-The powerful admin key (`service_role`) bypasses all row rules. It lives in
-exactly one place — the backend's environment — and is used by exactly three
-things: creating invited users, reserving tokens, and the one-off legacy import
-script. Never anywhere near the browser. Part 7.5 has a test that proves it.
+The **secret key** (`sb_secret_…`) maps to the `service_role` Postgres role and
+therefore bypasses all row rules. It lives in exactly one place — the backend's
+environment — and is used by exactly three things: creating invited users,
+reserving tokens, and the one-off legacy import script. Never anywhere near the
+browser. Part 7.5 has a test that proves it.
+
+**Key names versus role names — read this once and the rest is unambiguous.**
+Supabase replaced the legacy JWT-based `anon` and `service_role` *keys* with
+opaque `sb_publishable_…` and `sb_secret_…` *keys*. The Postgres *roles* `anon`,
+`authenticated` and `service_role` are unchanged and still govern row-level
+security. In this document, credentials are always called "publishable key" or
+"secret key"; the bare words `anon`, `authenticated` and `service_role` appear
+only where a database role is meant. Every `GRANT`, `REVOKE` and policy `TO`
+clause below names roles and is untouched by the key change.
 
 ### 1.1 One Supabase client per request — never a shared one
 
@@ -137,7 +149,7 @@ request only:
 
 ```js
 // per request, inside requireUser — never module-level, never cached, never reused
-const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+const db = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     persistSession: false,      // no shared session state between requests
     autoRefreshToken: false,    // the browser owns refresh, not the server
@@ -156,7 +168,7 @@ Rules, stated so a reviewer can check them mechanically:
 - `supabase.auth.setSession()` is never called on the backend. It mutates shared
   state, which is the same bug in a different costume.
 - The request's Bearer token is passed to that one client and to nothing else.
-- The `service_role` client is a separate module, never mixed with this one.
+- The secret-key client is a separate module, never mixed with this one.
 
 **The cost objection, answered.** Creating a client per request looks wasteful. It
 is not: the Supabase JS client is a stateless HTTP wrapper, not a database
@@ -455,7 +467,7 @@ alter default privileges in schema public revoke execute on functions from publi
 Postgres grants `EXECUTE` on new functions to `PUBLIC` by default, and Supabase
 grants schema usage to `anon` and `authenticated`. Without this line, every
 function we ever add is callable by any logged-in user — and by anyone holding the
-public anon key — until someone remembers to revoke it. This makes the safe state
+publishable key — until someone remembers to revoke it. This makes the safe state
 the default state. Test 7.5 asserts no `public` function is executable by `anon` or
 `authenticated` outside an explicit allowlist.
 
@@ -666,7 +678,7 @@ deliberately and the chosen values recorded, per §1.3.
 
 ### 4.2 Login, session, logout
 
-1. Browser calls Supabase directly with email and password, using the anon key.
+1. Browser calls Supabase directly with email and password, using the publishable key.
 2. Supabase returns an access token (short-lived, ~1 hour) and a refresh token.
 3. The Supabase JS client stores them and refreshes the access token silently.
 4. Every call to our API attaches `Authorization: Bearer <access token>` — one
@@ -724,20 +736,60 @@ service-role claim. Every one of these must be checked:
 | Check | Requirement | Why |
 |---|---|---|
 | Signature | valid | the basic one |
-| Algorithm | against an allowlist — `RS256`/`ES256` for asymmetric keys, or `HS256` for a legacy shared-secret project, **never both accepted at once** | accepting a set of algorithms rather than one is how algorithm-confusion attacks work |
+| Algorithm | a single algorithm, **`ES256`** — never an allowlist of several | accepting a set of algorithms rather than one is how algorithm-confusion attacks work. Supabase recommends ES256 and states HS256 is *"not recommended for production applications"* |
 | `iss` | string-equal to this exact project's issuer URL | a valid token from *someone else's* Supabase project must not authenticate here |
 | `aud` | `authenticated` | tokens minted for other audiences are not login tokens |
 | `exp` | not expired, small bounded clock skew | — |
-| `role` | `authenticated` | a `service_role` token must never be accepted as a user login |
+| `role` | `authenticated` | defence in depth — see the note below |
 | `sub` | present and a valid UUID | it becomes the row owner; a malformed one must fail loudly |
 
-JWKS handling: fetch and cache the key set with a TTL, refetch on an unknown
-`kid` so key rotation is automatic, and enforce a **minimum interval between
-refetches** so a stream of forged `kid` values cannot turn our auth middleware
-into a request amplifier against Supabase.
+**Why the `role` check survives the new key model, and what it actually does
+now.** Under the legacy model the `service_role` *key* was itself a JWT carrying
+`role: service_role`, so this check was the barrier that stopped someone pasting
+an admin key in as a login. That is no longer its job: the current secret key is
+**opaque, not a JWT**, so it cannot carry any claim and fails signature
+verification long before claims are inspected. Supabase additionally states a
+publishable or secret key cannot be sent in an `Authorization: Bearer` header
+unless it exactly equals the `apikey` header.
 
-Verification is a local signature check — no network call per request, so no
-latency and no cost.
+The check is nonetheless kept, for two precisely-scoped reasons: legacy
+JWT-based keys remain valid until the end of 2026, so a legacy `service_role`
+JWT is still a real signed token during the transition; and requiring
+`authenticated` exactly rejects any future token type whose role differs. It is
+defence in depth behind the algorithm check, not the primary barrier.
+
+**Publishable and secret keys are never treated as user JWTs.** They are opaque
+credentials. The backend must never accept an `apikey` header as authentication.
+
+**JWKS handling.** Fetch from
+`https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json`. Supabase's
+edge caches this for 10 minutes and warns against caching longer, or valid
+tokens get rejected after a rotation — so our cache TTL is **10 minutes or
+less**, not an arbitrary one. Signing keys move through standby / current /
+previously-used states, so verification must accept **any key currently in the
+set**, not merely the newest. Refetch on an unknown `kid`, with a minimum
+interval between refetches so a stream of forged `kid` values cannot turn our
+auth middleware into a request amplifier against Supabase.
+
+Verification is a local signature check — no network call per request beyond the
+cached key set, so no meaningful latency and no cost.
+
+**Issuer: derived, not configured.** `iss` is the project's Auth v1 endpoint, so
+it is `SUPABASE_URL` + `/auth/v1`. Deriving it removes a variable and removes a
+real failure mode — a `SUPABASE_URL` pointing at production with an issuer left
+pointing at development would happily accept development-signed tokens against
+production data. There is deliberately no `SUPABASE_JWT_ISSUER` variable. One
+returns only if a custom auth domain is ever configured, which is the documented
+trigger.
+
+> **Pending verification (Slice 3).** Two claims here rest on documentation
+> rather than observation, because no AzaLens user token has yet been issued or
+> inspected: (a) the exact `iss` value — Supabase's docs say `iss` identifies the
+> issuing server and is *typically* the Auth v1 endpoint, and "typically" is not
+> a guarantee; and (b) whether a newly created project still enables the legacy
+> HS256 shared secret by default, which determines whether the allowlist must
+> actively exclude HS256 or merely omit it. Both must be confirmed against a real
+> `azalens-dev` access token before this section is treated as settled.
 
 On success the middleware attaches `req.user = { id, email }` and the fresh
 per-request client from §1.1 as `req.db`. Every route uses `req.db`, so a handler
@@ -971,15 +1023,16 @@ path.
 
 ## Part 6 — Migrations
 
-Supabase CLI, files in `backend/migrations/`, following the naming rule already
-enforced by `backend/scripts/checkMigrations.js`
-(`YYYYMMDDHHMMSS_description.sql`).
+Up migrations live in `supabase/migrations/`, down migrations in
+`db/down-migrations/`, conventions in `db/README.md`. Naming
+(`YYYYMMDDHHMMSS_description.sql`) is enforced by
+`backend/scripts/checkMigrations.js`, which now points at `supabase/migrations`.
 
 | File | Contents |
 |---|---|
-| `..._001_foundation.sql` | `pgcrypto`, default-privilege revoke (§3.0), `set_updated_at`, `profiles`, `user_entitlements`, their RLS, column grants, and `updated_at` triggers |
-| `..._002_user_data.sql` | `watchlists`, `portfolio_holdings`, `user_preferences`, their RLS, column grants, `updated_at` triggers — **then, last in the file**, `handle_new_user()` and `on_auth_user_created` |
-| `..._003_token_ledger.sql` | ledger, reservations, `reserve_provider_tokens`, RLS lockdown, function grants |
+| `20260803120000_001_foundation.sql` | `pgcrypto`, default-privilege revoke (§3.0), `set_updated_at`, `profiles`, `user_entitlements`, their RLS, column grants, and `updated_at` triggers — **shipped** |
+| `20260803120100_002_user_data.sql` | `watchlists`, `portfolio_holdings`, `user_preferences`, their RLS, column grants, `updated_at` triggers — **then, last in the file**, `handle_new_user()` and `on_auth_user_created` — **shipped** |
+| `..._003_token_ledger.sql` | ledger, reservations, `reserve_provider_tokens`, RLS lockdown, function grants — *not yet written* |
 | *conditional, unwritten* | `shariah_screenings` — **blocked on Part 0.1**, schema in Appendix A |
 
 Three migrations, not six. Revision 1's migration 004 (Shariah cache) is blocked,
@@ -1013,9 +1066,9 @@ my machine because of something I typed into the dashboard once" cannot happen.
 Corollary rule: **no schema change is ever made by clicking in the Supabase
 dashboard.** If it is not in a migration file, it does not exist.
 
-Destructive changes follow the expand/backfill/contract rule already in
-`backend/migrations/README.md`: add the new thing, move the data, and only remove
-the old thing in a later release once nothing reads it. Never in one step.
+Destructive changes follow the expand/backfill/contract rule recorded in
+`db/README.md`: add the new thing, move the data, and only remove the old thing
+in a later release once nothing reads it. Never in one step.
 
 **Environments.** Two Supabase projects: `azalens-dev` (free, disposable, reset
 freely) and `azalens-prod` (real data, migrations applied only through CI after
@@ -1025,21 +1078,34 @@ in production.
 ### 6.1 Down-scripts, and a finding about our own tooling
 
 **Finding, recorded here because a plan file disappears and this document does
-not.** Revision 1 proposed putting down-scripts in `backend/migrations/down/`.
-That would have broken our existing tooling: `backend/scripts/checkMigrations.js:6`
-validates *every* entry returned by `readdirSync` against
-`^\d{14}_[a-z0-9][a-z0-9_-]*\.(js|sql)$` and does not skip directories. A `down/`
-subfolder would be read as a filename, fail the pattern, and make
-`npm run check:migrations` fail permanently.
+not.** Two constraints decided the layout.
 
-Down-scripts therefore live in a sibling directory, `backend/migrations-down/`,
-with filenames whose timestamps match their up-migration exactly. No change to the
-existing checker is needed for it to keep passing.
+First, the Supabase CLI cannot be pointed at another migrations directory.
+Verified against CLI 2.111.0: `supabase/config.toml` exposes only
+`[db.migrations].enabled` and `[db.migrations].schema_paths` — and
+`schema_paths` describes *declarative* schema files, not versioned migrations.
+`supabase migration new` has no local flags at all, and `supabase db reset`
+offers `--db-url`, `--linked`, `--local`, `--no-seed`, `--sql-paths`,
+`--version` and `--last`, where `--sql-paths` overrides seeds only. The one
+path-like global, `--workdir`, moves the project root rather than the migrations
+folder inside it. The CLI does expose path configuration wherever it supports it
+— seeds, declarative schema, storage objects, signing keys, email templates — so
+its pointed absence for versioned migrations is the answer. Up migrations
+therefore live in `supabase/migrations/`.
+
+Second, down-scripts must be somewhere the CLI will never execute. Revision 1
+proposed `backend/migrations/down/`, which would additionally have broken
+`backend/scripts/checkMigrations.js:6` — it validates *every* entry returned by
+`readdirSync` and does not skip directories, so a `down/` subfolder would be read
+as a filename and fail the pattern permanently. Down-scripts therefore live in
+`db/down-migrations/`, **outside `supabase/` entirely**: anything inside
+`supabase/` is one CLI feature away from being globbed, and the whole value of a
+down-script is that it runs only when a person means it.
 
 **But a sibling directory is unchecked by default, and unchecked files rot.** So a
-dedicated CI check — either an extension of `checkMigrations.js` or a new
-`backend/scripts/checkDownMigrations.js` wired into `runCiSuite.js` — must prove
-all four of:
+dedicated CI check — `backend/scripts/checkDownMigrations.js`, run in the
+`backend-contracts` job and again in `database-policies` — must prove all four
+of:
 
 1. Every up migration has **exactly one** matching down script.
 2. Timestamps match exactly between each pair.
@@ -1047,7 +1113,7 @@ all four of:
 4. No orphan down scripts exist with no corresponding up migration.
 
 A missing or mismatched down script fails the build. This is the check that stops
-`migrations-down/` from quietly drifting out of sync until the day we need it.
+`db/down-migrations/` from quietly drifting out of sync until the day we need it.
 
 ### 6.2 Legacy data import — a script, not a migration
 
@@ -1110,9 +1176,9 @@ database only:
 
 ```
 create user A and user B; sign in as each
-clientA = supabase(anon key) + token A
-clientB = supabase(anon key) + token B
-clientAnon = supabase(anon key), no token
+clientA = supabase(publishable key) + token A
+clientB = supabase(publishable key) + token B
+clientAnon = supabase(publishable key), no token
 ```
 
 **The test is driven by a per-table permission matrix, not a single generic
@@ -1224,11 +1290,15 @@ it protects against the mistake we have not made yet.
 
 `tests/testPrivilegeContainment.js`:
 
-- No file under `frontend/` mentions `SUPABASE_SERVICE_ROLE_KEY` or
-  `service_role`.
-- No `VITE_`-prefixed variable holds a service key — frontend-visible variables
-  are the anon key and the project URL only.
-- The built `frontend/dist` bundle is scanned for the service-key pattern.
+- No file under `frontend/` mentions `SUPABASE_SECRET_KEY`, and no file under
+  `frontend/` contains the literal prefix `sb_secret_`.
+  **Scanning for the bare word `service_role` would be wrong** — that is a
+  legitimate Postgres role name appearing throughout the migrations. `.sql`
+  files, `supabase/migrations/` and `db/down-migrations/` are out of scope for
+  this scan, so correct SQL is never rejected.
+- No `VITE_`-prefixed variable holds a secret key — frontend-visible variables
+  are the publishable key and the project URL only.
+- The built `frontend/dist` bundle is scanned for the `sb_secret_` prefix.
 - The backend module holding the admin client is imported by an allowlist only
   (invite script, token reserver, legacy import script). A new importer fails.
 - **No function in `public` is executable by `anon` or `authenticated`** outside an
@@ -1307,8 +1377,8 @@ rather than by memory.
   plus-addressing, a quoted local part *if Supabase accepts one*, missing
   `display_name` metadata, whitespace-only metadata, and a null-email identity
   where that identity type applies. Every case must create a valid account.
-- Public signup is off: calling the public sign-up endpoint with the anon key is
-  rejected by Supabase.
+- Public signup is off: calling the public sign-up endpoint with the publishable
+  key is rejected by Supabase.
 - Deleting a user cascades: all their rows disappear from every user table.
 
 ### 7.10 Migrations
@@ -1449,6 +1519,27 @@ Design notes held for that day:
   provider calls — are written when the table is.
 - §5.1 still applies in full: once this exists, a zero-cost read on page load is
   permitted; a write, refresh, or provider call on page load never is.
+
+---
+
+## Change log — revision 4 (Bucket 3, Slice 1)
+
+Applied while implementing migrations 001 and 002. The schema matches revision 3
+unchanged; everything below is a correction to the *document* or a finding the
+implementation surfaced.
+
+| # | Change | Where |
+|---|---|---|
+| a | **Migration layout settled with evidence.** The Supabase CLI cannot be pointed at another migrations directory — verified against CLI 2.111.0: `config.toml` exposes only `[db.migrations].enabled` and `schema_paths` (declarative schema, not versioned migrations); `migration new` has no local flags; `db reset` has no migrations-path flag. Up migrations now live in `supabase/migrations/`, down migrations in `db/down-migrations/` outside `supabase/` so no CLI operation can execute them, conventions in `db/README.md`. `checkMigrations.js` repointed | Part 6, §6.1 |
+| b | **Key terminology corrected for the current API-key model.** `SUPABASE_ANON_KEY` → `SUPABASE_PUBLISHABLE_KEY`; `SUPABASE_SERVICE_ROLE_KEY` → `SUPABASE_SECRET_KEY`; "anon key" → "publishable key"; "admin/service-role key" → "secret key". A note in Part 1 states the key-versus-role distinction explicitly | Part 1, §1.1, §3.0, 7.1, 7.5, 7.9 |
+| c | **Postgres role identifiers deliberately untouched.** Every `GRANT`, `REVOKE` and policy `TO` clause still names `anon`, `authenticated`, `service_role`. No global replacement was performed | Part 3 |
+| d | **`role` claim audit.** The check survives but its justification changed: the current secret key is opaque, not a JWT, so it cannot carry a claim and fails signature verification first. Retained as defence in depth because legacy JWT-based keys remain valid until end-2026 | §4.3 |
+| e | **§4.3 tightened**: single algorithm `ES256` rather than an allowlist; JWKS cache bounded at 10 minutes because Supabase's edge caches for that long and warns against caching longer; verification must accept any key currently in the set, since keys rotate through standby/current/previously-used | §4.3 |
+| f | **Issuer derived, not configured.** `SUPABASE_JWT_ISSUER` dropped; `iss` is `SUPABASE_URL` + `/auth/v1`. A prod-URL/dev-issuer mismatch becomes impossible | §4.3 |
+| g | **Two claims marked pending verification**, not settled: the exact `iss` value, and whether a new project still enables the legacy HS256 secret by default. Both need a real `azalens-dev` token | §4.3 |
+| h | **Privilege-containment test rewritten** to scan for `SUPABASE_SECRET_KEY` and the literal `sb_secret_`, and explicitly *not* to reject the Postgres identifier `service_role` in SQL | 7.5 |
+| i | **§3.0 was wrong, and the test proved it.** `ALTER DEFAULT PRIVILEGES … REVOKE EXECUTE ON FUNCTIONS` does **not** make the safe state the default. Measured on Supabase local (Postgres 17): after running it, a newly created function still has `proacl IS NULL`, so Postgres applies its built-in `EXECUTE TO PUBLIC` and `has_function_privilege('anon', …)` returns true. `ALTER DEFAULT PRIVILEGES` cannot subtract the server's built-in default. Every function now carries an explicit `revoke all on function … from public, anon, authenticated` immediately after its definition; the statement is kept only as a second line of defence. `testRlsCoverage.js` asserts no `public` function is executable by `anon` or `authenticated` | §3.0, migrations 001 and 002 |
+| j | **Trigger functions confirmed unaffected by that revoke.** Removing `EXECUTE` from `set_updated_at` does not stop the trigger firing — measured, not assumed: `testTenantIsolation.js` asserts the forged `updated_at` write is rejected **and** that `updated_at` still moves on a legitimate update | §3.0.1, 7.1 |
 
 ---
 
