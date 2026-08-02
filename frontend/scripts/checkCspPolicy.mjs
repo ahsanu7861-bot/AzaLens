@@ -1,0 +1,218 @@
+import { readFile } from "node:fs/promises";
+
+/*
+  Static guard for the Content Security Policy declared in vercel.json.
+
+  The policy is deliberately Report-Only for now. It must not be promoted to an
+  enforcing Content-Security-Policy header until a real deploy has been observed
+  with zero violations — cmdk and lightweight-charts are third-party and cannot
+  be proven style-injection-free by reading our own source.
+
+  KNOWN GAP, ON PURPOSE: connect-src does not yet include the Supabase project
+  origin, because no Supabase project exists and this file must never carry a
+  placeholder or a *.supabase.co wildcard. The exact
+  https://<project-ref>.supabase.co origin has to be added BEFORE any
+  authentication code is tested or deployed. Without it the browser blocks every
+  login request, and the failure looks like an auth bug rather than a CSP one.
+*/
+
+const REQUIRED_DIRECTIVES = [
+  "default-src",
+  "script-src",
+  "style-src",
+  "font-src",
+  "img-src",
+  "connect-src",
+  "object-src",
+  "base-uri",
+  "form-action",
+  "frame-ancestors",
+];
+
+const FORBIDDEN_KEYWORDS = [
+  "'unsafe-inline'",
+  "'unsafe-eval'",
+  "'unsafe-hashes'",
+];
+
+const REQUIRED_SOURCES = {
+  "connect-src": ["'self'", "https://api.azalens.com"],
+  "style-src": ["'self'", "https://fonts.googleapis.com"],
+  "font-src": ["'self'", "https://fonts.gstatic.com"],
+  "script-src": ["'self'"],
+};
+
+const failures = [];
+
+const vercelConfig = JSON.parse(
+  await readFile(new URL("../vercel.json", import.meta.url), "utf8"),
+);
+
+const html = await readFile(
+  new URL("../index.html", import.meta.url),
+  "utf8",
+);
+
+// ------------------------------------------------------------------
+// 1. index.html must contain no inline event handlers.
+// ------------------------------------------------------------------
+// A CSP cannot allow these without 'unsafe-hashes', which would relax
+// script-src for the whole site. The deferred font stylesheet used to rely on
+// onload="this.media='all'"; src/lib/fonts.ts replaces it.
+
+const inlineHandlers = [
+  ...html.matchAll(/\son([a-z]+)\s*=\s*["'][^"']*["']/gi),
+].map((match) => match[0].trim());
+
+if (inlineHandlers.length > 0) {
+  failures.push(
+    `index.html contains ${inlineHandlers.length} inline event handler(s), ` +
+      `which CSP blocks without 'unsafe-hashes': ${inlineHandlers.join(", ")}`,
+  );
+}
+
+// The replacement must actually be wired up, or fonts silently never activate.
+if (!/\sdata-deferred-font\b/.test(html)) {
+  failures.push(
+    "index.html has no data-deferred-font link. src/lib/fonts.ts activates " +
+      "fonts by that attribute; without it the site loads with fallback fonts.",
+  );
+}
+
+if (!/<noscript>/.test(html)) {
+  failures.push(
+    "index.html lost its <noscript> font fallback, so users without " +
+      "JavaScript would get no custom fonts at all.",
+  );
+}
+
+// ------------------------------------------------------------------
+// 2. The header must be present, and Report-Only.
+// ------------------------------------------------------------------
+
+const headerRules = vercelConfig.headers ?? [];
+const allHeaders = headerRules.flatMap((rule) => rule.headers ?? []);
+
+const reportOnly = allHeaders.find(
+  (header) =>
+    header.key.toLowerCase() === "content-security-policy-report-only",
+);
+
+const enforcing = allHeaders.find(
+  (header) => header.key.toLowerCase() === "content-security-policy",
+);
+
+if (!reportOnly) {
+  failures.push(
+    "vercel.json declares no Content-Security-Policy-Report-Only header.",
+  );
+}
+
+if (enforcing) {
+  failures.push(
+    "vercel.json declares an enforcing Content-Security-Policy header. " +
+      "Promotion from Report-Only is a reviewed decision: it requires a " +
+      "deploy observed with zero violations first. Update this check when " +
+      "that review happens.",
+  );
+}
+
+// ------------------------------------------------------------------
+// 3. Policy contents.
+// ------------------------------------------------------------------
+
+if (reportOnly) {
+  const policy = reportOnly.value;
+
+  const directives = new Map(
+    policy
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const [name, ...sources] = part.split(/\s+/);
+        return [name.toLowerCase(), sources];
+      }),
+  );
+
+  for (const directive of REQUIRED_DIRECTIVES) {
+    if (!directives.has(directive)) {
+      failures.push(`CSP is missing the ${directive} directive.`);
+    }
+  }
+
+  for (const keyword of FORBIDDEN_KEYWORDS) {
+    if (policy.includes(keyword)) {
+      failures.push(
+        `CSP contains ${keyword}, which defeats the protection this policy ` +
+          "exists to provide.",
+      );
+    }
+  }
+
+  for (const [directive, required] of Object.entries(REQUIRED_SOURCES)) {
+    const sources = directives.get(directive) ?? [];
+    for (const source of required) {
+      if (!sources.includes(source)) {
+        failures.push(`CSP ${directive} is missing ${source}.`);
+      }
+    }
+  }
+
+  // The production API origin is the one that breaks every screen if dropped.
+  if (!(directives.get("connect-src") ?? []).includes("https://api.azalens.com")) {
+    failures.push(
+      "CSP connect-src no longer allows https://api.azalens.com — every API " +
+        "call from the browser would be blocked.",
+    );
+  }
+
+  if ((directives.get("object-src") ?? [])[0] !== "'none'") {
+    failures.push("CSP object-src must be 'none'.");
+  }
+
+  if ((directives.get("frame-ancestors") ?? [])[0] !== "'none'") {
+    failures.push("CSP frame-ancestors must be 'none'.");
+  }
+
+  // script-src must pin the inline theme bootstrap by hash, never by keyword.
+  const scriptSources = directives.get("script-src") ?? [];
+  if (!scriptSources.some((source) => source.startsWith("'sha256-"))) {
+    failures.push(
+      "CSP script-src carries no sha256 hash. The inline theme script in " +
+        "index.html would be blocked and every page would flash the wrong theme.",
+    );
+  }
+
+  // No placeholder or wildcard Supabase origin may ever be committed here.
+  const supabaseSources = [...directives.values()]
+    .flat()
+    .filter((source) => source.includes("supabase"));
+
+  for (const source of supabaseSources) {
+    if (source.includes("*") || source.includes("<") || source.includes("PROJECT")) {
+      failures.push(
+        `CSP contains a placeholder or wildcard Supabase origin (${source}). ` +
+          "Use the exact https://<project-ref>.supabase.co origin, or none.",
+      );
+    }
+  }
+
+  if (supabaseSources.length === 0) {
+    console.log(
+      "[csp] NOTE: no Supabase origin in connect-src. Correct for now — no " +
+        "project exists. This MUST be added before any authentication code " +
+        "is tested or deployed, or login will be blocked by the browser.",
+    );
+  }
+}
+
+if (failures.length > 0) {
+  console.error("Content Security Policy check failed:\n");
+  for (const failure of failures) {
+    console.error(`  - ${failure}`);
+  }
+  process.exit(1);
+}
+
+console.log("[csp] Policy check passed.");
