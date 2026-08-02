@@ -15,11 +15,18 @@
       as="style"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap"
     />
+    <!--
+      Deferred font loading, without an inline onload handler. A Content
+      Security Policy blocks inline event handlers, and allowing them needs
+      'unsafe-hashes', which weakens script-src for the whole site. The flip
+      from media="print" to media="all" happens in src/lib/fonts.ts instead.
+      Keep the data-deferred-font attribute in sync with that module.
+    -->
     <link
+      data-deferred-font
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap"
       rel="stylesheet"
       media="print"
-      onload="this.media='all'"
     />
     <noscript>
       <link

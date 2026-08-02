@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/checkCspHashes.mjs",
     "test:e2e": "playwright test --grep-invert @visual",
     "test:visual": "playwright test --grep @visual",
     "test:visual:update": "playwright test --grep @visual --update-snapshots",
     "test:contrast": "node scripts/checkContrast.mjs",
     "test:design-tokens": "node scripts/checkDesignTokens.mjs",
     "test:performance": "node scripts/checkPerformanceBudget.mjs",
+    "test:csp": "node scripts/checkCspPolicy.mjs",
+    "test:csp-hashes": "node scripts/checkCspHashes.mjs",
     "lint": "oxlint",
     "test": "vitest run",
     "preview": "vite preview"

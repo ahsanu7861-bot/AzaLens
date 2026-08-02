@@ -5,7 +5,7 @@ Revision 3 — incorporates 15 review corrections, 4 refinements, and 4 final-re
 fixes. See the change log at the end.
 Covers roadmap item 3.3, plus the part of the parked durable-storage work
 (`WHAT_TO_DO_NEXT.md` lines 63 and 70) that is not blocked on provider terms.
-Date: 2026-08-02. Uncommitted.
+Date: 2026-08-02. Committed to `main` at `88d358a`.
 
 ---
 
@@ -684,8 +684,35 @@ amount of custom auth code, itself a source of bugs.
 
 Accepted for the closed demo **only**, where every user is invited and personally
 known. Recorded as a gate in Part 8: **no public signup and no external beta until
-browser session storage is reconsidered.** Our strict Helmet Content-Security-Policy
-is what keeps the risk low in the meantime.
+browser session storage is reconsidered.**
+
+**What actually mitigates this today — corrected.** Revision 3 claimed "our strict
+Helmet Content-Security-Policy is what keeps the risk low in the meantime." That
+was false. Helmet runs on the Express backend and sets headers on
+`api.azalens.com` responses. The application runs on Vercel, and a stolen
+`localStorage` token is stolen by script executing on **that** origin, where
+Helmet has no reach. Production was verified to send no CSP header at all.
+
+The accurate position:
+
+- A Content Security Policy now exists in `frontend/vercel.json`, delivered as
+  **`Content-Security-Policy-Report-Only`**. Report-Only observes and reports; it
+  **blocks nothing**. It is not yet a mitigation.
+- It becomes one only after a real deploy is observed with zero violations and
+  the header is promoted to an enforcing `Content-Security-Policy`. That
+  promotion is a reviewed decision, and `frontend/scripts/checkCspPolicy.mjs`
+  currently fails the build if an enforcing header appears without that review.
+- `upgrade-insecure-requests` is deliberately omitted, because browsers ignore it
+  in Report-Only mode. It is added at promotion time.
+- **`connect-src` does not yet allow any Supabase origin**, because no project
+  exists and the file must never carry a placeholder or a `*.supabase.co`
+  wildcard. The exact `https://<project-ref>.supabase.co` origin must be added
+  **before any authentication code is tested or deployed**. Without it the
+  browser blocks every login request, and the symptom looks like an auth bug
+  rather than a policy one.
+
+Until promotion, the honest mitigation for `localStorage` sessions is the closed
+demo itself: every user is invited, known, and few.
 
 ### 4.3 Token verification — the full check list
 

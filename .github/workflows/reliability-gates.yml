@@ -79,6 +79,11 @@ jobs:
       - name: Verify Shariah design token registration
         run: npm run test:design-tokens
 
+      - name: Verify Content Security Policy declaration
+        run: npm run test:csp
+
+      # `npm run build` also runs scripts/checkCspHashes.mjs, which fails the
+      # build if the inline theme script no longer matches its pinned hash.
       - name: Build frontend
         run: npm run build
 
