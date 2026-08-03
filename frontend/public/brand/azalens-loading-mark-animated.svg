@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+<title id="title">AzaLens</title>
+<desc id="desc">AzaLens brand identity</desc>
+<defs>
+  <linearGradient id="azGradient" x1="0" y1="1" x2="1" y2="0">
+    <stop offset="0" stop-color="#18D96E"/>
+    <stop offset="1" stop-color="#9AF52E"/>
+  </linearGradient>
+  <radialGradient id="azGlow" cx="50%" cy="48%" r="70%">
+    <stop offset="0" stop-color="#133C24"/>
+    <stop offset="0.55" stop-color="#050807"/>
+    <stop offset="1" stop-color="#020403"/>
+  </radialGradient>
+
+</defs><style>
+@keyframes azPulse{0%,100%{opacity:.58;transform:scale(.94)}50%{opacity:1;transform:scale(1)}}
+@keyframes azShift{0%{filter:hue-rotate(0deg)}50%{filter:hue-rotate(14deg)}100%{filter:hue-rotate(0deg)}}
+.az-load{transform-origin:160px 160px;animation:azPulse 1.35s ease-in-out infinite,azShift 2.7s linear infinite}
+@media (prefers-reduced-motion:reduce){.az-load{animation:none}}
+</style><g class="az-load"><g transform="translate(16 29)" fill="url(#azGradient)" fill-rule="evenodd"><path d="M152 0H243L195 72H152L99 150H143L97 217H0Z"/><path d="M195 72H261L289 125L194 262H105L183 150H210L226 125Z"/></g></g>
+</svg>

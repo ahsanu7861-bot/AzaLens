@@ -13,6 +13,7 @@ import {
   useLocation,
 } from "react-router-dom";
 
+import AzaLensLogo from "../components/brand/AzaLensLogo";
 import AppShell from "../components/layout/AppShell";
 
 const ClosedDemoGate = lazy(
@@ -35,9 +36,10 @@ function PageLoader() {
       className="grid min-h-[calc(100dvh-68px)] place-items-center bg-canvas px-6 text-center"
     >
       <div>
-        <div
-          aria-hidden="true"
-          className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-brand/25 border-t-brand"
+        <AzaLensLogo
+          variant="loading"
+          decorative
+          className="mx-auto h-14 w-14"
         />
         <p className="mt-4 text-sm font-medium text-ink-muted">
           Preparing your workspace…

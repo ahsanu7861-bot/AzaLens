@@ -60,7 +60,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       resolvedTheme === "day" ? "light" : "dark";
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", resolvedTheme === "day" ? "#f3f6fb" : "#070a11");
+      ?.setAttribute("content", resolvedTheme === "day" ? "#F5F8F6" : "#050807");
   }, [resolvedTheme]);
 
   function setPreference(nextPreference: ThemePreference) {

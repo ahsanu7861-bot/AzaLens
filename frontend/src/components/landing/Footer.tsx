@@ -1,3 +1,4 @@
+import AzaLensLogo from "../brand/AzaLensLogo";
 import { Container } from "../ui";
 
 export default function Footer() {
@@ -5,9 +6,7 @@ export default function Footer() {
     <footer className="border-t border-stroke bg-surface/60">
       <Container className="flex flex-col gap-8 py-12 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="font-display text-base font-semibold text-ink">
-            AzaLens
-          </p>
+          <AzaLensLogo className="h-8 w-36" />
           <p className="mt-2 max-w-xs text-xs leading-5 text-ink-muted">
             Research and educational stock intelligence with built-in
             AAOIFI Shariah screening.

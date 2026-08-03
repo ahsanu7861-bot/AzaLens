@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 import { api } from "../../services/api";
+import AzaLensLogo from "../brand/AzaLensLogo";
 
 type GateState = "checking" | "open" | "locked";
 
@@ -41,13 +42,21 @@ export default function ClosedDemoGate({ children }: { children: ReactNode }) {
   return (
     <main className="grid min-h-dvh place-items-center bg-canvas px-6 py-12 text-ink">
       <section className="w-full max-w-md rounded-3xl border border-line bg-surface p-8 shadow-xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">Closed demonstration</p>
+        <AzaLensLogo className="h-9 w-[162px]" />
+        <p className="mt-7 text-xs font-semibold uppercase tracking-[0.2em] text-brand">Closed demonstration</p>
         <h1 className="mt-3 text-3xl font-semibold">AzaLens is being prepared.</h1>
         <p className="mt-3 text-sm leading-6 text-ink-muted">
           The analytical workspace is currently invitation-only while we finish development and provider validation.
         </p>
         {state === "checking" ? (
-          <p className="mt-8 text-sm text-ink-muted" role="status">Checking access…</p>
+          <div className="mt-8 flex items-center gap-3 text-sm text-ink-muted" role="status">
+            <AzaLensLogo
+              variant="loading"
+              decorative
+              className="h-10 w-10 shrink-0"
+            />
+            <span>Checking access…</span>
+          </div>
         ) : (
           <form className="mt-8 space-y-4" onSubmit={unlock}>
             <label className="block text-sm font-medium" htmlFor="demo-access-code">Access code</label>
