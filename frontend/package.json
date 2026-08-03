@@ -16,7 +16,8 @@
     "test:csp-hashes": "node scripts/checkCspHashes.mjs",
     "lint": "oxlint",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:privilege": "node scripts/checkPrivilegeContainment.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

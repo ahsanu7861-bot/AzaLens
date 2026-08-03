@@ -8,13 +8,25 @@ import { readFile } from "node:fs/promises";
   with zero violations — cmdk and lightweight-charts are third-party and cannot
   be proven style-injection-free by reading our own source.
 
-  KNOWN GAP, ON PURPOSE: connect-src does not yet include the Supabase project
-  origin, because no Supabase project exists and this file must never carry a
-  placeholder or a *.supabase.co wildcard. The exact
-  https://<project-ref>.supabase.co origin has to be added BEFORE any
-  authentication code is tested or deployed. Without it the browser blocks every
-  login request, and the failure looks like an auth bug rather than a CSP one.
+  Supabase origins: vercel.json is one static file serving both Preview and
+  Production deployments, and its headers cannot vary by environment. Preview
+  builds talk to the development project and Production talks to the production
+  project, so the shared policy must name BOTH exact origins. Both are ours.
+
+  This is deliberately not solved with edge middleware or generated headers -
+  varying a static header by environment is a lot of deployment machinery to
+  avoid listing two hostnames we own.
+
+  A wildcard would be the lazy alternative and is rejected below: *.supabase.co
+  would authorise every Supabase project on the internet, including an
+  attacker's, which is precisely what connect-src exists to prevent.
 */
+
+// Exact, owned project origins. Public identifiers, not secrets.
+const REQUIRED_SUPABASE_ORIGINS = [
+  "https://jexphwidcfbgxpthgwum.supabase.co",
+  "https://xhxlgalaytuqdnmmwypv.supabase.co",
+];
 
 const REQUIRED_DIRECTIVES = [
   "default-src",
@@ -184,26 +196,53 @@ if (reportOnly) {
     );
   }
 
-  // No placeholder or wildcard Supabase origin may ever be committed here.
+  // ----------------------------------------------------------------
+  // Supabase origins: hard assertions, no longer an advisory note.
+  // ----------------------------------------------------------------
+
+  const connectSources = directives.get("connect-src") ?? [];
   const supabaseSources = [...directives.values()]
     .flat()
     .filter((source) => source.includes("supabase"));
 
-  for (const source of supabaseSources) {
-    if (source.includes("*") || source.includes("<") || source.includes("PROJECT")) {
+  for (const required of REQUIRED_SUPABASE_ORIGINS) {
+    if (!connectSources.includes(required)) {
       failures.push(
-        `CSP contains a placeholder or wildcard Supabase origin (${source}). ` +
-          "Use the exact https://<project-ref>.supabase.co origin, or none.",
+        `CSP connect-src is missing the Supabase origin ${required}. ` +
+          "The shared static policy serves both Preview and Production, so " +
+          "both owned project origins must be present or login breaks in one " +
+          "of them — and the symptom looks like an auth bug, not a CSP one.",
       );
     }
   }
 
-  if (supabaseSources.length === 0) {
-    console.log(
-      "[csp] NOTE: no Supabase origin in connect-src. Correct for now — no " +
-        "project exists. This MUST be added before any authentication code " +
-        "is tested or deployed, or login will be blocked by the browser.",
-    );
+  for (const source of supabaseSources) {
+    if (source.includes("*")) {
+      failures.push(
+        `CSP contains a wildcard Supabase origin (${source}). A wildcard ` +
+          "authorises every Supabase project on the internet, including an " +
+          "attacker's. Name the exact origins instead.",
+      );
+    }
+
+    if (
+      source.includes("<") ||
+      source.includes(">") ||
+      source.toUpperCase().includes("PROJECT-REF") ||
+      source.toUpperCase().includes("PROJECT_REF")
+    ) {
+      failures.push(
+        `CSP contains a placeholder Supabase origin (${source}). ` +
+          "Use the exact https://<ref>.supabase.co origins, never a template.",
+      );
+    }
+
+    if (!REQUIRED_SUPABASE_ORIGINS.includes(source)) {
+      failures.push(
+        `CSP names an unrecognised Supabase origin (${source}). Only the two ` +
+          "AzaLens project origins belong here.",
+      );
+    }
   }
 }
 

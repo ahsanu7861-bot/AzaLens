@@ -1,8 +1,9 @@
 # Accounts, database and authentication — design
 
-Status: **Slice 1 built** — migrations 001 and 002, row-level security, and the
-two database tests. Everything else remains design only: no authentication code,
-no token ledger, no hosted-project migrations.
+Status: **Slices 1 and 2 built** — migrations 001 and 002 with row-level
+security and their two database tests, plus environment validation, the
+Supabase-scoped CSP and privilege containment. Everything else remains design
+only: no authentication code, no token ledger, no hosted-project migrations.
 Revision 4 — incorporates 15 review corrections, 4 refinements, 4 final-review
 fixes, and the Slice 1 implementation findings. See the change logs at the end.
 Covers roadmap item 3.3, plus the part of the parked durable-storage work
@@ -716,12 +717,18 @@ The accurate position:
   currently fails the build if an enforcing header appears without that review.
 - `upgrade-insecure-requests` is deliberately omitted, because browsers ignore it
   in Report-Only mode. It is added at promotion time.
-- **`connect-src` does not yet allow any Supabase origin**, because no project
-  exists and the file must never carry a placeholder or a `*.supabase.co`
-  wildcard. The exact `https://<project-ref>.supabase.co` origin must be added
-  **before any authentication code is tested or deployed**. Without it the
-  browser blocks every login request, and the symptom looks like an auth bug
-  rather than a policy one.
+- **`connect-src` allows both owned Supabase origins** — added in Slice 2.
+  `vercel.json` is one static file serving Preview and Production, and its
+  headers cannot vary by environment: Preview talks to the development project,
+  Production to the production project, so the shared policy must name **both
+  exact origins**. Both are ours.
+  `checkCspPolicy.mjs` now asserts this rather than advising it: both origins
+  present, no `*.supabase.co` wildcard, no placeholder, and no unrecognised
+  Supabase origin. A wildcard would authorise every Supabase project on the
+  internet, including an attacker's — precisely what `connect-src` exists to
+  prevent. Varying a static header by environment would require edge middleware
+  or generated headers: a great deal of deployment machinery to avoid naming two
+  hostnames we own.
 
 Until promotion, the honest mitigation for `localStorage` sessions is the closed
 demo itself: every user is invited, known, and few.
@@ -1519,6 +1526,24 @@ Design notes held for that day:
   provider calls — are written when the table is.
 - §5.1 still applies in full: once this exists, a zero-cost read on page load is
   permitted; a write, refresh, or provider call on page load never is.
+
+---
+
+## Change log — revision 5 (Bucket 3, Slice 2)
+
+Environment validation and Supabase CSP scoping. No schema change, no
+authentication code.
+
+| # | Change | Where |
+|---|---|---|
+| a | **Environment validation now runs at startup.** `assertEnvironmentValid()` is called from `server.js` immediately after `dotenv`, before any service is constructed. Previously `validateEnvironment` existed only as a manual script and was never invoked by the server, so a misconfigured production deployment booted happily and failed on the first request that needed the missing value | `backend/server.js`, `backend/scripts/validateEnvironment.js` |
+| b | **Supabase environment rules centralised** in `backend/config/supabaseEnvironment.js`: URL structure, project-reference extraction, environment-to-project mapping, key shape, placeholder detection, issuer derivation | new module |
+| c | **Cross-environment guard.** The environment name selects an expected project reference; the supplied `SUPABASE_URL` is parsed for its actual reference; both must agree. Production rejects the development project and development rejects production. Acceptance is never inferred from one field alone | §4.3, new module |
+| d | **`SUPABASE_JWT_ISSUER` is rejected, not merely absent.** Setting it is a validation error. The issuer is derived as `SUPABASE_URL` + `/auth/v1`, so a production URL cannot be paired with a development issuer — the drift §4.3 warned about is now unrepresentable rather than merely discouraged | §4.3 |
+| e | **CSP `connect-src` names both owned Supabase origins**, and `checkCspPolicy.mjs`'s standing NOTE became a hard assertion: both present, no wildcard, no placeholder, no unrecognised Supabase origin | §4.2, `frontend/vercel.json` |
+| f | **§7.5 privilege containment implemented** as `frontend/scripts/checkPrivilegeContainment.mjs`, scanning frontend source, `vercel.json`, `index.html`, `.env.example` and the built `dist` for `SUPABASE_SECRET_KEY` and `sb_secret_`, plus any `VITE_` variable holding secret-shaped material. It deliberately does **not** flag the bare Postgres role name `service_role`, which is legitimate throughout the migrations and tests — a check that fails on correct SQL gets disabled, and the dangerous thing is the key, identifiable by its own prefix | 7.5 |
+| g | **Staging mapped to the development project.** Only two projects exist, and staging must never read or write production data. Recorded so a future dedicated staging project is a one-line change | new module |
+| h | **`testEnvironmentStrategy.js` fixtures updated.** It asserted a production config with only the three provider keys was valid; adding mandatory Supabase variables necessarily changed that. Provider-key optionality is otherwise untouched | `backend/tests/` |
 
 ---
 

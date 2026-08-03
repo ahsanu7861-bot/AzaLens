@@ -3,6 +3,9 @@
 const {
   getEnvironmentConfig,
 } = require("../config/environment");
+const {
+  validateSupabaseEnvironment,
+} = require("../config/supabaseEnvironment");
 
 const REQUIRED_BY_ENVIRONMENT = {
   development: [],
@@ -73,6 +76,12 @@ function validateEnvironment(env = process.env) {
     );
   }
 
+  // Supabase rules live in config/supabaseEnvironment.js. They are additive:
+  // provider keys keep exactly the optionality they already had.
+  errors.push(
+    ...validateSupabaseEnvironment(config.environment, env)
+  );
+
   return {
     valid: errors.length === 0,
     environment: config.environment,
@@ -81,6 +90,31 @@ function validateEnvironment(env = process.env) {
     missing,
     errors,
   };
+}
+
+/*
+  Startup guard.
+
+  Called by server.js before any service is constructed, so a misconfigured
+  deployment fails immediately and loudly instead of booting and failing on
+  the first request that happens to need the missing value. The message lists
+  every problem at once - fixing them one restart at a time is miserable.
+
+  No value is printed. Only variable names and structural reasons appear, so a
+  crash log can never leak a key.
+*/
+function assertEnvironmentValid(env = process.env) {
+  const result = validateEnvironment(env);
+
+  if (!result.valid) {
+    const detail = result.errors.map((line) => `  - ${line}`).join("\n");
+    throw new Error(
+      `Environment validation failed for "${result.environment}":\n${detail}\n\n` +
+        "The server will not start. Fix the environment and try again."
+    );
+  }
+
+  return result;
 }
 
 function main() {
@@ -98,5 +132,6 @@ if (require.main === module) {
 
 module.exports = {
   REQUIRED_BY_ENVIRONMENT,
+  assertEnvironmentValid,
   validateEnvironment,
 };

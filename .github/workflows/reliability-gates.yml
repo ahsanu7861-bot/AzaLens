@@ -190,6 +190,11 @@ jobs:
       - name: Enforce frontend performance budgets
         run: npm run test:performance
 
+      # Runs after the build so it inspects the bundle the browser actually
+      # receives, not only the source it was built from.
+      - name: Verify no privileged credential reaches the frontend
+        run: npm run test:privilege
+
   release-artifact:
     name: Versioned release artifact and provenance
     runs-on: ubuntu-latest
