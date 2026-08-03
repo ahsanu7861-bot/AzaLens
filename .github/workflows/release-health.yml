@@ -41,7 +41,10 @@ jobs:
             ${{ github.event_name == 'workflow_run'
               && github.event.workflow_run.head_sha
               || github.sha }}
-          fetch-depth: 2
+          # Deep enough to diff a merge commit against its first parent. A
+          # merge has two parents; depth 3 keeps that reachable even when the
+          # first parent is itself a merge.
+          fetch-depth: 3
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -54,10 +57,12 @@ jobs:
         env:
           RELEASE_COMMIT: >-
             ${{ github.event.workflow_run.head_sha }}
-        run: >-
-          git diff-tree --no-commit-id --name-only -r
-          "${{ github.event.workflow_run.head_sha }}"
-          | node backend/scripts/releaseScope.js
+        # The git invocation moved inside releaseScope.js. It used to live here
+        # as `git diff-tree ... -r "$SHA"`, which emits nothing at all for a
+        # merge commit - so every merged pull request was classified "no
+        # backend change" and skipped the deployment gate. Logic in YAML is
+        # covered by no test; in the script it is.
+        run: node backend/scripts/releaseScope.js "${{ github.event.workflow_run.head_sha }}"
 
       - name: Run release-health checks
         env:
