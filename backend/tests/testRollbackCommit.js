@@ -125,31 +125,36 @@ function run() {
 
     // Another repo to isolate a direct-commit revert test.
     const directRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "azalens-rollback-direct-2-"));
-    git(directRoot, "init", "-q", "-b", "main");
-    git(directRoot, "config", "user.email", "test@azalens.local");
-    git(directRoot, "config", "user.name", "AzaLens Test");
-    git(directRoot, "config", "commit.gpgsign", "false");
-    fs.writeFileSync(path.join(directRoot, "README.md"), "base\n", "utf8");
-    git(directRoot, "add", "-A");
-    git(directRoot, "commit", "-qm", "base");
-    fs.writeFileSync(path.join(directRoot, "file.txt"), "hello\n", "utf8");
-    git(directRoot, "add", "-A");
-    git(directRoot, "commit", "-qm", "direct change");
-    const directCommit = git(directRoot, "rev-parse", "HEAD");
+      path.join(os.tmpdir(), "azalens-rollback-direct-2-")
+    );
+    try {
+      git(directRoot, "init", "-q", "-b", "main");
+      git(directRoot, "config", "user.email", "test@azalens.local");
+      git(directRoot, "config", "user.name", "AzaLens Test");
+      git(directRoot, "config", "commit.gpgsign", "false");
+      fs.writeFileSync(path.join(directRoot, "README.md"), "base\n", "utf8");
+      git(directRoot, "add", "-A");
+      git(directRoot, "commit", "-qm", "base");
+      fs.writeFileSync(path.join(directRoot, "file.txt"), "hello\n", "utf8");
+      git(directRoot, "add", "-A");
+      git(directRoot, "commit", "-qm", "direct change");
+      const directCommit = git(directRoot, "rev-parse", "HEAD");
 
-    revertCommit(directCommit, { cwd: directRoot });
-    const directRevertMessage = git(
-      directRoot,
-      "log",
-      "-1",
-      "--pretty=%B"
-    );
-    assert.match(
-      directRevertMessage,
-      /Revert "direct change"/,
-      "direct commit revert should succeed"
-    );
+      revertCommit(directCommit, { cwd: directRoot });
+      const directRevertMessage = git(
+        directRoot,
+        "log",
+        "-1",
+        "--pretty=%B"
+      );
+      assert.match(
+        directRevertMessage,
+        /Revert "direct change"/,
+        "direct commit revert should succeed"
+      );
+    } finally {
+      fs.rmSync(directRoot, { recursive: true, force: true });
+    }
 
     console.log(
       "Rollback commit regression tests passed for merge, direct, invalid, and empty input."
