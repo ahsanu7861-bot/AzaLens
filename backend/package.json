@@ -34,6 +34,7 @@
     "test:multi-symbol-consistency": "node tests/testMultiSymbolConsistency.js",
     "test:observability": "node tests/testObservability.js",
     "test:release-health": "node tests/testReleaseHealthCheck.js",
+    "test:rollback": "node tests/testRollbackCommit.js",
     "test:fundamentals-coverage": "node tests/testFundamentalsCoverage.js",
     "test:trend-reliability": "node tests/testTrendReliability.js",
     "test:shariah-aaoifi": "node tests/testShariahAAOIFI.js",
