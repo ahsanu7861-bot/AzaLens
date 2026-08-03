@@ -1,5 +1,14 @@
 require("dotenv").config();
 
+// Fail fast, before anything else is constructed. A deployment whose
+// environment cannot be validated must never reach the point of accepting a
+// request - see backend/config/supabaseEnvironment.js for the rules.
+const {
+  assertEnvironmentValid
+} = require("./scripts/validateEnvironment");
+
+assertEnvironmentValid();
+
 const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");

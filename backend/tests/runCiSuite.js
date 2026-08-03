@@ -11,6 +11,7 @@ const deterministicSuites = [
   "testConfluenceActionability.js",
   "testCorsAllowlist.js",
   "testEnvironmentStrategy.js",
+  "testEnvironmentValidation.js",
   "testFeatureTruthfulness.js",
   "testFinnhubProviderResilience.js",
   "testFinnhubQuoteRejectionSafety.js",

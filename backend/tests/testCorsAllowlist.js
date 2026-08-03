@@ -28,15 +28,41 @@ function setOrDeleteEnv(key, value) {
   }
 }
 
+// Slice 2 made server.js validate its environment before it will start, so
+// booting as "production" now requires a complete production environment.
+// These are structurally valid, obviously fake values - this suite tests CORS,
+// not credentials, and the guard is deliberately not weakened for tests.
+const PRODUCTION_FIXTURE = {
+  FINNHUB_API_KEY: "test-only",
+  TWELVE_DATA_API_KEY: "test-only",
+  OBSERVABILITY_METRICS_TOKEN: "test-only",
+  SUPABASE_URL: "https://jexphwidcfbgxpthgwum.supabase.co",
+  SUPABASE_PUBLISHABLE_KEY: "sb_publishable_notarealkey000000000",
+  SUPABASE_SECRET_KEY: "sb_secret_notarealkey000000000",
+};
+
 async function bootServer(appEnv) {
   delete require.cache[SERVER_MODULE_PATH];
 
   const previousAppEnv = process.env.APP_ENV;
+  const previousFixture = {};
+
   setOrDeleteEnv("APP_ENV", appEnv);
+
+  if (appEnv === "production") {
+    for (const [key, value] of Object.entries(PRODUCTION_FIXTURE)) {
+      previousFixture[key] = process.env[key];
+      process.env[key] = value;
+    }
+  }
 
   const { app } = require("../server");
 
   setOrDeleteEnv("APP_ENV", previousAppEnv);
+
+  for (const [key, value] of Object.entries(previousFixture)) {
+    setOrDeleteEnv(key, value);
+  }
 
   const server = app.listen(0, "127.0.0.1");
 

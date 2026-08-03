@@ -32,13 +32,29 @@ assert.deepEqual(defaults.featureFlags, {
   liveShariah: false,
 });
 
+// Slice 2 added mandatory Supabase configuration for staging and production.
+// These fixtures gained those three variables; the provider-key expectations
+// below are unchanged. Structurally valid, obviously fake, not credentials.
+const SUPABASE_PRODUCTION = {
+  SUPABASE_URL: "https://jexphwidcfbgxpthgwum.supabase.co",
+  SUPABASE_PUBLISHABLE_KEY: "sb_publishable_notarealkey000000000",
+  SUPABASE_SECRET_KEY: "sb_secret_notarealkey000000000",
+};
+
+const SUPABASE_STAGING = {
+  SUPABASE_URL: "https://xhxlgalaytuqdnmmwypv.supabase.co",
+  SUPABASE_PUBLISHABLE_KEY: "sb_publishable_notarealkey000000000",
+  SUPABASE_SECRET_KEY: "sb_secret_notarealkey000000000",
+};
+
 const production = validateEnvironment({
   APP_ENV: "production",
   FINNHUB_API_KEY: "x",
   TWELVE_DATA_API_KEY: "x",
   OBSERVABILITY_METRICS_TOKEN: "x",
+  ...SUPABASE_PRODUCTION,
 });
-assert.equal(production.valid, true);
+assert.equal(production.valid, true, production.errors.join(" | "));
 assert.equal(
   validateEnvironment({ APP_ENV: "production" }).valid,
   false
@@ -50,6 +66,7 @@ assert.equal(
     TWELVE_DATA_API_KEY: "x",
     OBSERVABILITY_METRICS_TOKEN: "x",
     FEATURE_LIVE_SHARIAH_ENABLED: "true",
+    ...SUPABASE_STAGING,
   }).valid,
   false
 );
