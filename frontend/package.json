@@ -15,7 +15,8 @@
     "test:csp": "node scripts/checkCspPolicy.mjs",
     "test:csp-hashes": "node scripts/checkCspHashes.mjs",
     "lint": "oxlint",
-    "test": "vitest run",
+    "test": "vitest run && node scripts/checkBrandAssets.mjs",
+    "test:brand": "node scripts/checkBrandAssets.mjs",
     "preview": "vite preview",
     "test:privilege": "node scripts/checkPrivilegeContainment.mjs"
   },

@@ -7,7 +7,23 @@
       name="description"
       content="Explainable stock intelligence with AAOIFI Shariah screening."
     />
-    <meta name="theme-color" content="#070a11" />
+    <meta name="application-name" content="AzaLens" />
+    <meta name="apple-mobile-web-app-title" content="AzaLens" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#050807" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AzaLens" />
+    <meta property="og:title" content="AzaLens — Explainable Stock Intelligence" />
+    <meta
+      property="og:description"
+      content="Explainable stock intelligence with AAOIFI Shariah screening."
+    />
+    <meta property="og:url" content="https://azalens.com/" />
+    <meta property="og:image" content="https://azalens.com/azalens-social-preview.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://azalens.com/azalens-social-preview.png" />
+    <link rel="canonical" href="https://azalens.com/" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -34,7 +50,12 @@
         rel="stylesheet"
       />
     </noscript>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>AzaLens — Explainable Stock Intelligence</title>
     <script>
       (() => {
@@ -50,6 +71,9 @@
           document.documentElement.dataset.theme = theme;
           document.documentElement.style.colorScheme =
             theme === "day" ? "light" : "dark";
+          document
+            .querySelector('meta[name="theme-color"]')
+            ?.setAttribute("content", theme === "day" ? "#F5F8F6" : "#050807");
         } catch {
           document.documentElement.dataset.theme = "night";
         }

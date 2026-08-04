@@ -14,6 +14,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useCommandStore } from "../../store/commandStore";
+import AzaLensLogo from "../brand/AzaLensLogo";
 import ThemeToggle from "./ThemeToggle";
 
 const loadCommandCenter = () => import("../command/CommandCenter");
@@ -46,15 +47,6 @@ const primaryNavigation = [
     icon: ListChecks,
   },
 ];
-
-function BrandMark() {
-  return (
-    <div className="az-brand-mark" aria-hidden="true">
-      <span>A</span>
-      <i />
-    </div>
-  );
-}
 
 function RailLink({
   label,
@@ -117,7 +109,11 @@ export default function AppShell() {
           aria-label="AzaLens home"
           className="grid h-[68px] place-items-center border-b border-stroke"
         >
-          <BrandMark />
+          <AzaLensLogo
+            variant="symbol"
+            decorative
+            className="h-8 w-[35px] shrink-0"
+          />
         </NavLink>
 
         <nav
@@ -166,17 +162,17 @@ export default function AppShell() {
           <NavLink
             to="/dashboard"
             aria-label="AzaLens home"
-            className="flex shrink-0 items-center gap-2.5 lg:hidden"
+            className="flex w-[38px] shrink-0 items-center justify-center lg:hidden sm:w-36"
           >
-            <BrandMark />
-            <div className="hidden sm:block">
-              <p className="font-display text-sm font-semibold text-ink">
-                AzaLens
-              </p>
-              <p className="text-[10px] uppercase tracking-[0.15em] text-ink-muted">
-                Stock intelligence
-              </p>
-            </div>
+            <AzaLensLogo
+              variant="symbol"
+              decorative
+              className="h-8 w-[35px] sm:hidden"
+            />
+            <AzaLensLogo
+              decorative
+              className="hidden h-8 w-36 sm:block"
+            />
           </NavLink>
 
           <button

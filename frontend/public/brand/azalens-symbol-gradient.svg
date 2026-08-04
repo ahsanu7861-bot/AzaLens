@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 289 262" role="img" aria-labelledby="title desc">
 <title id="title">AzaLens</title>
 <desc id="desc">AzaLens brand identity</desc>
 <defs>
@@ -12,5 +12,5 @@
     <stop offset="1" stop-color="#020403"/>
   </radialGradient>
 
-</defs><circle cx="512.0" cy="512.0" r="348.16" fill="#18D96E" opacity=".045"/><g transform="translate(202.000 230.962) scale(2.145329)" fill="url(#azGradient)" fill-rule="evenodd"><path d="M152 0H243L195 72H152L99 150H143L97 217H0Z"/><path d="M195 72H261L289 125L194 262H105L183 150H210L226 125Z"/></g>
+</defs><g fill="url(#azGradient)" fill-rule="evenodd"><path d="M152 0H243L195 72H152L99 150H143L97 217H0Z"/><path d="M195 72H261L289 125L194 262H105L183 150H210L226 125Z"/></g>
 </svg>
