@@ -1,8 +1,5 @@
 const express = require("express");
 const {
-  getPortfolioIntelligence
-} = require("../services/portfolioIntelligenceService");
-const {
   getPortfolio,
   addHolding,
   updateHolding,
@@ -184,39 +181,28 @@ function createPortfolioRouter({ intelligenceLimiter } = {}) {
     }
   });
 
-  // ======================================
-  // Portfolio Intelligence
-  // ======================================
+  /*
+    GET /intelligence is deliberately NOT mounted.
 
-  router.get(
-    "/intelligence",
-    intelligenceLimiter,
-    async (req, res) => {
-      try {
-        const data =
-          await getPortfolioIntelligence();
+    It called getMasterAnalysis() once per holding in an uncapped
+    loop (services/portfolioIntelligenceService.js), so a single
+    unauthenticated request bought one full provider pipeline -
+    2 Finnhub + 1 Twelve Data + 1 Halal Terminal screening - per
+    holding, with no limit on how many holdings an anonymous
+    caller could first add through POST /. No client has ever
+    called it: no frontend consumer exists on any ref in this
+    repository's history.
 
-        return res.status(200).json({
-          success: true,
-          message:
-            "Portfolio intelligence generated successfully.",
-          data
-        });
-      } catch (error) {
-        console.error(
-          "Portfolio intelligence error:",
-          error
-        );
+    The route stays unmounted until a real consumer exists AND
+    the fan-out is bounded. backend/tests/testPortfolioIntelligenceRemoved.js
+    proves it 404s and that no request to that path can reach
+    getMasterAnalysis. The service module is left in place for a
+    separate orphan-cleanup change.
 
-        return res.status(500).json({
-          success: false,
-          message:
-            error.message ||
-            "Failed to generate portfolio intelligence."
-        });
-      }
-    }
-  );
+    intelligenceLimiter remains a required constructor argument:
+    it is the injection point a bounded replacement would use, and
+    testPortfolioRouterFactory.js asserts the contract.
+  */
 
   return router;
 }

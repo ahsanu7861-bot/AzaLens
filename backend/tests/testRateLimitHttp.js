@@ -13,9 +13,11 @@ const axios = require("axios");
 // the full middleware stack (requestObservability, CORS, helmet,
 // global limiter, shared strict limiter).
 //
-// /api/analyze/:symbol, /api/explanation/:symbol, and
-// /api/portfolio/intelligence all end up calling
-// getMasterAnalysis(), which reaches into Finnhub and Twelve Data.
+// /api/analyze/:symbol and /api/explanation/:symbol both end up
+// calling getMasterAnalysis(), which reaches into Finnhub and
+// Twelve Data. (/api/portfolio/intelligence used to be the third
+// such route; it is no longer mounted - see
+// routes/portfolioRoutes.js and testPortfolioIntelligenceRemoved.js.)
 // axios.get is stubbed below with safe, deterministic canned
 // responses before any of those routes are ever hit - no test in
 // this file makes a real network call. SHARIAH_DATA_MODE is forced
@@ -196,9 +198,43 @@ async function testGlobal30PerMinute() {
   }
 }
 
+/*
+  Expected status for a request that genuinely reached its handler
+  and therefore consumed one slot of the shared strict bucket.
+
+  /api/analyze/:symbol answers 200: the master-analysis envelope is
+  successful even when the Shariah gate withholds the verdict
+  sections.
+
+  /api/explanation/:symbol answers 500. With SHARIAH_DATA_MODE
+  forced to "offline" the gate withholds, explanationService returns
+  the withheld stub, and server.js maps its success:false to HTTP
+  500. That is pre-existing behaviour of that route - a withheld
+  verdict is a policy outcome, not a server error - and it is out of
+  scope here. It is pinned rather than papered over so the next
+  person sees it.
+
+  What matters for THIS suite is that both are real handler
+  responses. A 404 (route gone) or 429 (limited) would not be, and
+  neither would satisfy these assertions.
+*/
+function expectedHandlerStatus(urlPath) {
+  if (urlPath.startsWith("/api/analyze/")) {
+    return 200;
+  }
+
+  if (urlPath.startsWith("/api/explanation/")) {
+    return 500;
+  }
+
+  throw new Error(
+    `No expected handler status recorded for ${urlPath}`
+  );
+}
+
 // ------------------------------------------------------------
 // 2, 3, 4. Shared strict 10/minute, mixed interleaved and
-// reordered, across the three real expensive routes.
+// reordered, across the real expensive routes.
 // ------------------------------------------------------------
 async function testSharedStrictBucketMixedAndReordered() {
   {
@@ -208,18 +244,25 @@ async function testSharedStrictBucketMixedAndReordered() {
       const sequence = [
         ...repeat("/api/analyze/AAPL", 4),
         ...repeat("/api/explanation/AAPL", 3),
-        ...repeat("/api/portfolio/intelligence", 3),
+        ...repeat("/api/analyze/MSFT", 3),
       ];
       const responses = await fireSequentially(
         baseUrl,
         sequence
       );
 
-      assert.ok(
-        statuses(responses).every(
-          (status) => status !== 429
-        ),
-        "all 10 combined expensive requests must be allowed"
+      /*
+        Strict-equal against the per-route handler status, not
+        merely "not 429". A 404 is also not 429, so a route that
+        silently disappeared would otherwise satisfy this assertion
+        while consuming none of the bucket - and the 11th-request
+        check below would then fail for a reason nobody could read
+        from the output.
+      */
+      assert.deepEqual(
+        statuses(responses),
+        sequence.map(expectedHandlerStatus),
+        "all 10 combined expensive requests must be allowed and must reach a real handler"
       );
 
       const eleventh = await get(
@@ -238,13 +281,13 @@ async function testSharedStrictBucketMixedAndReordered() {
 
     try {
       const sequence = [
-        "/api/portfolio/intelligence",
+        "/api/explanation/AAPL",
         "/api/explanation/MSFT",
         "/api/analyze/MSFT",
-        "/api/portfolio/intelligence",
+        "/api/explanation/AAPL",
         "/api/analyze/MSFT",
         "/api/explanation/MSFT",
-        "/api/portfolio/intelligence",
+        "/api/explanation/AAPL",
         "/api/analyze/MSFT",
         "/api/analyze/MSFT",
         "/api/explanation/MSFT",
@@ -254,16 +297,17 @@ async function testSharedStrictBucketMixedAndReordered() {
         sequence
       );
 
-      assert.ok(
-        statuses(responses).every(
-          (status) => status !== 429
-        ),
-        "all 10 combined expensive requests must be allowed regardless of order"
+      // Strict-equal for the same reason as above: a 404 would pass
+      // a "not 429" check without consuming the bucket.
+      assert.deepEqual(
+        statuses(responses),
+        sequence.map(expectedHandlerStatus),
+        "all 10 combined expensive requests must be allowed regardless of order, and must reach a real handler"
       );
 
       const eleventh = await get(
         baseUrl,
-        "/api/portfolio/intelligence"
+        "/api/explanation/AAPL"
       );
 
       assert.equal(eleventh.status, 429);
@@ -283,7 +327,7 @@ async function testNoDoubleCountingBetweenBuckets() {
     const strictSequence = [
       ...repeat("/api/analyze/AAPL", 4),
       ...repeat("/api/explanation/AAPL", 3),
-      ...repeat("/api/portfolio/intelligence", 3),
+      ...repeat("/api/analyze/MSFT", 3),
     ];
 
     await fireSequentially(baseUrl, strictSequence);

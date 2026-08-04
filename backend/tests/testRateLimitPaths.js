@@ -57,10 +57,20 @@ function run() {
     true
   );
 
-  // 6. Exact Portfolio Intelligence path is exempt
+  /*
+    6. The Portfolio Intelligence path is NOT exempt.
+
+    Its route is no longer mounted (routes/portfolioRoutes.js), so
+    it has no strict limiter of its own and therefore no reason to
+    skip the global one. This assertion is the guard against the
+    exemption being re-added without the route: an exempt path with
+    no route is an unrate-limited 404, and a remounted route that
+    silently inherited the exemption would be less protected than
+    the code review implied.
+  */
   assert.equal(
     isGlobalLimiterExempt("/api/portfolio/intelligence"),
-    true
+    false
   );
 
   // 7. Health and metrics paths are exempt

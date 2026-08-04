@@ -146,11 +146,6 @@ async function bootSharedStrictApp() {
       strictLimiter,
       okHandler
     );
-    app.get(
-      "/api/portfolio/intelligence",
-      strictLimiter,
-      okHandler
-    );
   });
 }
 
@@ -161,7 +156,7 @@ async function testSharedMixedInterleavedStrictBucket() {
     const sequence = [
       ...repeat("/api/analyze/AAPL", 4),
       ...repeat("/api/explanation/AAPL", 3),
-      ...repeat("/api/portfolio/intelligence", 3),
+      ...repeat("/api/analyze/MSFT", 3),
     ];
     const statuses = await fireSequentially(
       baseUrl,
@@ -194,13 +189,13 @@ async function testReorderedSharedStrictBucket() {
 
   try {
     const sequence = [
-      "/api/portfolio/intelligence",
+      "/api/explanation/AAPL",
       "/api/explanation/MSFT",
       "/api/analyze/MSFT",
-      "/api/portfolio/intelligence",
+      "/api/explanation/AAPL",
       "/api/analyze/MSFT",
       "/api/explanation/MSFT",
-      "/api/portfolio/intelligence",
+      "/api/explanation/AAPL",
       "/api/analyze/MSFT",
       "/api/analyze/MSFT",
       "/api/explanation/MSFT",
@@ -218,7 +213,7 @@ async function testReorderedSharedStrictBucket() {
 
     const eleventh = await request(
       baseUrl,
-      "/api/portfolio/intelligence"
+      "/api/explanation/AAPL"
     );
 
     assert.equal(
@@ -276,11 +271,6 @@ async function testNoDoubleCounting() {
       strictLimiter,
       okHandler
     );
-    app.get(
-      "/api/portfolio/intelligence",
-      strictLimiter,
-      okHandler
-    );
   });
 
   try {
@@ -288,7 +278,7 @@ async function testNoDoubleCounting() {
     const strictSequence = [
       ...repeat("/api/analyze/AAPL", 4),
       ...repeat("/api/explanation/AAPL", 3),
-      ...repeat("/api/portfolio/intelligence", 3),
+      ...repeat("/api/analyze/MSFT", 3),
     ];
     const strictStatuses = await fireSequentially(
       baseUrl,
