@@ -2,13 +2,35 @@
 
 const crypto = require("node:crypto");
 
+const { parseFlag } = require("../config/environment");
+
 const COOKIE_NAME = "azalens_demo_access";
 const MAX_AGE_SECONDS = 12 * 60 * 60;
 
+/*
+  One canonical boolean parser, shared with the startup invariant in
+  scripts/validateEnvironment.js.
+
+  This used to be its own list-membership test, which returned false
+  for anything it did not recognise. A typo - CLOSED_DEMO_ENABLED=ture
+  - therefore disabled the gate silently, and /api/watchlist and
+  /api/portfolio, which have no authentication and no tenant identity,
+  became publicly readable and writable with no error and no log line.
+
+  parseFlag accepts exactly the spellings the codebase already defines
+  intentionally (1/true/yes/on and 0/false/no/off) and THROWS on
+  anything else, so every valid deployment keeps working and a
+  malformed value can no longer resolve quietly to false.
+
+  Defence in depth, not the primary control: production and staging
+  cannot boot at all with an invalid or absent value, because
+  assertEnvironmentValid() runs at server.js:10 before express is
+  required. This throw only matters in development and test, where it
+  turns a silently-open gate into a loud failure. The canonical
+  invariant lives in validateEnvironment.js.
+*/
 function enabled(env = process.env) {
-  return ["1", "true", "yes", "on"].includes(
-    String(env.CLOSED_DEMO_ENABLED || "").trim().toLowerCase(),
-  );
+  return parseFlag(env.CLOSED_DEMO_ENABLED);
 }
 
 function credentials(env = process.env) {

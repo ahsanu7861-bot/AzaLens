@@ -61,6 +61,30 @@ router.post("/", async (req, res) => {
       data: item,
     });
   } catch (error) {
+    /*
+      422, not 409: the body is well formed and passes validation, and
+      it does not conflict with an existing symbol - 409 stays
+      reserved for duplicates so a client can tell the two apart. Not
+      5xx: this is a deliberate product limit the caller can clear by
+      removing a symbol.
+
+      `message` stays at the top level because that is the field every
+      existing client reads; `error` carries the stable
+      machine-readable contract.
+    */
+    if (error.code === "WATCHLIST_LIMIT_REACHED") {
+      return res.status(422).json({
+        success: false,
+        message: error.message,
+        error: {
+          code: error.code,
+          message: error.message,
+          limit: error.limit,
+          current: error.current,
+        },
+      });
+    }
+
     const statusCode =
       error.message === "Symbol already exists in watchlist." ? 409 : 500;
 

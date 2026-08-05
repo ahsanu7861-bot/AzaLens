@@ -38,6 +38,21 @@ const PROVIDER_KEYS = {
   OBSERVABILITY_METRICS_TOKEN: "x",
 };
 
+/*
+  An internet-reachable environment is not "valid" without the
+  closed-demo gate, so every fixture that asserts a VALID production
+  or staging configuration now has to carry it. Before PR A2 this
+  file asserted that production was valid with no gate at all -
+  which was an accurate description of the hole being closed.
+
+  Not a secret: a boolean switch, with obviously fake companions.
+*/
+const GATE_ON = {
+  CLOSED_DEMO_ENABLED: "true",
+  CLOSED_DEMO_ACCESS_CODE: "not-a-real-code",
+  CLOSED_DEMO_SIGNING_SECRET: "0".repeat(32),
+};
+
 const results = [];
 
 function check(name, fn) {
@@ -61,6 +76,7 @@ check("valid production configuration passes", () => {
   const result = validateEnvironment({
     APP_ENV: "production",
     ...PROVIDER_KEYS,
+    ...GATE_ON,
     SUPABASE_URL: PROD_URL,
     SUPABASE_PUBLISHABLE_KEY: FAKE_PUBLISHABLE,
     SUPABASE_SECRET_KEY: FAKE_SECRET,
@@ -381,12 +397,217 @@ check("assertEnvironmentValid returns the result when valid", () => {
   const result = assertEnvironmentValid({
     APP_ENV: "production",
     ...PROVIDER_KEYS,
+    ...GATE_ON,
     SUPABASE_URL: PROD_URL,
     SUPABASE_PUBLISHABLE_KEY: FAKE_PUBLISHABLE,
     SUPABASE_SECRET_KEY: FAKE_SECRET,
   });
   assert.equal(result.valid, true);
   assert.equal(result.environment, "production");
+});
+
+// ------------------------------------------------------------------
+// Closed-demo boot invariant.
+//
+// /api/watchlist and /api/portfolio have no authentication and no
+// tenant identity, so the closed-demo gate is the only access
+// control in front of one shared collection. An internet-reachable
+// environment must not start without it.
+//
+// This deliberately chooses a hard outage over silent public
+// exposure.
+// ------------------------------------------------------------------
+
+const GATE_BASE = {
+  ...PROVIDER_KEYS,
+  SUPABASE_URL: PROD_URL,
+  SUPABASE_PUBLISHABLE_KEY: FAKE_PUBLISHABLE,
+  SUPABASE_SECRET_KEY: FAKE_SECRET,
+};
+
+const STAGING_BASE = {
+  ...PROVIDER_KEYS,
+  SUPABASE_URL: DEV_URL,
+  SUPABASE_PUBLISHABLE_KEY: FAKE_PUBLISHABLE,
+  SUPABASE_SECRET_KEY: FAKE_SECRET,
+};
+
+function gateErrors(env) {
+  return validateEnvironment(env)
+    .errors.filter((message) =>
+      message.includes("CLOSED_DEMO_ENABLED")
+    )
+    .join(" | ");
+}
+
+check("resolved production with explicit true starts", () => {
+  const result = validateEnvironment({
+    APP_ENV: "production",
+    ...GATE_BASE,
+    ...GATE_ON,
+  });
+  assert.equal(result.valid, true, result.errors.join(" | "));
+});
+
+check("resolved staging with explicit true starts", () => {
+  const result = validateEnvironment({
+    APP_ENV: "staging",
+    ...STAGING_BASE,
+    ...GATE_ON,
+  });
+  assert.equal(result.valid, true, result.errors.join(" | "));
+});
+
+check("production with a missing value fails clearly", () => {
+  const message = gateErrors({ APP_ENV: "production", ...GATE_BASE });
+  assert.match(message, /must be explicitly true in production/);
+});
+
+check("staging with a missing value fails clearly", () => {
+  const message = gateErrors({ APP_ENV: "staging", ...STAGING_BASE });
+  assert.match(message, /must be explicitly true in staging/);
+});
+
+check("production with false fails clearly", () => {
+  const message = gateErrors({
+    APP_ENV: "production",
+    ...GATE_BASE,
+    CLOSED_DEMO_ENABLED: "false",
+  });
+  assert.match(message, /must be explicitly true in production/);
+});
+
+check("staging with false fails clearly", () => {
+  const message = gateErrors({
+    APP_ENV: "staging",
+    ...STAGING_BASE,
+    CLOSED_DEMO_ENABLED: "false",
+  });
+  assert.match(message, /must be explicitly true in staging/);
+});
+
+/*
+  The whole point of the invariant. Before PR A2 both the gate and
+  the validator used permissive list membership, so "ture" resolved
+  to false in silence and the service started with every CRUD route
+  open. It must now be rejected as malformed, and it must NOT be
+  reported merely as "not true" - the operator has to see that the
+  value itself is wrong.
+*/
+for (const malformed of ["ture", "enabled", "TRUE!", "1 0", "yess"]) {
+  check(
+    `production with a malformed value ${JSON.stringify(
+      malformed
+    )} fails clearly`,
+    () => {
+      const message = gateErrors({
+        APP_ENV: "production",
+        ...GATE_BASE,
+        CLOSED_DEMO_ENABLED: malformed,
+      });
+      assert.match(message, /is not a valid boolean/);
+      assert.match(message, /must be explicitly true in production/);
+    }
+  );
+}
+
+check("a malformed value is rejected in staging too", () => {
+  const message = gateErrors({
+    APP_ENV: "staging",
+    ...STAGING_BASE,
+    CLOSED_DEMO_ENABLED: "ture",
+  });
+  assert.match(message, /is not a valid boolean/);
+});
+
+/*
+  Every spelling the codebase already defines intentionally must keep
+  working, so an existing deployment cannot be broken by this rule.
+*/
+for (const spelling of ["true", "1", "yes", "on", "TRUE", " true "]) {
+  check(
+    `production accepts the intentional true spelling ${JSON.stringify(
+      spelling
+    )}`,
+    () => {
+      const result = validateEnvironment({
+        APP_ENV: "production",
+        ...GATE_BASE,
+        ...GATE_ON,
+        CLOSED_DEMO_ENABLED: spelling,
+      });
+      assert.equal(result.valid, true, result.errors.join(" | "));
+    }
+  );
+}
+
+check("APP_ENV takes precedence over NODE_ENV", () => {
+  // NODE_ENV says development, APP_ENV says production: the rule
+  // must follow the RESOLVED environment and demand the gate.
+  const resolvedProduction = gateErrors({
+    APP_ENV: "production",
+    NODE_ENV: "development",
+    ...GATE_BASE,
+  });
+  assert.match(resolvedProduction, /must be explicitly true in production/);
+
+  // The reverse: NODE_ENV says production, APP_ENV says development.
+  // The rule must NOT fire, because the app resolves to development.
+  const resolvedDevelopment = validateEnvironment({
+    APP_ENV: "development",
+    NODE_ENV: "production",
+  });
+  assert.equal(
+    resolvedDevelopment.environment,
+    "development",
+    "APP_ENV must win"
+  );
+  assert.equal(
+    resolvedDevelopment.errors.filter((message) =>
+      message.includes("CLOSED_DEMO_ENABLED")
+    ).length,
+    0,
+    "development must not require the gate even when NODE_ENV says production"
+  );
+});
+
+check("NODE_ENV alone still resolves the environment", () => {
+  const message = gateErrors({ NODE_ENV: "production", ...GATE_BASE });
+  assert.match(message, /must be explicitly true in production/);
+});
+
+check("development starts without the gate", () => {
+  const result = validateEnvironment({ APP_ENV: "development" });
+  assert.equal(result.valid, true, result.errors.join(" | "));
+});
+
+check("test starts without the gate", () => {
+  const result = validateEnvironment({ APP_ENV: "test" });
+  assert.equal(result.valid, true, result.errors.join(" | "));
+});
+
+check("the gate failure message exposes no secret value", () => {
+  const message = validateEnvironment({
+    APP_ENV: "production",
+    ...GATE_BASE,
+    CLOSED_DEMO_ENABLED: "ture",
+    CLOSED_DEMO_ACCESS_CODE: "super-secret-code",
+    CLOSED_DEMO_SIGNING_SECRET: "s".repeat(48),
+  }).errors.join(" ");
+
+  assert.match(message, /CLOSED_DEMO_ENABLED/);
+  assert.ok(
+    !message.includes("super-secret-code"),
+    "the access code must never appear in a failure message"
+  );
+  assert.ok(
+    !message.includes("s".repeat(48)),
+    "the signing secret must never appear in a failure message"
+  );
+  assert.ok(
+    !message.includes("ture"),
+    "the offending value itself is not echoed back"
+  );
 });
 
 check("failure messages never echo a key value", () => {

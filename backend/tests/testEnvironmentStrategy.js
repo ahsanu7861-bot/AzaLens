@@ -47,11 +47,22 @@ const SUPABASE_STAGING = {
   SUPABASE_SECRET_KEY: "sb_secret_notarealkey000000000",
 };
 
+/*
+  CLOSED_DEMO_ENABLED is part of a valid production configuration as
+  of PR A2: /api/watchlist and /api/portfolio have no authentication
+  and no tenant identity, so an internet-reachable environment must
+  not start without the closed-demo gate. This fixture previously
+  asserted production was valid with no gate at all, which described
+  the hole rather than the contract.
+*/
 const production = validateEnvironment({
   APP_ENV: "production",
   FINNHUB_API_KEY: "x",
   TWELVE_DATA_API_KEY: "x",
   OBSERVABILITY_METRICS_TOKEN: "x",
+  CLOSED_DEMO_ENABLED: "true",
+  CLOSED_DEMO_ACCESS_CODE: "not-a-real-code",
+  CLOSED_DEMO_SIGNING_SECRET: "0".repeat(32),
   ...SUPABASE_PRODUCTION,
 });
 assert.equal(production.valid, true, production.errors.join(" | "));

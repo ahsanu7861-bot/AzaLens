@@ -98,6 +98,30 @@ function createPortfolioRouter({ intelligenceLimiter } = {}) {
         });
       }
 
+      /*
+        422, not 409: the body is well formed and passes every field
+        validation, and it does not conflict with an existing record -
+        409 stays reserved for duplicates so the two conditions remain
+        distinguishable. Not 5xx either: this is a deliberate product
+        limit the caller can clear by deleting a holding.
+
+        `message` stays at the top level because that is the field
+        every existing client reads; `error` carries the stable
+        machine-readable contract.
+      */
+      if (error.code === "PORTFOLIO_LIMIT_REACHED") {
+        return res.status(422).json({
+          success: false,
+          message: error.message,
+          error: {
+            code: error.code,
+            message: error.message,
+            limit: error.limit,
+            current: error.current,
+          },
+        });
+      }
+
       console.error(error);
 
       res.status(500).json({

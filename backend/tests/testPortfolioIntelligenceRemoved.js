@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { once } = require("node:events");
 const Module = require("node:module");
@@ -103,33 +104,47 @@ function installMasterAnalysisSpy() {
 }
 
 // ------------------------------------------------------------
-// Portfolio storage snapshot
+// Isolated storage
 //
-// portfolioService derives its file path from __dirname, so it
-// cannot be redirected. The committed storage file is snapshotted
-// here and restored in the finally block, and the restore is
-// asserted byte-for-byte at the end of the run.
+// This suite previously snapshotted and restored the committed
+// backend/storage/portfolios.json, which meant a CI run wrote to
+// real development data even though it put the bytes back.
+// portfolioService now resolves its directory from
+// AZALENS_STORAGE_DIR per call, so the suite gets its own temporary
+// directory and the committed file is never opened.
 // ------------------------------------------------------------
 
-const PORTFOLIO_FILE = path.join(
-  __dirname,
-  "../storage/portfolios.json"
+const REAL_STORAGE_DIR = path.join(__dirname, "../storage");
+const REAL_PORTFOLIO_FILE = path.join(
+  REAL_STORAGE_DIR,
+  "portfolios.json"
 );
 
-const portfolioSnapshot = fs.existsSync(PORTFOLIO_FILE)
-  ? fs.readFileSync(PORTFOLIO_FILE)
+const savedStorageDir = process.env.AZALENS_STORAGE_DIR;
+const TEMP_STORAGE_DIR = fs.mkdtempSync(
+  path.join(os.tmpdir(), "azalens-intelligence-removed-")
+);
+
+process.env.AZALENS_STORAGE_DIR = TEMP_STORAGE_DIR;
+fs.writeFileSync(
+  path.join(TEMP_STORAGE_DIR, "portfolios.json"),
+  "[]"
+);
+
+// Proof, not assertion by comment: the committed file must not be
+// touched at all, so its mtime is captured and re-checked at the end.
+const realFileStatBefore = fs.existsSync(REAL_PORTFOLIO_FILE)
+  ? fs.statSync(REAL_PORTFOLIO_FILE)
   : null;
 
-function restorePortfolioFile() {
-  if (portfolioSnapshot === null) {
-    if (fs.existsSync(PORTFOLIO_FILE)) {
-      fs.unlinkSync(PORTFOLIO_FILE);
-    }
-
-    return;
+function restoreStorageEnvironment() {
+  if (savedStorageDir === undefined) {
+    delete process.env.AZALENS_STORAGE_DIR;
+  } else {
+    process.env.AZALENS_STORAGE_DIR = savedStorageDir;
   }
 
-  fs.writeFileSync(PORTFOLIO_FILE, portfolioSnapshot);
+  fs.rmSync(TEMP_STORAGE_DIR, { recursive: true, force: true });
 }
 
 // ------------------------------------------------------------
@@ -567,8 +582,30 @@ async function run() {
         `getMasterAnalysis invoked ${masterAnalysisCallCount} time(s), ` +
         "all from /api/analyze. No provider network calls were made."
     );
+    const realFileStatAfter = fs.existsSync(REAL_PORTFOLIO_FILE)
+      ? fs.statSync(REAL_PORTFOLIO_FILE)
+      : null;
+
+    assert.equal(
+      realFileStatAfter === null,
+      realFileStatBefore === null,
+      "the committed portfolio storage file must not be created or removed"
+    );
+
+    if (realFileStatBefore !== null) {
+      assert.equal(
+        realFileStatAfter.mtimeMs,
+        realFileStatBefore.mtimeMs,
+        "the committed portfolio storage file must never be written by this suite"
+      );
+      assert.equal(
+        realFileStatAfter.size,
+        realFileStatBefore.size,
+        "the committed portfolio storage file must not change size"
+      );
+    }
   } finally {
-    restorePortfolioFile();
+    restoreStorageEnvironment();
 
     for (const [method, original] of Object.entries(
       originalAxiosMethods
@@ -576,18 +613,6 @@ async function run() {
       axios[method] = original;
     }
   }
-
-  const restored = fs.existsSync(PORTFOLIO_FILE)
-    ? fs.readFileSync(PORTFOLIO_FILE)
-    : null;
-
-  assert.ok(
-    (portfolioSnapshot === null && restored === null) ||
-      (portfolioSnapshot !== null &&
-        restored !== null &&
-        portfolioSnapshot.equals(restored)),
-    "the committed portfolio storage file must be restored byte-for-byte"
-  );
 }
 
 run().catch((error) => {

@@ -2,6 +2,7 @@
 
 const {
   getEnvironmentConfig,
+  parseFlag,
 } = require("../config/environment");
 const {
   validateSupabaseEnvironment,
@@ -45,9 +46,66 @@ function validateEnvironment(env = process.env) {
     );
   }
 
-  const closedDemoEnabled = ["1", "true", "yes", "on"].includes(
-    String(env.CLOSED_DEMO_ENABLED || "").trim().toLowerCase()
-  );
+  /*
+    ==========================================================
+    Boot invariant: an internet-reachable environment must not
+    run without the closed-demo gate.
+    ==========================================================
+
+    /api/watchlist and /api/portfolio have no authentication and no
+    tenant identity. Every caller reads and writes ONE shared
+    collection. The closed-demo gate is the only thing standing in
+    front of them, and until now nothing required it: an absent or
+    mistyped CLOSED_DEMO_ENABLED resolved to false in silence, and
+    the service would start and serve unauthenticated read/write
+    access to that shared data with no error and no log line.
+
+    This deliberately chooses a hard outage over silent public
+    exposure. A refused boot is visible and recoverable in minutes;
+    silent public exposure is neither.
+
+    parseFlag is used rather than list membership on purpose. It is
+    the codebase's own intentional definition of a boolean flag -
+    1/true/yes/on and 0/false/no/off - and it THROWS on anything
+    else, so "ture" or "enabled" can never quietly become false. The
+    permissive membership test that used to live here is exactly the
+    failure mode this invariant exists to remove.
+
+    The predicate is the RESOLVED environment, not NODE_ENV.
+    getEnvironmentConfig reads APP_ENV || NODE_ENV, so keying on
+    NODE_ENV alone would be wrong in both directions.
+
+    Development and test are untouched and still start with no gate.
+    When authentication and tenant identity exist, this rule should
+    be revisited alongside them.
+  */
+  const GATE_REQUIRED_ENVIRONMENTS = new Set([
+    "production",
+    "staging",
+  ]);
+
+  let closedDemoEnabled = false;
+
+  try {
+    closedDemoEnabled = parseFlag(env.CLOSED_DEMO_ENABLED);
+  } catch {
+    errors.push(
+      "CLOSED_DEMO_ENABLED is not a valid boolean. Use one of: " +
+        "1, true, yes, on, 0, false, no, off."
+    );
+  }
+
+  if (
+    GATE_REQUIRED_ENVIRONMENTS.has(config.environment) &&
+    !closedDemoEnabled
+  ) {
+    errors.push(
+      `CLOSED_DEMO_ENABLED must be explicitly true in ${config.environment}: ` +
+        "/api/watchlist and /api/portfolio have no authentication and no " +
+        "tenant identity, so the closed-demo gate is the only access control " +
+        "in front of one shared collection."
+    );
+  }
 
   if (
     closedDemoEnabled &&
