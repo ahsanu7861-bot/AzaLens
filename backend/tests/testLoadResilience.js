@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const { once } = require("node:events");
+const http = require("node:http");
 const { performance } = require("node:perf_hooks");
 const axios = require("axios");
 
@@ -59,12 +60,127 @@ async function closeServer(server) {
   });
 }
 
+/*
+  The load below goes through a dedicated agent, not global fetch().
+
+  fetch()'s global dispatcher has no per-origin connection limit, so
+  160 concurrent calls opened 160 simultaneous TCP connections. A
+  listening socket's accept queue is kernel-bounded (somaxconn is 128
+  on macOS; Linux clamps the requested backlog too), and when the
+  queue momentarily overflowed the kernel answered with RST instead
+  of queueing. The losing connection failed in the connect syscall -
+  "connect ECONNRESET", before any request reached the server - and
+  that rejection escaped Promise.all before a single assertion ran,
+  reddening a blocking gate ~40% of the time.
+
+  What this test proves is that 160 concurrent requests are served
+  correctly with per-request id correlation and exact observability
+  totals. Simultaneous TCP connection count is a client artifact, not
+  a product property. So all 160 requests are still dispatched at
+  once and every assertion is unchanged; only the transport is
+  bounded, with keep-alive connections reused below the accept queue.
+
+  Do not restore fetch() here without solving the same problem.
+*/
+const MAX_LOAD_SOCKETS = 64;
+
+function createLoadAgent() {
+  return new http.Agent({
+    keepAlive: true,
+    maxSockets: MAX_LOAD_SOCKETS,
+    maxFreeSockets: MAX_LOAD_SOCKETS,
+  });
+}
+
+/*
+  Fetch-shaped result, so the assertions below read as they did
+  before. The body is always fully consumed and the promise settles
+  only on "end" or "error", so no request is still in flight when
+  teardown begins.
+*/
+function loadRequest(agent, url, headers) {
+  return new Promise((resolve, reject) => {
+    const request = http.request(
+      url,
+      { agent, headers },
+      (response) => {
+        let raw = "";
+
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          raw += chunk;
+        });
+        response.on("error", reject);
+        response.on("end", () => {
+          try {
+            resolve({
+              status: response.statusCode,
+              headers: new Map(
+                Object.entries(response.headers)
+              ),
+              body: JSON.parse(raw),
+            });
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+/*
+  agent.destroy() destroys every socket it holds, but the freeSockets
+  bookkeeping is cleared by each socket's own "close" handler, which
+  runs on a later tick. Awaiting those close events is what makes
+  teardown deterministic - the alternative would be a sleep, which
+  would only hide the same race.
+*/
+async function destroyAgent(agent) {
+  const sockets = [
+    ...Object.values(agent.sockets || {}).flat(),
+    ...Object.values(agent.freeSockets || {}).flat(),
+  ];
+
+  const closed = sockets.map((socket) =>
+    socket.destroyed
+      ? Promise.resolve()
+      : once(socket, "close")
+  );
+
+  agent.destroy();
+
+  await Promise.all(closed);
+}
+
+function agentSocketCount(agent) {
+  const count = (pool) =>
+    Object.values(pool || {}).reduce(
+      (total, sockets) => total + sockets.length,
+      0
+    );
+
+  return {
+    active: count(agent.sockets),
+    free: count(agent.freeSockets),
+    queued: count(agent.requests),
+  };
+}
+
 async function testConcurrentLiveness() {
   resetObservabilityForTests();
   console.log = () => {};
 
-  const server = app.listen(0);
+  // Bound to loopback explicitly: the requests below target
+  // 127.0.0.1, so the listener should not be reachable on any other
+  // interface for the duration of the test.
+  const server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
+
+  const agent = createLoadAgent();
 
   try {
     const address = server.address();
@@ -85,18 +201,14 @@ async function testConcurrentLiveness() {
           const requestId =
             `load-test-${String(index).padStart(4, "0")}`;
           const startedAt = performance.now();
-          const response = await fetch(
+          const response = await loadRequest(
+            agent,
             `${baseUrl}/health/live`,
-            {
-              headers: {
-                "x-request-id": requestId,
-              },
-            }
+            { "x-request-id": requestId }
           );
-          const body = await response.json();
 
           return {
-            body,
+            body: response.body,
             durationMs:
               performance.now() - startedAt,
             requestId,
@@ -169,8 +281,33 @@ async function testConcurrentLiveness() {
       `Liveness load took ${wallDurationMs.toFixed(2)}ms.`
     );
   } finally {
+    /*
+      Order matters: destroy the client agent first so no keep-alive
+      socket outlives the server, then close the listener. Previously
+      160 keep-alive sockets were still open at server.close(), so
+      closing depended on an external dispatcher's idle timer.
+      closeAllConnections() covers a socket still attached because an
+      assertion threw mid-flight.
+    */
+    await destroyAgent(agent);
+    server.closeAllConnections?.();
     await closeServer(server);
     console.log = originalConsoleLog;
+
+    // Fails here, deterministically, if a future change reintroduces
+    // an unbounded or unclosed transport.
+    const sockets = agentSocketCount(agent);
+
+    assert.deepEqual(
+      sockets,
+      { active: 0, free: 0, queued: 0 },
+      `Load agent leaked sockets: ${JSON.stringify(sockets)}`
+    );
+    assert.equal(
+      server.listening,
+      false,
+      "Server must not still be listening after teardown."
+    );
   }
 }
 
