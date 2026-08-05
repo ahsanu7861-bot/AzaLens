@@ -132,7 +132,7 @@ async function testStrictBucket() {
   }
 }
 
-async function bootSharedStrictApp() {
+async function bootStrictApp() {
   return bootApp((app) => {
     const strictLimiter = createStrictLimiter();
 
@@ -141,21 +141,16 @@ async function bootSharedStrictApp() {
       strictLimiter,
       okHandler
     );
-    app.get(
-      "/api/explanation/:symbol",
-      strictLimiter,
-      okHandler
-    );
   });
 }
 
-async function testSharedMixedInterleavedStrictBucket() {
-  const { baseUrl, close } = await bootSharedStrictApp();
+async function testStrictBucketAcrossSymbols() {
+  const { baseUrl, close } = await bootStrictApp();
 
   try {
     const sequence = [
       ...repeat("/api/analyze/AAPL", 4),
-      ...repeat("/api/explanation/AAPL", 3),
+      ...repeat("/api/analyze/GOOG", 3),
       ...repeat("/api/analyze/MSFT", 3),
     ];
     const statuses = await fireSequentially(
@@ -166,7 +161,7 @@ async function testSharedMixedInterleavedStrictBucket() {
     assert.deepEqual(
       statuses,
       Array(10).fill(200),
-      "all 10 combined expensive requests must be allowed"
+      "all 10 strict requests across symbols must be allowed"
     );
 
     const eleventh = await request(
@@ -177,28 +172,28 @@ async function testSharedMixedInterleavedStrictBucket() {
     assert.equal(
       eleventh.status,
       429,
-      "the 11th combined strict request must be rejected"
+      "the 11th strict request must be rejected"
     );
   } finally {
     await close();
   }
 }
 
-async function testReorderedSharedStrictBucket() {
-  const { baseUrl, close } = await bootSharedStrictApp();
+async function testReorderedStrictBucket() {
+  const { baseUrl, close } = await bootStrictApp();
 
   try {
     const sequence = [
-      "/api/explanation/AAPL",
-      "/api/explanation/MSFT",
+      "/api/analyze/AAPL",
+      "/api/analyze/GOOG",
       "/api/analyze/MSFT",
-      "/api/explanation/AAPL",
+      "/api/analyze/AAPL",
       "/api/analyze/MSFT",
-      "/api/explanation/MSFT",
-      "/api/explanation/AAPL",
+      "/api/analyze/GOOG",
+      "/api/analyze/AAPL",
       "/api/analyze/MSFT",
       "/api/analyze/MSFT",
-      "/api/explanation/MSFT",
+      "/api/analyze/GOOG",
     ];
     const statuses = await fireSequentially(
       baseUrl,
@@ -208,18 +203,18 @@ async function testReorderedSharedStrictBucket() {
     assert.deepEqual(
       statuses,
       Array(10).fill(200),
-      "all 10 combined expensive requests must be allowed regardless of order"
+      "all 10 strict requests must be allowed regardless of symbol order"
     );
 
     const eleventh = await request(
       baseUrl,
-      "/api/explanation/AAPL"
+      "/api/analyze/AAPL"
     );
 
     assert.equal(
       eleventh.status,
       429,
-      "the next request to any strict route must be rejected"
+      "the next request to the strict route must be rejected"
     );
   } finally {
     await close();
@@ -233,7 +228,7 @@ async function testSingleInvocationProof() {
   // than request 11 - either way this assertion would fail.
   const { baseUrl, close } = await bootApp((app) => {
     app.get(
-      "/api/explanation/:symbol",
+      "/api/analyze/:symbol",
       createStrictLimiter(),
       okHandler
     );
@@ -242,7 +237,7 @@ async function testSingleInvocationProof() {
   try {
     const statuses = await fireSequentially(
       baseUrl,
-      repeat("/api/explanation/AAPL", 11)
+      repeat("/api/analyze/AAPL", 11)
     );
 
     assert.deepEqual(
@@ -266,18 +261,13 @@ async function testNoDoubleCounting() {
       strictLimiter,
       okHandler
     );
-    app.get(
-      "/api/explanation/:symbol",
-      strictLimiter,
-      okHandler
-    );
   });
 
   try {
-    // Exhaust the shared strict bucket first.
+    // Exhaust the strict bucket across several symbols first.
     const strictSequence = [
       ...repeat("/api/analyze/AAPL", 4),
-      ...repeat("/api/explanation/AAPL", 3),
+      ...repeat("/api/analyze/GOOG", 3),
       ...repeat("/api/analyze/MSFT", 3),
     ];
     const strictStatuses = await fireSequentially(
@@ -417,8 +407,8 @@ async function run() {
   try {
     await testGlobalBucket();
     await testStrictBucket();
-    await testSharedMixedInterleavedStrictBucket();
-    await testReorderedSharedStrictBucket();
+    await testStrictBucketAcrossSymbols();
+    await testReorderedStrictBucket();
     await testSingleInvocationProof();
     await testNoDoubleCounting();
     await testFreshStateProof();

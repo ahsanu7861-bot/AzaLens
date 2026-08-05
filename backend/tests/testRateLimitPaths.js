@@ -51,10 +51,10 @@ function run() {
     true
   );
 
-  // 5. Valid Explanation path is exempt
+  // 5. Removed Explanation path is not exempt
   assert.equal(
     isGlobalLimiterExempt("/api/explanation/AAPL"),
-    true
+    false
   );
 
   /*

@@ -11,13 +11,12 @@ const axios = require("axios");
 // ephemeral loopback port, the same way testCorsAllowlist.js and
 // testLoadResilience.js do, and issues real HTTP requests through
 // the full middleware stack (requestObservability, CORS, helmet,
-// global limiter, shared strict limiter).
+// global limiter and strict limiter).
 //
-// /api/analyze/:symbol and /api/explanation/:symbol both end up
-// calling getMasterAnalysis(), which reaches into Finnhub and
+// /api/analyze/:symbol calls getMasterAnalysis(), which reaches into Finnhub and
 // Twelve Data. (/api/portfolio/intelligence used to be the third
 // such route; it is no longer mounted - see
-// routes/portfolioRoutes.js and testPortfolioIntelligenceRemoved.js.)
+// routes/portfolioRoutes.js and testRemovedRoutesContract.js.)
 // axios.get is stubbed below with safe, deterministic canned
 // responses before any of those routes are ever hit - no test in
 // this file makes a real network call. SHARIAH_DATA_MODE is forced
@@ -198,33 +197,9 @@ async function testGlobal30PerMinute() {
   }
 }
 
-/*
-  Expected status for a request that genuinely reached its handler
-  and therefore consumed one slot of the shared strict bucket.
-
-  /api/analyze/:symbol answers 200: the master-analysis envelope is
-  successful even when the Shariah gate withholds the verdict
-  sections.
-
-  /api/explanation/:symbol answers 500. With SHARIAH_DATA_MODE
-  forced to "offline" the gate withholds, explanationService returns
-  the withheld stub, and server.js maps its success:false to HTTP
-  500. That is pre-existing behaviour of that route - a withheld
-  verdict is a policy outcome, not a server error - and it is out of
-  scope here. It is pinned rather than papered over so the next
-  person sees it.
-
-  What matters for THIS suite is that both are real handler
-  responses. A 404 (route gone) or 429 (limited) would not be, and
-  neither would satisfy these assertions.
-*/
 function expectedHandlerStatus(urlPath) {
   if (urlPath.startsWith("/api/analyze/")) {
     return 200;
-  }
-
-  if (urlPath.startsWith("/api/explanation/")) {
-    return 500;
   }
 
   throw new Error(
@@ -233,8 +208,8 @@ function expectedHandlerStatus(urlPath) {
 }
 
 // ------------------------------------------------------------
-// 2, 3, 4. Shared strict 10/minute, mixed interleaved and
-// reordered, across the real expensive routes.
+// 2, 3, 4. Strict 10/minute, mixed interleaved and
+// reordered, across symbols on the real expensive route.
 // ------------------------------------------------------------
 async function testSharedStrictBucketMixedAndReordered() {
   {
@@ -243,7 +218,7 @@ async function testSharedStrictBucketMixedAndReordered() {
     try {
       const sequence = [
         ...repeat("/api/analyze/AAPL", 4),
-        ...repeat("/api/explanation/AAPL", 3),
+        ...repeat("/api/analyze/GOOG", 3),
         ...repeat("/api/analyze/MSFT", 3),
       ];
       const responses = await fireSequentially(
@@ -281,16 +256,16 @@ async function testSharedStrictBucketMixedAndReordered() {
 
     try {
       const sequence = [
-        "/api/explanation/AAPL",
-        "/api/explanation/MSFT",
+        "/api/analyze/AAPL",
+        "/api/analyze/GOOG",
         "/api/analyze/MSFT",
-        "/api/explanation/AAPL",
+        "/api/analyze/AAPL",
         "/api/analyze/MSFT",
-        "/api/explanation/MSFT",
-        "/api/explanation/AAPL",
+        "/api/analyze/GOOG",
+        "/api/analyze/AAPL",
         "/api/analyze/MSFT",
         "/api/analyze/MSFT",
-        "/api/explanation/MSFT",
+        "/api/analyze/GOOG",
       ];
       const responses = await fireSequentially(
         baseUrl,
@@ -307,7 +282,7 @@ async function testSharedStrictBucketMixedAndReordered() {
 
       const eleventh = await get(
         baseUrl,
-        "/api/explanation/AAPL"
+        "/api/analyze/AAPL"
       );
 
       assert.equal(eleventh.status, 429);
@@ -326,7 +301,7 @@ async function testNoDoubleCountingBetweenBuckets() {
   try {
     const strictSequence = [
       ...repeat("/api/analyze/AAPL", 4),
-      ...repeat("/api/explanation/AAPL", 3),
+      ...repeat("/api/analyze/GOOG", 3),
       ...repeat("/api/analyze/MSFT", 3),
     ];
 
@@ -437,7 +412,7 @@ async function testOptionsNeverLimited() {
 
     const strictResponses = await fireSequentially(
       baseUrl,
-      repeat("/api/explanation/AAPL", 11)
+      repeat("/api/analyze/AAPL", 11)
     );
 
     assert.ok(
@@ -610,8 +585,8 @@ async function testCaseAndTrailingSlashNoDoubleCounting() {
       [
         "/API/Analyze/AAPL",
         "/api/analyze/AAPL/",
-        "/api/Explanation/MSFT",
-        "/api/explanation/MSFT/",
+        "/API/Analyze/MSFT",
+        "/api/analyze/MSFT/",
       ]
     );
 

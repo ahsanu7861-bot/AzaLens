@@ -9,7 +9,7 @@ const Module = require("node:module");
 const axios = require("axios");
 
 // ============================================================
-// AzaLens - Portfolio Intelligence Removal Contract Tests
+// AzaLens - Removed Routes Contract Tests
 //
 // GET /api/portfolio/intelligence used to run a full master
 // analysis per holding, in an uncapped loop, behind no
@@ -323,6 +323,47 @@ async function testIntelligencePathIsUnavailable() {
   }
 }
 
+async function testExplanationPathIsUnavailable() {
+  const { baseUrl, close } = await bootServer();
+
+  try {
+    const countBefore = masterAnalysisCallCount;
+
+    for (const path of [
+      "/api/explanation/AAPL",
+      "/api/explanation/AAPL/",
+      "/api/explanation",
+      "/api/explanation/",
+    ]) {
+      for (const method of ["GET", "POST", "PUT", "DELETE"]) {
+        const response = await send(baseUrl, method, path);
+
+        assert.equal(
+          response.status,
+          404,
+          `${method} ${path} must be unavailable`
+        );
+        assert.equal(response.body?.success, false);
+        assert.equal(response.body?.error, "Route not found.");
+        assert.equal(typeof response.body?.requestId, "string");
+        assert.equal(
+          Object.hasOwn(response.body || {}, "details"),
+          false,
+          "removed routes must not leak internal details"
+        );
+      }
+    }
+
+    assert.equal(
+      masterAnalysisCallCount,
+      countBefore,
+      "no method or path variant may invoke getMasterAnalysis"
+    );
+  } finally {
+    await close();
+  }
+}
+
 // ------------------------------------------------------------
 // 2. POSITIVE CONTROL
 //
@@ -550,8 +591,8 @@ async function testRemovedPathIsNotGlobalLimiterExempt() {
 
   assert.equal(
     isGlobalLimiterExempt("/api/explanation/AAPL"),
-    true,
-    "routes that do carry their own strict limiter stay exempt"
+    false,
+    "removed routes must not retain a global-limiter exemption"
   );
 }
 
@@ -560,6 +601,7 @@ async function testRemovedPathIsNotGlobalLimiterExempt() {
 async function run() {
   try {
     await testIntelligencePathIsUnavailable();
+    await testExplanationPathIsUnavailable();
     await testAnalyzeRouteStillReachesTheAnalysisPipeline();
     await testPortfolioCrudIsUnchanged();
     await testRemovedPathIsNotGlobalLimiterExempt();
@@ -578,7 +620,7 @@ async function run() {
     );
 
     console.log(
-      "Portfolio intelligence removal tests: all scenarios passed. " +
+      "Removed routes contract tests: all scenarios passed. " +
         `getMasterAnalysis invoked ${masterAnalysisCallCount} time(s), ` +
         "all from /api/analyze. No provider network calls were made."
     );

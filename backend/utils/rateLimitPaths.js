@@ -9,7 +9,7 @@
 // also what Express's own router matches against. Mirroring that
 // exact behavior - rather than normalizing further - is what keeps
 // this exemption check aligned with which requests actually reach
-// the /api/analyze/:symbol and /api/explanation/:symbol handlers.
+// the /api/analyze/:symbol handler.
 // Decoding here would let an encoded separator (e.g. "%2f") widen
 // the exemption to paths the real router would never match, or
 // throw on a malformed sequence.
@@ -32,7 +32,6 @@ const OPERATIONAL_PATHS = new Set([
 ]);
 
 const ANALYZE_PATTERN = /^\/api\/analyze\/[^/]+$/;
-const EXPLANATION_PATTERN = /^\/api\/explanation\/[^/]+$/;
 
 function toRawPathname(input) {
   if (typeof input === "string") {
@@ -93,10 +92,6 @@ function isGlobalLimiterExempt(input) {
   }
 
   if (ANALYZE_PATTERN.test(pathname)) {
-    return true;
-  }
-
-  if (EXPLANATION_PATTERN.test(pathname)) {
     return true;
   }
 

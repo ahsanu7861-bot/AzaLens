@@ -31,7 +31,7 @@ const axios = require("axios");
 //      working when requests carry a realistic proxy chain.
 //
 // axios.get/post are stubbed with canned, deterministic responses
-// (same approach as testRateLimitHttp.js) so /api/explanation/:symbol
+// (same approach as testRateLimitHttp.js) so /api/analyze/:symbol
 // never makes a real network call.
 // ============================================================
 
@@ -353,7 +353,7 @@ async function testStrictLimiter429ShapeWithProxyChain() {
     const chain = verifiedChain("203.0.113.50");
     const responses = await fireSequentially(
       baseUrl,
-      "/api/explanation/AAPL",
+      "/api/analyze/AAPL",
       11,
       chain
     );

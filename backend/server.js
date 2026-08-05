@@ -53,9 +53,6 @@ const {
 } = require("./services/masterAnalysisService");
 
 const {
-  getExplanation
-} = require("./services/explanationService");
-const {
   searchSymbols
 } = require("./providers/marketDataProvider");
 const {
@@ -674,32 +671,6 @@ app.get("/api/analyze/:symbol", strictLimiter, async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Unable to generate master analysis.",
-      details: error.message
-    });
-  }
-});
-
-// ============================
-// Explanation Engine
-// ============================
-
-app.get("/api/explanation/:symbol", strictLimiter, async (req, res) => {
-  try {
-    const symbol = req.params.symbol
-      .trim()
-      .toUpperCase();
-
-    const result = await getExplanation(symbol);
-
-    const statusCode = result.success ? 200 : 500;
-
-    res.status(statusCode).json(result);
-  } catch (error) {
-    console.error("Explanation Route Error:", error);
-
-    res.status(500).json({
-      success: false,
-      error: "Unable to generate explanation.",
       details: error.message
     });
   }

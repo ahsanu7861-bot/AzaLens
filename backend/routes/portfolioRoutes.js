@@ -218,7 +218,7 @@ function createPortfolioRouter({ intelligenceLimiter } = {}) {
     repository's history.
 
     The route stays unmounted until a real consumer exists AND
-    the fan-out is bounded. backend/tests/testPortfolioIntelligenceRemoved.js
+    the fan-out is bounded. backend/tests/testRemovedRoutesContract.js
     proves it 404s and that no request to that path can reach
     getMasterAnalysis. The service module is left in place for a
     separate orphan-cleanup change.
