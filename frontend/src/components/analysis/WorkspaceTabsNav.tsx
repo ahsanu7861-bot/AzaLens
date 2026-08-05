@@ -27,7 +27,7 @@ const workspaces: WorkspaceTab<WorkspaceId>[] = [
   { id: "fundamentals", label: "Fundamentals", icon: Building2 },
   { id: "risk", label: "Risk", icon: Gauge },
   { id: "shariah", label: "Shariah", icon: ShieldCheck },
-  { id: "thesis", label: "AI Thesis", icon: BrainCircuit },
+  { id: "thesis", label: "Thesis", icon: BrainCircuit },
 ];
 
 export default function WorkspaceTabsNav({

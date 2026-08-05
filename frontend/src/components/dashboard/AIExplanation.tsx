@@ -30,7 +30,7 @@ export default function AIExplanation({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-display font-semibold text-ink">
-            AI Market Explanation
+            Market Thesis
           </h3>
 
           <p className="mt-1 text-sm text-ink-muted">
@@ -52,7 +52,7 @@ export default function AIExplanation({
           </div>
 
           <div className="az-subcard rounded-2xl border border-stroke bg-surface-soft p-4">
-            <p className="text-xs text-ink-muted">Confidence</p>
+            <p className="text-xs text-ink-muted">Evidence Agreement</p>
 
             <p className="az-numeric mt-2 text-lg font-semibold text-ink">
               {confidenceLabel}
@@ -78,7 +78,7 @@ export default function AIExplanation({
 
         <div className="az-subcard rounded-2xl border border-intelligence/20 bg-intelligence/5 p-5">
           <h4 className="mb-2 font-semibold text-intelligence">
-            AI Summary
+            Thesis Summary
           </h4>
 
           <p className="leading-7 text-ink-soft">

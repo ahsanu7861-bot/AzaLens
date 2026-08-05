@@ -12,7 +12,7 @@ import LandingPage from "./LandingPage";
 const STANDALONE_VERDICT_COMMAND = /^(buy|sell|hold)$/i;
 
 // Rule 4 requires a directional lean plus a confidence percentage — the
-// real product's 60% figure is legitimate output, not a fabrication.
+// representative 67% figure follows the real Evidence Agreement contract.
 // What must never appear is an unsupported claim that the product
 // predicts outcomes (accuracy / win rate / success rate / probability
 // of profit).
@@ -69,7 +69,7 @@ describe("LandingPage honesty regression (audit V8 / Phase 0 item 1.1)", () => {
     );
     expect(
       within(screen.getByTestId("landing-demo-withheld")).queryByText(
-        "AI Verdict",
+        "AzaLens Verdict",
       ),
     ).not.toBeInTheDocument();
   });
@@ -79,9 +79,9 @@ describe("LandingPage honesty regression (audit V8 / Phase 0 item 1.1)", () => {
 
     const confirmedCard = screen.getByTestId("landing-demo-confirmed");
 
-    expect(within(confirmedCard).getByText("60%")).toBeInTheDocument();
+    expect(within(confirmedCard).getByText("67%")).toBeInTheDocument();
     expect(
-      within(confirmedCard).getByText(/\d+ of \d+ technical indicators agree/i),
+      within(confirmedCard).getByText(/9 of 9 indicators available/i),
     ).toBeInTheDocument();
     expect(screen.getAllByText(/demonstration/i).length).toBeGreaterThanOrEqual(
       2,

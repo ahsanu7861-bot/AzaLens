@@ -88,7 +88,7 @@ describe("WorkspaceTabsNav keyboard contract", () => {
     expect(onChange).toHaveBeenLastCalledWith("thesis");
 
     fireEvent.keyDown(
-      screen.getByRole("tab", { name: "AI Thesis" }),
+      screen.getByRole("tab", { name: "Thesis" }),
       { key: "Home" },
     );
     expect(onChange).toHaveBeenLastCalledWith("overview");

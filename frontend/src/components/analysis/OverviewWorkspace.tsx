@@ -53,6 +53,10 @@ export default function OverviewWorkspace({
           direction={data?.agreement?.direction ?? data?.agreement?.agreement}
           trend={data?.trend?.trend}
           confidence={data?.agreement?.confidence}
+          evidenceState={data?.agreement?.evidenceState}
+          coveragePercent={data?.agreement?.coveragePercent}
+          availableIndicators={data?.agreement?.availableIndicators}
+          expectedIndicators={data?.agreement?.expectedIndicators}
           summary={
             data?.agreement?.agreementSummary ??
             data?.explanation?.overallAssessment

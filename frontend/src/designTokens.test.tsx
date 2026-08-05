@@ -53,12 +53,12 @@ describe("Islamic Compliance eyebrow color (Phase 0 item 1.10)", () => {
 });
 
 describe("Other eyebrows remain on the generic brand/intelligence color", () => {
-  it("does not recolor AIVerdictCard's 'AI Verdict' eyebrow", () => {
+  it("does not recolor AIVerdictCard's 'AzaLens Verdict' eyebrow", () => {
     render(
       <AIVerdictCard direction="Bullish" trend="Bullish" confidence={50} />,
     );
 
-    const eyebrow = screen.getByText("AI Verdict");
+    const eyebrow = screen.getByText("AzaLens Verdict");
     expect(eyebrow.className).toBe("az-eyebrow text-intelligence");
     expect(eyebrow.style.color).toBe("");
   });

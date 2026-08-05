@@ -255,6 +255,11 @@ export interface AnalysisResponse {
       provider?: string
       symbol?: string
       confidence?: number
+      rawAgreementPercent?: number
+      coveragePercent?: number
+      evidenceState?: string
+      expectedIndicators?: number
+      availableIndicators?: number
       agreement?: string
       direction?: string
       agreementSummary?: string
@@ -266,6 +271,7 @@ export interface AnalysisResponse {
       bearish?: string[]
       neutral?: string[]
       totalIndicators?: number
+      unavailableIndicators?: string[]
     }
 
     indicators: {

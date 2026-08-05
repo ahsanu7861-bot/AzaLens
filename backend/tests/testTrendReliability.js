@@ -2,6 +2,8 @@
 
 const assert = require("node:assert/strict");
 
+require("./testEvidenceAgreementContract");
+
 const {
   analyzeTrend
 } = require("../analysis/trend/trendEngine");

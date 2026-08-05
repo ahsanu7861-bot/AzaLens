@@ -7,6 +7,10 @@ interface AIVerdictCardProps {
   direction?: string;
   trend?: string;
   confidence?: number;
+  evidenceState?: string;
+  coveragePercent?: number;
+  availableIndicators?: number;
+  expectedIndicators?: number;
   summary?: string;
   invalidation?: ThesisInvalidation | null;
   isLoading?: boolean;
@@ -106,6 +110,10 @@ export default function AIVerdictCard({
   direction,
   trend,
   confidence,
+  evidenceState,
+  coveragePercent,
+  availableIndicators,
+  expectedIndicators,
   summary,
   invalidation,
   isLoading = false,
@@ -113,21 +121,28 @@ export default function AIVerdictCard({
   const verdict = direction?.trim() || trend?.trim() || "Unavailable";
   const safeConfidence =
     typeof confidence === "number" ? Math.min(100, Math.max(0, confidence)) : 0;
-  const confidenceLabel =
-    safeConfidence >= 75
-      ? "High confidence"
+  const agreementLabel = evidenceState?.trim() ||
+    (safeConfidence >= 75
+      ? "High agreement"
       : safeConfidence >= 50
-        ? "Moderate confidence"
+        ? "Moderate agreement"
         : safeConfidence > 0
-          ? "Low confidence"
-          : "Awaiting confidence";
+          ? "Low agreement"
+          : "Awaiting evidence");
+  const evidenceBasis =
+    typeof availableIndicators === "number" &&
+    typeof expectedIndicators === "number"
+      ? `${availableIndicators} of ${expectedIndicators} indicators available`
+      : typeof coveragePercent === "number"
+        ? `${coveragePercent}% evidence coverage`
+        : "Coverage details unavailable";
   const tone = getVerdictTone(verdict);
 
   return (
     <Card variant="brand" padding="lg">
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">
         <div className="min-w-0">
-          <p className="az-eyebrow text-intelligence">AI Verdict</p>
+          <p className="az-eyebrow text-intelligence">AzaLens Verdict</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <h2
               className={`break-words font-display text-4xl font-bold tracking-tight sm:text-5xl ${tone.accent}`}
@@ -150,14 +165,14 @@ export default function AIVerdictCard({
           <div className="flex items-end justify-between gap-3">
             <div>
               <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                AI Confidence
+                Evidence Agreement
               </p>
               <p className="mt-2 font-mono text-3xl font-bold tabular-nums text-ink sm:text-4xl">
                 {isLoading ? "--" : `${safeConfidence}%`}
               </p>
             </div>
             <span className={`text-right text-xs font-medium ${tone.accent}`}>
-              {isLoading ? "Calculating" : confidenceLabel}
+              {isLoading ? "Calculating" : agreementLabel}
             </span>
           </div>
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-stroke">
@@ -167,7 +182,9 @@ export default function AIVerdictCard({
             />
           </div>
           <p className="mt-3 break-words text-[11px] leading-5 text-ink-muted">
-            Indicator agreement—not a guarantee of future performance.
+            {isLoading
+              ? "Measuring agreement and evidence coverage."
+              : `${evidenceBasis}. Not a probability or performance guarantee.`}
           </p>
         </div>
       </div>

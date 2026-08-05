@@ -304,8 +304,8 @@ export default function TechnicalEvidence({
               {isLoading
                 ? "Analyzing indicators"
                 : isFiniteNumber(agreement?.confidence)
-                  ? `${Math.round(agreement.confidence)}% confidence`
-                  : "Confidence unavailable"}
+                  ? `${Math.round(agreement.confidence)}% evidence agreement`
+                  : "Agreement unavailable"}
             </Badge>
           )}
         </div>
@@ -318,7 +318,7 @@ export default function TechnicalEvidence({
             />
             <p className="text-sm leading-6 text-ink-soft">
               {agreement?.error ||
-                "AzaLens withholds the compiled directional lean and confidence score for this stock because AAOIFI Shariah compliance has not been confirmed. Individual indicator readings below are unaffected."}
+                "AzaLens withholds the compiled directional lean and Evidence Agreement for this stock because AAOIFI Shariah compliance has not been confirmed. Individual indicator readings below are unaffected."}
             </p>
           </div>
         ) : (
@@ -343,7 +343,7 @@ export default function TechnicalEvidence({
 
             <div className="az-subcard mt-4 rounded-2xl border border-intelligence/20 bg-intelligence/5 p-5">
               <p className="text-sm font-medium text-intelligence">
-                Indicator agreement
+                Evidence Agreement
               </p>
               <p className="mt-2 text-sm leading-6 text-ink-soft">
                 {isLoading

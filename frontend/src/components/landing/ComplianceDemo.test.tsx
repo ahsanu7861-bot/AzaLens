@@ -15,7 +15,7 @@ import {
 const STANDALONE_VERDICT_COMMAND = /^(buy|sell|hold)$/i;
 
 // Rule 4 requires a directional lean plus a confidence percentage — the
-// 60% figure is legitimate, real-product output, not a fabrication. What
+// 67% figure is legitimate, contract-shaped output, not a fabrication. What
 // must never appear is an unsupported claim that the product predicts
 // outcomes (accuracy / win rate / success rate / probability of profit).
 const UNSUPPORTED_PERFORMANCE_CLAIMS = [
@@ -30,7 +30,7 @@ const UNSUPPORTED_PERFORMANCE_CLAIMS = [
 // Every percentage figure the demo renders must come from one of the
 // fixtures' documented, explained values — never an unexplained number
 // dropped in beside a performance-sounding label.
-const ALLOWED_PERCENTAGES = new Set(["60%", "18%", "0.6%", "0.4%"]);
+const ALLOWED_PERCENTAGES = new Set(["67%", "100%", "18%", "0.6%", "0.4%"]);
 
 function renderedPercentages(text: string): string[] {
   return text.match(/\d+(?:\.\d+)?%/g) ?? [];
@@ -53,10 +53,10 @@ describe("ComplianceDemo honesty regression", () => {
     const withheldCard = screen.getByTestId("landing-demo-withheld");
 
     expect(
-      within(withheldCard).queryByText("AI Verdict"),
+      within(withheldCard).queryByText("AzaLens Verdict"),
     ).not.toBeInTheDocument();
     expect(
-      within(withheldCard).queryByText("AI Confidence"),
+      within(withheldCard).queryByText("Evidence Agreement"),
     ).not.toBeInTheDocument();
   });
 
@@ -65,7 +65,7 @@ describe("ComplianceDemo honesty regression", () => {
 
     const confirmedCard = screen.getByTestId("landing-demo-confirmed");
 
-    expect(within(confirmedCard).getByText("AI Verdict")).toBeInTheDocument();
+    expect(within(confirmedCard).getByText("AzaLens Verdict")).toBeInTheDocument();
     expect(
       within(confirmedCard).getByText("BULLISH"),
     ).toBeInTheDocument();
@@ -78,10 +78,10 @@ describe("ComplianceDemo honesty regression", () => {
 
     // The confidence figure is legitimate, real-product output (Rule 4) —
     // it must not stand alone without the plain-language basis for it.
-    expect(within(confirmedCard).getByText("AI Confidence")).toBeInTheDocument();
-    expect(within(confirmedCard).getByText("60%")).toBeInTheDocument();
+    expect(within(confirmedCard).getByText("Evidence Agreement")).toBeInTheDocument();
+    expect(within(confirmedCard).getByText("67%")).toBeInTheDocument();
     expect(
-      within(confirmedCard).getByText(/\d+ of \d+ technical indicators agree/i),
+      within(confirmedCard).getByText(/9 of 9 indicators available/i),
     ).toBeInTheDocument();
   });
 

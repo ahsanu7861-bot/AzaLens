@@ -1,3 +1,5 @@
+const EXPECTED_INDICATOR_COUNT = 9;
+
 function analyzeAgreement(indicators) {
   const bullish = [];
   const bearish = [];
@@ -246,16 +248,15 @@ function analyzeAgreement(indicators) {
    * Neutral signals receive partial credit because they do not oppose
    * the dominant direction, but they also do not confirm it strongly.
    *
-   * totalIndicators only counts indicators that actually produced a
-   * result, so a stock with one or more unavailable indicators is
-   * scored on the evidence that exists rather than diluted or
-   * blocked by the ones that didn't.
+   * Raw agreement is calculated from the evidence that exists. The
+   * published percentage is then scaled by coverage so a small,
+   * unanimous subset cannot appear equivalent to complete evidence.
    */
 
-  let confidence = 0;
+  let rawAgreementPercent = 0;
 
   if (totalIndicators > 0) {
-    confidence = Math.round(
+    rawAgreementPercent = Math.round(
       (
         dominantCount +
         neutralSignals * 0.35
@@ -265,7 +266,30 @@ function analyzeAgreement(indicators) {
     );
   }
 
-  confidence = Math.min(100, Math.max(0, confidence));
+  rawAgreementPercent = Math.min(100, Math.max(0, rawAgreementPercent));
+
+  const coveragePercent = Math.round(
+    totalIndicators / EXPECTED_INDICATOR_COUNT * 100
+  );
+  const confidence = Math.round(
+    rawAgreementPercent * coveragePercent / 100
+  );
+
+  let evidenceState = "Low agreement";
+
+  if (totalIndicators === 0) {
+    evidenceState = "Evidence unavailable";
+  } else if (bullishSignals === 0 && bearishSignals === 0) {
+    evidenceState = "No directional evidence";
+  } else if (bullishSignals === bearishSignals) {
+    evidenceState = "Conflicting evidence";
+  } else if (totalIndicators < EXPECTED_INDICATOR_COUNT) {
+    evidenceState = "Limited evidence";
+  } else if (confidence >= 75) {
+    evidenceState = "High agreement";
+  } else if (confidence >= 50) {
+    evidenceState = "Moderate agreement";
+  }
 
   // ============================
   // Agreement Status
@@ -322,6 +346,11 @@ function analyzeAgreement(indicators) {
     agreement,
     direction,
     confidence,
+    rawAgreementPercent,
+    coveragePercent,
+    evidenceState,
+    expectedIndicators: EXPECTED_INDICATOR_COUNT,
+    availableIndicators: totalIndicators,
     agreementSummary,
     agreementDetails,
 
