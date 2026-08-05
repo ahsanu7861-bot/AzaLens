@@ -29,7 +29,7 @@ test("moves through all six evidence workspaces", async ({
     ["Fundamentals", /Verified company profile/i],
     ["Risk", /Understand the downside/i],
     ["Shariah", /AAOIFI Shariah screening/i],
-    ["AI Thesis", /What supports or challenges/i],
+    ["Thesis", /What supports or challenges/i],
   ] as const;
 
   for (const [tab, heading] of expectations) {
@@ -120,7 +120,7 @@ test("supports keyboard workspace navigation", async ({ page }) => {
   );
 
   await page.keyboard.press("End");
-  const thesis = page.getByRole("tab", { name: "AI Thesis" });
+  const thesis = page.getByRole("tab", { name: "Thesis" });
   await expect(thesis).toBeFocused();
   await expect(thesis).toHaveAttribute("aria-selected", "true");
 
