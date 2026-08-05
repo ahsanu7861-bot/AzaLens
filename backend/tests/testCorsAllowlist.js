@@ -32,6 +32,21 @@ function setOrDeleteEnv(key, value) {
 // booting as "production" now requires a complete production environment.
 // These are structurally valid, obviously fake values - this suite tests CORS,
 // not credentials, and the guard is deliberately not weakened for tests.
+/*
+  A fixture that expects production to BOOT must satisfy every
+  production invariant, including the fail-closed demo gate:
+  /api/watchlist and /api/portfolio have no authentication and no
+  tenant identity, so validateEnvironment refuses to start production
+  or staging unless CLOSED_DEMO_ENABLED is explicitly true.
+
+  Without it this fixture only booted because a developer's local
+  .env happened to supply the value; on CI, where no .env exists,
+  the server correctly refused to start. The gate belongs in the
+  fixture, not in the environment the test happens to inherit.
+
+  None of these are credentials - they are the same obviously-fake
+  shapes used by the other environment fixtures.
+*/
 const PRODUCTION_FIXTURE = {
   FINNHUB_API_KEY: "test-only",
   TWELVE_DATA_API_KEY: "test-only",
@@ -39,6 +54,9 @@ const PRODUCTION_FIXTURE = {
   SUPABASE_URL: "https://jexphwidcfbgxpthgwum.supabase.co",
   SUPABASE_PUBLISHABLE_KEY: "sb_publishable_notarealkey000000000",
   SUPABASE_SECRET_KEY: "sb_secret_notarealkey000000000",
+  CLOSED_DEMO_ENABLED: "true",
+  CLOSED_DEMO_ACCESS_CODE: "not-a-real-code",
+  CLOSED_DEMO_SIGNING_SECRET: "0".repeat(32),
 };
 
 async function bootServer(appEnv) {
