@@ -56,7 +56,7 @@ function buildNextObservation(state, direction, confluence) {
   const resistance = finite(confluence?.nearestResistance?.zone?.center);
 
   if (["CONFLICTING", "NEUTRAL", "UNAVAILABLE"].includes(state)) {
-    return "Wait for directional evidence to emerge and re-run the analysis before relying on a scenario.";
+    return "Look for verified directional evidence to emerge before relying on a scenario.";
   }
   if (direction === "Bullish") {
     return resistance !== null
@@ -94,7 +94,7 @@ function buildGuidanceContract(input = {}) {
       supportingEvidence: [],
       opposingEvidence: [],
       meaning: "AzaLens does not release directional guidance unless current AAOIFI compliance is confirmed.",
-      nextObservation: "Review the Shariah Compliance workspace and wait for confirmed, current screening evidence.",
+      nextObservation: "Review the Shariah Compliance workspace for confirmed, current screening evidence.",
       confirmations: [],
       invalidation: null,
       risk: null,
@@ -140,7 +140,7 @@ function buildGuidanceContract(input = {}) {
     limitations: [...new Set(limitations)],
     allowedNextStep:
       direction === null
-        ? "Wait for clearer verified evidence and re-run the analysis."
+        ? "Re-run the analysis after clearer verified evidence becomes available."
         : "Observe the stated condition; treat the scenario as unconfirmed until it occurs."
   };
 }

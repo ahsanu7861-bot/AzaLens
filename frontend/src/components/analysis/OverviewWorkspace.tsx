@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 
 import type { AnalysisData } from "../../types/analysis";
-import AIVerdict from "./AIVerdict";
+import GuidanceVerdict from "./GuidanceVerdict";
 import VerdictWithheld from "./VerdictWithheld";
 import ImportantLevels from "../dashboard/ImportantLevels";
 
@@ -49,19 +49,8 @@ export default function OverviewWorkspace({
           onViewShariah={onViewShariah}
         />
       ) : (
-        <AIVerdict
-          direction={data?.agreement?.direction ?? data?.agreement?.agreement}
-          trend={data?.trend?.trend}
-          confidence={data?.agreement?.confidence}
-          evidenceState={data?.agreement?.evidenceState}
-          coveragePercent={data?.agreement?.coveragePercent}
-          availableIndicators={data?.agreement?.availableIndicators}
-          expectedIndicators={data?.agreement?.expectedIndicators}
-          summary={
-            data?.agreement?.agreementSummary ??
-            data?.explanation?.overallAssessment
-          }
-          invalidation={data?.thesisInvalidation}
+        <GuidanceVerdict
+          guidance={data?.guidance}
           isLoading={isLoading}
         />
       )}

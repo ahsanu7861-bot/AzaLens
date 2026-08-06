@@ -49,6 +49,15 @@ function run() {
     assert.equal(withheld.invalidation, null);
   }
 
+  for (const contract of [
+    favored,
+    buildGuidanceContract(compliant({ agreement: { ...compliant().agreement, evidenceState: "Conflicting evidence" } })),
+    buildGuidanceContract(compliant({ shariah: { success: false, summary: { status: "UNKNOWN" } } }))
+  ]) {
+    const serialized = JSON.stringify(contract);
+    assert.doesNotMatch(serialized, /\b(?:buy|sell|hold|wait|enter|exit)\b/i);
+  }
+
   console.log("Guidance contract v1 tests passed.");
 }
 

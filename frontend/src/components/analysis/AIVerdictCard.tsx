@@ -27,7 +27,17 @@ function getVerdictTone(value: string): VerdictTone {
   if (normalized.includes("bullish") || normalized.includes("positive")) {
     return { accent: "text-positive", badge: "success", bar: "bg-positive" };
   }
+  if (normalized.includes("constructive")) {
+    return { accent: "text-positive", badge: "success", bar: "bg-positive" };
+  }
   if (normalized.includes("bearish") || normalized.includes("negative")) {
+    return { accent: "text-critical", badge: "danger", bar: "bg-critical" };
+  }
+  if (
+    normalized.includes("adverse") ||
+    normalized.includes("deteriorating") ||
+    normalized.includes("invalidated")
+  ) {
     return { accent: "text-critical", badge: "danger", bar: "bg-critical" };
   }
   if (normalized.includes("neutral") || normalized.includes("mixed")) {
