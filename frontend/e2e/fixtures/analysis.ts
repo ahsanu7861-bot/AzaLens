@@ -106,6 +106,79 @@ export const analysisData = {
     message:
       "AAOIFI compliance is confirmed for this deterministic fixture.",
   },
+  guidance: {
+    contractVersion: "1.0",
+    symbol: "AAPL",
+    asOf: new Date(FIXTURE_NOW).toISOString(),
+    horizon: "SWING_2_TO_10_SESSIONS",
+    shariah: {
+      status: "COMPLIANT",
+      verdictPermitted: true,
+      reason: null,
+    },
+    verdict: {
+      state: "FAVORED",
+      direction: "BULLISH",
+    },
+    evidenceAgreement: {
+      percent: 67,
+      state: "MODERATE_AGREEMENT",
+      available: 6,
+      expected: 9,
+    },
+    currentSituation:
+      "Upside evidence currently leads the available indicator set, with confirmation still conditional.",
+    supportingEvidence: [
+      {
+        source: "Market structure",
+        statement:
+          "Price remains above the rising short-term trend structure.",
+      },
+      {
+        source: "Evidence Agreement",
+        statement:
+          "Four directional indicators support the upside scenario while one opposes it.",
+      },
+    ],
+    opposingEvidence: [
+      {
+        source: "Momentum",
+        statement:
+          "RSI is neutral, so momentum has not independently confirmed continuation.",
+      },
+      {
+        source: "Risk",
+        statement:
+          "Medium volatility can produce movement against the prevailing scenario.",
+      },
+    ],
+    meaning:
+      "Current evidence favors an upside scenario over the stated swing horizon, conditionally rather than as a prediction or transaction instruction.",
+    nextObservation:
+      "Observe whether price remains accepted above the identified resistance area with supporting participation.",
+    confirmations: [
+      "A sustained close above the resistance area with stronger participation would strengthen the scenario.",
+    ],
+    invalidation: {
+      summary:
+        "A close below the identified support area would invalidate the current interpretation.",
+    },
+    risk: {
+      level: "MEDIUM",
+      summary:
+        "Normal swing volatility remains capable of invalidating the scenario.",
+    },
+    freshness: {
+      state: "REALTIME",
+      asOf: new Date(FIXTURE_NOW).toISOString(),
+    },
+    limitations: [
+      "Relative-volume evidence is unavailable in this deterministic fixture.",
+      "Scenario evidence can change after the stated analysis time.",
+    ],
+    allowedNextStep:
+      "Observe the stated confirmation and invalidation conditions.",
+  },
   explanation: {
     overallAssessment:
       "The fixture explains evidence without promising an outcome.",

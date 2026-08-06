@@ -38,6 +38,35 @@ test.describe("@visual analysis workspace", () => {
         "data-theme",
         theme,
       );
+      const guidance = page.getByTestId("guidance-verdict");
+      await expect(
+        guidance.getByRole("heading", {
+          name: "CONSTRUCTIVE — UPSIDE EVIDENCE DOMINATES",
+        }),
+      ).toBeVisible();
+      await expect(
+        guidance.getByRole("heading", {
+          name: "What the evidence means",
+        }),
+      ).toBeVisible();
+      await expect(
+        guidance.getByText("What supports this scenario"),
+      ).toBeVisible();
+      await expect(
+        guidance.getByText("What challenges this scenario"),
+      ).toBeVisible();
+      await expect(
+        guidance.getByText("What to observe next"),
+      ).toBeVisible();
+      await expect(
+        guidance.getByText("Confirmation condition"),
+      ).toBeVisible();
+      await expect(
+        guidance.getByText("Scope and freshness"),
+      ).toBeVisible();
+      await expect(
+        guidance.getByText("Limitations", { exact: true }),
+      ).toBeVisible();
       await page.evaluate(async () => {
         await document.fonts.ready;
       });
