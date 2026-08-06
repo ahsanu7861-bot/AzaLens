@@ -90,9 +90,9 @@ function InvalidationBox({
                 "No technical invalidation rule was supplied by the analysis API."}
           </dd>
           {!isLoading && invalidation?.evidence?.technical?.evidence && (
-            <p className="mt-2 break-words font-mono text-[11px] leading-5 text-ink-muted">
+            <dd className="mt-2 break-words font-mono text-[11px] leading-5 text-ink-muted">
               {invalidation.evidence.technical.evidence}
-            </p>
+            </dd>
           )}
         </div>
         <div className="min-w-0 bg-surface-soft p-3.5 sm:p-4">
@@ -106,9 +106,9 @@ function InvalidationBox({
                 "No fundamental invalidation rule was supplied by the analysis API."}
           </dd>
           {!isLoading && invalidation?.evidence?.fundamental?.evidence && (
-            <p className="mt-2 break-words font-mono text-[11px] leading-5 text-ink-muted">
+            <dd className="mt-2 break-words font-mono text-[11px] leading-5 text-ink-muted">
               {invalidation.evidence.fundamental.evidence}
-            </p>
+            </dd>
           )}
         </div>
       </dl>
