@@ -71,12 +71,11 @@ test.describe("@visual analysis workspace", () => {
         await document.fonts.ready;
       });
 
-      await expect(page).toHaveScreenshot(
-        `analysis-overview-${theme}.png`,
+      await expect(guidance).toHaveScreenshot(
+        `analysis-guidance-${theme}.png`,
         {
           animations: "disabled",
           caret: "hide",
-          mask: [page.locator("canvas")],
           maxDiffPixelRatio: 0.005,
           threshold: 0.2,
         },

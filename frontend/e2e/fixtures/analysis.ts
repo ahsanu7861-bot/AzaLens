@@ -155,13 +155,28 @@ export const analysisData = {
     meaning:
       "Current evidence favors an upside scenario over the stated swing horizon, conditionally rather than as a prediction or transaction instruction.",
     nextObservation:
-      "Observe whether price remains accepted above the identified resistance area with supporting participation.",
+      "Observe whether price establishes acceptance above $218.00 with supporting participation.",
     confirmations: [
-      "A sustained close above the resistance area with stronger participation would strengthen the scenario.",
+      "A sustained close above $218.00 with stronger participation would strengthen the scenario.",
     ],
     invalidation: {
+      status: "intact",
       summary:
-        "A close below the identified support area would invalidate the current interpretation.",
+        "A daily close below $208.50 would invalidate the current interpretation.",
+      technical:
+        "A daily close below $208.50 would break the support structure governing this scenario.",
+      fundamental:
+        "A material deterioration in the reported risk profile or loss of confirmed Shariah compliance would require fresh analysis.",
+      evidence: {
+        technical: {
+          evidence:
+            "$208.50 is the deterministic support boundary in this visual fixture.",
+        },
+        fundamental: {
+          evidence:
+            "The fixture currently reports medium risk and confirmed AAOIFI compliance.",
+        },
+      },
     },
     risk: {
       level: "MEDIUM",
@@ -177,7 +192,7 @@ export const analysisData = {
       "Scenario evidence can change after the stated analysis time.",
     ],
     allowedNextStep:
-      "Observe the stated confirmation and invalidation conditions.",
+      "Observe the $218.00 confirmation and $208.50 invalidation conditions.",
   },
   explanation: {
     overallAssessment:
