@@ -71,6 +71,26 @@ test.describe("@visual analysis workspace", () => {
         await document.fonts.ready;
       });
 
+      const viewport = page.viewportSize();
+      if (!viewport) {
+        throw new Error("Visual test requires a configured viewport");
+      }
+      for (let pass = 0; pass < 2; pass += 1) {
+        const documentHeight = await page.evaluate(() =>
+          Math.ceil(document.documentElement.scrollHeight),
+        );
+        await page.setViewportSize({
+          width: viewport.width,
+          height: Math.max(viewport.height, documentHeight),
+        });
+      }
+      await page.evaluate(() => {
+        window.scrollTo(0, 0);
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      });
+
       await expect(guidance).toHaveScreenshot(
         `analysis-guidance-${theme}.png`,
         {
