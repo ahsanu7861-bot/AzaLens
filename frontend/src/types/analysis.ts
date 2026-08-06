@@ -177,6 +177,38 @@ export interface AnalysisResponse {
   data: {
     metadata?: DataFreshnessStatus
     thesisInvalidation?: ThesisInvalidation
+    guidance?: {
+      contractVersion: "1.0" | string
+      symbol: string
+      asOf: string
+      horizon: string
+      shariah: {
+        status: ShariahStatus
+        verdictPermitted: boolean
+        reason?: string | null
+      }
+      verdict: {
+        state: "FAVORED" | "NEUTRAL" | "CONFLICTING" | "LIMITED_EVIDENCE" | "UNAVAILABLE" | "WITHHELD" | string
+        direction: "BULLISH" | "BEARISH" | null
+      }
+      evidenceAgreement: {
+        percent: number | null
+        state: string
+        available: number
+        expected: number
+      } | null
+      currentSituation: string
+      supportingEvidence: Array<{ source: string; statement: string }>
+      opposingEvidence: Array<{ source: string; statement: string }>
+      meaning: string
+      nextObservation: string
+      confirmations: string[]
+      invalidation: ThesisInvalidation | null
+      risk: unknown
+      freshness: unknown
+      limitations: string[]
+      allowedNextStep: string
+    }
     market: {
       success?: boolean
       provider?: string

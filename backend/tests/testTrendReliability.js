@@ -1,5 +1,7 @@
 "use strict";
 
+require("./testGuidanceContract").run();
+
 const assert = require("node:assert/strict");
 
 require("./testEvidenceAgreementContract");
