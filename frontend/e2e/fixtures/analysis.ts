@@ -106,6 +106,94 @@ export const analysisData = {
     message:
       "AAOIFI compliance is confirmed for this deterministic fixture.",
   },
+  guidance: {
+    contractVersion: "1.0",
+    symbol: "AAPL",
+    asOf: new Date(FIXTURE_NOW).toISOString(),
+    horizon: "SWING_2_TO_10_SESSIONS",
+    shariah: {
+      status: "COMPLIANT",
+      verdictPermitted: true,
+      reason: null,
+    },
+    verdict: {
+      state: "FAVORED",
+      direction: "BULLISH",
+    },
+    evidenceAgreement: {
+      percent: 67,
+      state: "MODERATE_AGREEMENT",
+      available: 6,
+      expected: 9,
+    },
+    currentSituation:
+      "Upside evidence currently leads the available indicator set, with confirmation still conditional.",
+    supportingEvidence: [
+      {
+        source: "Market structure",
+        statement:
+          "Price remains above the rising short-term trend structure.",
+      },
+      {
+        source: "Evidence Agreement",
+        statement:
+          "Four directional indicators support the upside scenario while one opposes it.",
+      },
+    ],
+    opposingEvidence: [
+      {
+        source: "Momentum",
+        statement:
+          "RSI is neutral, so momentum has not independently confirmed continuation.",
+      },
+      {
+        source: "Risk",
+        statement:
+          "Medium volatility can produce movement against the prevailing scenario.",
+      },
+    ],
+    meaning:
+      "Current evidence favors an upside scenario over the stated swing horizon, conditionally rather than as a prediction or transaction instruction.",
+    nextObservation:
+      "Observe whether price establishes acceptance above $218.00 with supporting participation.",
+    confirmations: [
+      "A sustained close above $218.00 with stronger participation would strengthen the scenario.",
+    ],
+    invalidation: {
+      status: "intact",
+      summary:
+        "A daily close below $208.50 would invalidate the current interpretation.",
+      technical:
+        "A daily close below $208.50 would break the support structure governing this scenario.",
+      fundamental:
+        "A material deterioration in the reported risk profile or loss of confirmed Shariah compliance would require fresh analysis.",
+      evidence: {
+        technical: {
+          evidence:
+            "$208.50 is the deterministic support boundary in this visual fixture.",
+        },
+        fundamental: {
+          evidence:
+            "The fixture currently reports medium risk and confirmed AAOIFI compliance.",
+        },
+      },
+    },
+    risk: {
+      level: "MEDIUM",
+      summary:
+        "Normal swing volatility remains capable of invalidating the scenario.",
+    },
+    freshness: {
+      state: "REALTIME",
+      asOf: new Date(FIXTURE_NOW).toISOString(),
+    },
+    limitations: [
+      "Relative-volume evidence is unavailable in this deterministic fixture.",
+      "Scenario evidence can change after the stated analysis time.",
+    ],
+    allowedNextStep:
+      "Observe the $218.00 confirmation and $208.50 invalidation conditions.",
+  },
   explanation: {
     overallAssessment:
       "The fixture explains evidence without promising an outcome.",

@@ -27,7 +27,17 @@ function getVerdictTone(value: string): VerdictTone {
   if (normalized.includes("bullish") || normalized.includes("positive")) {
     return { accent: "text-positive", badge: "success", bar: "bg-positive" };
   }
+  if (normalized.includes("constructive")) {
+    return { accent: "text-positive", badge: "success", bar: "bg-positive" };
+  }
   if (normalized.includes("bearish") || normalized.includes("negative")) {
+    return { accent: "text-critical", badge: "danger", bar: "bg-critical" };
+  }
+  if (
+    normalized.includes("adverse") ||
+    normalized.includes("deteriorating") ||
+    normalized.includes("invalidated")
+  ) {
     return { accent: "text-critical", badge: "danger", bar: "bg-critical" };
   }
   if (normalized.includes("neutral") || normalized.includes("mixed")) {
@@ -80,9 +90,9 @@ function InvalidationBox({
                 "No technical invalidation rule was supplied by the analysis API."}
           </dd>
           {!isLoading && invalidation?.evidence?.technical?.evidence && (
-            <p className="mt-2 break-words font-mono text-[11px] leading-5 text-ink-muted">
+            <dd className="mt-2 break-words font-mono text-[11px] leading-5 text-ink-muted">
               {invalidation.evidence.technical.evidence}
-            </p>
+            </dd>
           )}
         </div>
         <div className="min-w-0 bg-surface-soft p-3.5 sm:p-4">
@@ -96,9 +106,9 @@ function InvalidationBox({
                 "No fundamental invalidation rule was supplied by the analysis API."}
           </dd>
           {!isLoading && invalidation?.evidence?.fundamental?.evidence && (
-            <p className="mt-2 break-words font-mono text-[11px] leading-5 text-ink-muted">
+            <dd className="mt-2 break-words font-mono text-[11px] leading-5 text-ink-muted">
               {invalidation.evidence.fundamental.evidence}
-            </p>
+            </dd>
           )}
         </div>
       </dl>
