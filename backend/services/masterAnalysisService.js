@@ -37,6 +37,12 @@ const {
 );
 
 const {
+  buildGuidanceContract
+} = require(
+  "./guidanceContractService"
+);
+
+const {
   analyzeSupportResistance
 } = require(
   "../analysis/structure/supportResistanceEngine"
@@ -1912,6 +1918,20 @@ async function getMasterAnalysis(
         shariah
       });
 
+    const guidance =
+      buildGuidanceContract({
+        symbol: normalizedSymbol,
+        generatedAt,
+        metadata,
+        dataQuality,
+        shariah,
+        trend,
+        agreement,
+        confluence,
+        risk,
+        thesisInvalidation
+      });
+
     const analysisDurationMs =
       Date.now() -
       analysisStartedAt;
@@ -2019,6 +2039,8 @@ async function getMasterAnalysis(
         metadata,
 
         thesisInvalidation,
+
+        guidance,
 
         market,
 
