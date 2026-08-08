@@ -36,6 +36,8 @@
     "test:release-health": "node tests/testReleaseHealthCheck.js",
     "test:rollback": "node tests/testRollbackCommit.js",
     "test:fundamentals-coverage": "node tests/testFundamentalsCoverage.js",
+    "test:guidance-contract": "node tests/testGuidanceContract.js",
+    "test:risk-boundary": "node tests/testRiskBoundary.js",
     "test:trend-reliability": "node tests/testTrendReliability.js",
     "test:shariah-aaoifi": "node tests/testShariahAAOIFI.js",
     "test:shariah-safety": "node tests/testShariahCostProtection.js",

@@ -1,4 +1,4 @@
-import { AlertTriangle, Eye, Scale, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Compass, Eye, Gauge, Scale, ShieldCheck } from "lucide-react";
 
 import type { AnalysisData } from "../../types/analysis";
 import AIVerdictCard from "./AIVerdictCard";
@@ -10,25 +10,16 @@ type GuidanceVerdictProps = {
   isLoading?: boolean;
 };
 
-function verdictLabel(guidance?: Guidance) {
-  if (!guidance) return "Analysis Limited — Guidance Unavailable";
+/*
+ * The backend owns public verdict wording (docs/VERDICT_CONTRACT.md §3.1). This
+ * renders `publicLabel` verbatim: no switch, no reconstruction, no second label
+ * map. When the backend supplied no usable label there is nothing honest to
+ * render, so the analysis-limited wording stands in.
+ */
+const ANALYSIS_LIMITED_LABEL = "Analysis Limited — Evidence Incomplete";
 
-  switch (guidance.verdict.state) {
-    case "FAVORED":
-      return guidance.verdict.direction === "BEARISH"
-        ? "Adverse — Downside Evidence Dominates"
-        : "Constructive — Upside Evidence Dominates";
-    case "LIMITED_EVIDENCE":
-      return "Unconfirmed — Evidence Still Developing";
-    case "CONFLICTING":
-      return "Mixed — No Established Edge";
-    case "NEUTRAL":
-      return "Neutral — No Directional Lean";
-    case "WITHHELD":
-      return "Verdict Withheld — Shariah Gate Not Cleared";
-    default:
-      return "Analysis Limited — Evidence Unavailable";
-  }
+function verdictLabel(guidance?: Guidance) {
+  return guidance?.publicLabel?.trim() || ANALYSIS_LIMITED_LABEL;
 }
 
 function horizonLabel(horizon?: string) {
@@ -86,6 +77,12 @@ export default function GuidanceVerdict({
 }: GuidanceVerdictProps) {
   const agreement = guidance?.evidenceAgreement;
   const limitations = guidance?.limitations ?? [];
+  const confirmations = (guidance?.confirmations ?? []).filter(
+    (condition) => typeof condition === "string" && condition.trim(),
+  );
+  const allowedNextStep = guidance?.allowedNextStep?.trim();
+  const risk = guidance?.risk ?? null;
+  const riskNotes = risk?.notes ?? [];
 
   return (
     <div className="space-y-5" data-testid="guidance-verdict">
@@ -140,18 +137,27 @@ export default function GuidanceVerdict({
                 </h3>
               </div>
               <p className="mt-3 text-sm leading-6 text-ink-soft">{guidance.nextObservation}</p>
-              {guidance.confirmations.length > 0 && (
-                <div className="mt-4 border-t border-intelligence/20 pt-4">
-                  <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                    Confirmation condition
-                  </p>
+              {/*
+                * The confirmation block always renders. An empty array used to hide
+                * it entirely, which reads as "nothing to say here" when the truth is
+                * "no confirmation condition could be derived".
+                */}
+              <div className="mt-4 border-t border-intelligence/20 pt-4">
+                <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                  Confirmation condition
+                </p>
+                {confirmations.length > 0 ? (
                   <ul className="mt-2 space-y-2 text-sm leading-6 text-ink-soft">
-                    {guidance.confirmations.map((condition, index) => (
+                    {confirmations.map((condition, index) => (
                       <li key={`${condition}-${index}`}>{condition}</li>
                     ))}
                   </ul>
-                </div>
-              )}
+                ) : (
+                  <p className="mt-2 text-sm leading-6 text-ink-soft">
+                    No independent confirmation condition is available from the current evidence.
+                  </p>
+                )}
+              </div>
             </section>
 
             <section className="rounded-2xl border border-stroke bg-surface-soft p-4">
@@ -171,6 +177,73 @@ export default function GuidanceVerdict({
                   <dd className="mt-1 capitalize text-ink-soft">{freshnessLabel(guidance.freshness, guidance.asOf)}</dd>
                 </div>
               </dl>
+            </section>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {/*
+              * Mentor guidance, not an instruction. The backend guarantees this is
+              * an observe / check / reassess action and never a transaction command.
+              */}
+            <section className="rounded-2xl border border-stroke bg-surface-soft p-4">
+              <div className="flex items-center gap-2 text-ink">
+                <Compass size={16} aria-hidden="true" />
+                <h3 className="font-mono text-[11px] font-semibold uppercase tracking-wider">
+                  What you can reasonably do next
+                </h3>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-ink-soft">
+                {allowedNextStep ||
+                  "No next step was supplied by the analysis API for this evidence state."}
+              </p>
+            </section>
+
+            <section className="rounded-2xl border border-stroke bg-surface-soft p-4">
+              <div className="flex items-center gap-2 text-ink">
+                <Gauge size={16} aria-hidden="true" />
+                {/*
+                  * Not a competing risk verdict. The Overview sidebar owns the
+                  * concise canonical risk summary; this panel explains the same
+                  * canonical result and its limitations. Both read the one risk
+                  * object from masterAnalysisService. See VERDICT_CONTRACT.md §9.
+                  */}
+                <h3 className="font-mono text-[11px] font-semibold uppercase tracking-wider">
+                  Risk and limitations
+                </h3>
+              </div>
+              {risk ? (
+                <>
+                  <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <dt className="text-xs text-ink-muted">Technical risk</dt>
+                      <dd className="mt-1 font-medium text-ink-soft">
+                        {risk.level ?? "Unavailable"}
+                        {typeof risk.score === "number" ? ` · ${risk.score}/100` : ""}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-ink-muted">Volatility</dt>
+                      <dd className="mt-1 font-medium text-ink-soft">
+                        {risk.volatility ?? "Unavailable"}
+                      </dd>
+                    </div>
+                  </dl>
+                  {risk.summary && (
+                    <p className="mt-3 text-sm leading-6 text-ink-soft">{risk.summary}</p>
+                  )}
+                  {riskNotes.length > 0 && (
+                    <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-ink-soft">
+                      {riskNotes.map((note, index) => (
+                        <li key={`${note}-${index}`}>{note}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <p className="mt-3 text-sm leading-6 text-ink-soft">
+                  No risk profile is published for this evidence state. Review the Limitations below.
+                </p>
+              )}
             </section>
           </div>
 

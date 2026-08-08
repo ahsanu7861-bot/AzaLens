@@ -80,8 +80,9 @@ export const analysisData = {
   },
   risk: {
     success: true,
-    riskLevel: "MEDIUM",
-    riskScore: 52,
+    riskLevel: "Moderate",
+    riskScore: 42,
+    volatility: "Moderate",
     atrPercent: 2.4,
     riskSummary:
       "The deterministic fixture requires normal risk review.",
@@ -120,10 +121,11 @@ export const analysisData = {
       state: "FAVORED",
       direction: "BULLISH",
     },
+    publicLabel: "Constructive — Upside Evidence Established",
     evidenceAgreement: {
-      percent: 67,
-      state: "MODERATE_AGREEMENT",
-      available: 6,
+      percent: 74,
+      state: "Moderate agreement",
+      available: 9,
       expected: 9,
     },
     currentSituation:
@@ -149,7 +151,7 @@ export const analysisData = {
       {
         source: "Risk",
         statement:
-          "Medium volatility can produce movement against the prevailing scenario.",
+          "Moderate volatility can produce movement against the prevailing scenario.",
       },
     ],
     meaning:
@@ -174,14 +176,19 @@ export const analysisData = {
         },
         fundamental: {
           evidence:
-            "The fixture currently reports medium risk and confirmed AAOIFI compliance.",
+            "The fixture currently reports moderate risk and confirmed AAOIFI compliance.",
         },
       },
     },
     risk: {
-      level: "MEDIUM",
+      level: "Moderate",
+      score: 42,
+      volatility: "Moderate",
       summary:
         "Normal swing volatility remains capable of invalidating the scenario.",
+      notes: [
+        "Trend strength is only moderate, which reduces the reliability of directional signals.",
+      ],
     },
     freshness: {
       state: "REALTIME",
@@ -192,7 +199,7 @@ export const analysisData = {
       "Scenario evidence can change after the stated analysis time.",
     ],
     allowedNextStep:
-      "Observe the $218.00 confirmation and $208.50 invalidation conditions.",
+      "Observe whether the stated confirmation condition occurs, and reassess the scenario if the $208.50 invalidation boundary is reached instead.",
   },
   explanation: {
     overallAssessment:
