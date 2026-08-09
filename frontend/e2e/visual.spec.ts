@@ -135,6 +135,24 @@ test.describe("@visual analysis workspace", () => {
         `analysis-overview-${theme}.png`,
         {
           fullPage: true,
+          /*
+           * Fixed application chrome is excluded from this capture only.
+           * A full-page screenshot extends past the viewport, but
+           * `position: fixed` elements stay pinned to the viewport box, so
+           * Playwright stitches them *into* the page content: the desktop rail
+           * stopped after the first 720px and the mobile bottom bar landed
+           * mid-page, covering the Evidence Agreement card and its 74% figure.
+           * Both are out of flow, so hiding them changes neither the page
+           * height nor the layout of the content this snapshot exists to guard.
+           * The fixed top header is deliberately kept: it renders at y=0, which
+           * is where the page already reserves space for it.
+           */
+          style: [
+            ".app-shell > aside,",
+            'nav[aria-label="Mobile navigation"] {',
+            "  display: none !important;",
+            "}",
+          ].join("\n"),
           animations: "disabled",
           caret: "hide",
           mask: [chartCanvas],
