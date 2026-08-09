@@ -91,6 +91,65 @@ test.describe("@visual analysis workspace", () => {
       if (!viewport) {
         throw new Error("Visual test requires a configured viewport");
       }
+
+      const settle = async () => {
+        await page.evaluate(() => {
+          window.scrollTo(0, 0);
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+        });
+      };
+
+      /*
+       * Page-level coverage, captured at the configured viewport with `fullPage`.
+       *
+       * It must NOT be captured by growing the viewport to document.scrollHeight.
+       * The app sizes itself with viewport-relative minimum heights
+       * (AppShell.tsx:105,226 `min-h-[100dvh]`, AnalysisPage.tsx:157
+       * `min-h-[calc(100dvh-68px)]`), so enlarging the viewport enlarges those
+       * minimums, which grows the document, which would enlarge the viewport
+       * again. On mobile the shell adds `pb-24` (96px, `lg:pb-0`), so each pass
+       * through that loop added exactly 96px and never converged: run
+       * 31334206777 produced 390x4419 on the first attempt and 390x4515 on the
+       * retry, differing only in the trailing rows. `fullPage` never touches the
+       * viewport, so 100dvh stays fixed and the height is content-determined.
+       *
+       * The chart canvas is masked: lightweight-charts rasterises to a canvas and
+       * its output depends on GPU, driver and font hinting rather than on
+       * anything this repository can regress. Its data is already deterministic
+       * (the fixture mocks history), so the mask removes machine variance, not
+       * meaningful coverage. Everything else is deterministic: Date.now is
+       * stubbed to FIXTURE_NOW, the timezone is pinned to UTC in
+       * playwright.config.ts, animations are disabled, reduced motion is on, and
+       * fonts are awaited above.
+       */
+      await settle();
+
+      // Regression guard: if anyone reintroduces a scrollHeight-driven resize
+      // before this capture, the viewport will no longer match the configured
+      // one and this fails loudly instead of producing a flaky baseline.
+      expect(page.viewportSize()).toEqual(viewport);
+
+      await expect(page).toHaveScreenshot(
+        `analysis-overview-${theme}.png`,
+        {
+          fullPage: true,
+          animations: "disabled",
+          caret: "hide",
+          mask: [chartCanvas],
+          maxDiffPixelRatio: 0.005,
+          threshold: 0.2,
+        },
+      );
+
+      /*
+       * The scoped guidance capture keeps the viewport-growing approach added in
+       * 580e6e6 and its already-approved baselines. The 100dvh feedback above
+       * only changes trailing page height, which an element screenshot does not
+       * include - the guidance actuals were byte-identical across attempt and
+       * retry in runs 31278866725 and 31334206777.
+       */
       for (let pass = 0; pass < 2; pass += 1) {
         const documentHeight = await page.evaluate(() =>
           Math.ceil(document.documentElement.scrollHeight),
@@ -100,50 +159,13 @@ test.describe("@visual analysis workspace", () => {
           height: Math.max(viewport.height, documentHeight),
         });
       }
-      await page.evaluate(() => {
-        window.scrollTo(0, 0);
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      });
+      await settle();
 
       await expect(guidance).toHaveScreenshot(
         `analysis-guidance-${theme}.png`,
         {
           animations: "disabled",
           caret: "hide",
-          maxDiffPixelRatio: 0.005,
-          threshold: 0.2,
-        },
-      );
-
-      /*
-       * Page-level coverage, restored after d7fb37d narrowed this spec to the
-       * guidance element alone. The scoped shot above proves the verdict surface
-       * is correct; this one proves nothing else on the analysis page regressed
-       * while it was being fixed.
-       *
-       * The viewport was grown to the document height above, so a viewport
-       * screenshot is already a whole-page screenshot. Reusing that mechanism
-       * rather than `fullPage` keeps both captures under one stabilisation path,
-       * and keeps the app's fixed header, sidebar and mobile bottom bar rendered
-       * against the same expanded viewport in both.
-       *
-       * The chart canvas is masked: lightweight-charts rasterises to a canvas,
-       * and its output depends on GPU, driver and font hinting rather than on
-       * anything this PR can regress. Its data is already deterministic (the
-       * fixture mocks history), so the mask removes machine variance, not
-       * meaningful coverage. Everything else on the page is deterministic:
-       * Date.now is stubbed to FIXTURE_NOW, the timezone is pinned to UTC in
-       * playwright.config.ts, animations are disabled, reduced motion is on, and
-       * fonts are awaited above.
-       */
-      await expect(page).toHaveScreenshot(
-        `analysis-overview-${theme}.png`,
-        {
-          animations: "disabled",
-          caret: "hide",
-          mask: [chartCanvas],
           maxDiffPixelRatio: 0.005,
           threshold: 0.2,
         },
