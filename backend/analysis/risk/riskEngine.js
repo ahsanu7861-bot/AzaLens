@@ -10,6 +10,106 @@ function round(value, decimals = 2) {
   return Math.round(value * multiplier) / multiplier;
 }
 
+/*
+ * The canonical risk-level thresholds. This engine is the single owner of the
+ * mapping from score to level; the classifier and the validator below are
+ * exported so the shared boundary can *validate* a score/level pair against the
+ * real rule without maintaining a second copy of the table, and without any
+ * downstream consumer being able to reclassify anything.
+ */
+const RISK_LEVELS = ["Low", "Moderate", "High", "Very High"];
+const RISK_SCORE_MIN = 0;
+const RISK_SCORE_MAX = 100;
+
+/*
+ * Strict on purpose. This is part of the validation path, so it must not accept
+ * anything Number() would helpfully coerce: Number(null), Number(""),
+ * Number("  ") and Number(false) are all 0, and 0 is a legitimate score. A
+ * coercing classifier would silently certify null as "Low".
+ */
+function classifyRiskLevel(riskScore) {
+  if (typeof riskScore !== "number" || !Number.isFinite(riskScore)) {
+    return null;
+  }
+
+  if (riskScore < RISK_SCORE_MIN || riskScore > RISK_SCORE_MAX) {
+    return null;
+  }
+
+  if (riskScore >= 70) return "Very High";
+  if (riskScore >= 50) return "High";
+  if (riskScore >= 30) return "Moderate";
+
+  return "Low";
+}
+
+/*
+ * True only when a successful risk result is internally consistent: a finite,
+ * in-range score, an exactly-matching canonical level, and the two agreeing
+ * under the thresholds above. No trimming, no case folding, no clamping - a
+ * result that needs repairing is a result that cannot be trusted.
+ */
+function isCoherentRiskResult(risk) {
+  if (!risk || risk.success !== true) return false;
+
+  const level = classifyRiskLevel(risk.riskScore);
+  if (level === null) return false;
+
+  if (typeof risk.riskLevel !== "string") return false;
+  if (!RISK_LEVELS.includes(risk.riskLevel)) return false;
+
+  return risk.riskLevel === level;
+}
+
+/*
+ * The single constructor for an unavailable risk result. Every rejection path
+ * below returns this shape, which is the same one analyzeRisk already produces
+ * when it cannot compute a profile - not a new public risk category.
+ */
+function unavailableRisk(symbol, error) {
+  return {
+    success: false,
+    symbol: typeof symbol === "string" && symbol.trim() ? symbol : "Unknown",
+    error
+  };
+}
+
+/*
+ * The shared trust boundary. Every consumer of the risk result - `data.risk` and
+ * the guidance contract alike - receives the output of this function, so an
+ * incoherent profile is withheld once, before anyone can render it.
+ *
+ * `success` is treated as a strict boolean and nothing else. A missing, null,
+ * numeric or string flag ("true", 0, 1) is malformed, not a verdict: preserving
+ * such an object would let a downstream truthiness check treat it as successful
+ * and render its raw riskLevel and riskScore. Only these three outcomes exist:
+ *
+ *   success === false  -> preserved unchanged, so its own honest reason survives
+ *   success === true   -> published only if internally coherent
+ *   anything else      -> malformed, replaced with the unavailable shape
+ */
+function validateRiskResult(risk) {
+  if (!risk || typeof risk !== "object" || Array.isArray(risk)) {
+    return unavailableRisk(null, "Risk analysis was not available.");
+  }
+
+  if (risk.success === false) return risk;
+
+  if (risk.success !== true) {
+    return unavailableRisk(
+      risk.symbol,
+      "Risk analysis returned a malformed result and was withheld."
+    );
+  }
+
+  if (isCoherentRiskResult(risk)) return risk;
+
+  return unavailableRisk(
+    risk.symbol,
+    "Risk analysis failed its internal consistency check and was withheld."
+  );
+}
+
 function analyzeRisk(analysis) {
   if (!analysis || analysis.success !== true) {
     return {
@@ -250,15 +350,7 @@ function analyzeRisk(analysis) {
   // Overall Risk Level
   // ============================
 
-  let riskLevel = "Low";
-
-  if (riskScore >= 70) {
-    riskLevel = "Very High";
-  } else if (riskScore >= 50) {
-    riskLevel = "High";
-  } else if (riskScore >= 30) {
-    riskLevel = "Moderate";
-  }
+  const riskLevel = classifyRiskLevel(riskScore);
 
   // ============================
   // Price Reference Levels
@@ -329,5 +421,11 @@ function analyzeRisk(analysis) {
 }
 
 module.exports = {
-  analyzeRisk
+  analyzeRisk,
+  classifyRiskLevel,
+  isCoherentRiskResult,
+  validateRiskResult,
+  RISK_LEVELS,
+  RISK_SCORE_MIN,
+  RISK_SCORE_MAX
 };

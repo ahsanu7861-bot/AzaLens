@@ -171,6 +171,19 @@ export interface FundamentalsData {
   limitations?: string[]
 }
 
+/*
+ * Deterministic risk contract carried by the guidance response. Every field maps
+ * to a value the backend risk engine actually returns; nothing is derived in the
+ * UI. See docs/VERDICT_CONTRACT.md §9.
+ */
+export interface GuidanceRisk {
+  level: string | null
+  score: number | null
+  volatility: string | null
+  summary: string | null
+  notes: string[]
+}
+
 export interface AnalysisResponse {
   success?: boolean
   error?: string
@@ -191,6 +204,11 @@ export interface AnalysisResponse {
         state: "FAVORED" | "NEUTRAL" | "CONFLICTING" | "LIMITED_EVIDENCE" | "UNAVAILABLE" | "WITHHELD" | string
         direction: "BULLISH" | "BEARISH" | null
       }
+      /*
+       * Canonical public verdict wording. The backend owns this string; the UI
+       * renders it verbatim and never rebuilds it. See docs/VERDICT_CONTRACT.md.
+       */
+      publicLabel: string
       evidenceAgreement: {
         percent: number | null
         state: string
@@ -204,7 +222,7 @@ export interface AnalysisResponse {
       nextObservation: string
       confirmations: string[]
       invalidation: ThesisInvalidation | null
-      risk: unknown
+      risk: GuidanceRisk | null
       freshness: unknown
       limitations: string[]
       allowedNextStep: string

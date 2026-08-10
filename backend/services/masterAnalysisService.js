@@ -79,7 +79,8 @@ const {
 );
 
 const {
-  analyzeRisk
+  analyzeRisk,
+  validateRiskResult
 } = require(
   "../analysis/risk/riskEngine"
 );
@@ -1874,9 +1875,18 @@ async function getMasterAnalysis(
         internalAnalysis
       );
 
+    /*
+     * The shared risk trust boundary. Validate once, here, so that `data.risk`
+     * and the guidance contract below are handed the same already-checked
+     * result. An incoherent profile is withheld before either consumer can
+     * render it, which is what makes the two public risk panels incapable of
+     * disagreeing. See docs/VERDICT_CONTRACT.md §9.2.
+     */
     const risk =
-      analyzeRisk(
-        internalAnalysis
+      validateRiskResult(
+        analyzeRisk(
+          internalAnalysis
+        )
       );
 
     const metadata =

@@ -31,4 +31,34 @@ describe("AIVerdictCard Evidence Agreement presentation", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/confidence$/i)).not.toBeInTheDocument();
   });
+
+  it("keeps invalidation evidence inside valid definition-list descriptions", () => {
+    const { container } = render(
+      <AIVerdictCard
+        direction="Bullish"
+        confidence={60}
+        invalidation={{
+          status: "intact",
+          technical: "Price remains above support.",
+          fundamental: "Risk boundaries remain intact.",
+          evidence: {
+            technical: {
+              status: "intact",
+              evidence: "Technical evidence note.",
+            },
+            fundamental: {
+              status: "intact",
+              evidence: "Fundamental evidence note.",
+            },
+          },
+        }}
+      />,
+    );
+
+    const definitionList = container.querySelector("dl");
+    expect(definitionList).not.toBeNull();
+    expect(definitionList?.querySelector("p")).toBeNull();
+    expect(screen.getByText("Technical evidence note.").tagName).toBe("DD");
+    expect(screen.getByText("Fundamental evidence note.").tagName).toBe("DD");
+  });
 });
