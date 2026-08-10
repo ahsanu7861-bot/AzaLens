@@ -1,0 +1,32 @@
+{
+  "symbol": "ZZNONCOMPFIN",
+  "canonical_symbol": "ZZNONCOMPFIN",
+  "name": "Zebra Zenith Synthetic Toolworks Ltd (SYNTHETIC TEST DATA - NOT A REAL COMPANY)",
+  "asset_type": "EQUITY",
+  "sector": "Synthetic Industrials",
+  "industry": "Fictional Hand Tools",
+  "country": "Nowhere",
+  "website": "https://example.invalid/zznoncompfin",
+  "long_business_summary": "Fictional entity invented for AzaLens automated tests. It makes imaginary hand tools, which the scenario treats as permissible, while its invented balance sheet breaches the scenario's financial limits. No real company, security, filing or provider response is represented.",
+  "is_compliant": false,
+  "overall_status": "NON_COMPLIANT",
+  "disposition": "FAIL",
+  "business_screen_pass": true,
+  "business_screen_reason": "Synthetic fixture: the invented primary activity is permissible in this scenario.",
+  "questionable_business": false,
+  "ifi_exempt": false,
+  "financial_screen_pass": false,
+  "purification_rate": 7.5,
+  "compliance_explanation": "SYNTHETIC TEST DATA. The business screen passes and the financial screen fails, so AzaLens can exercise a financial-ratio refusal separately from a business-activity refusal. All figures are invented.",
+  "by_methodology": {
+    "AAOIFI": {
+      "is_compliant": false,
+      "disposition": "FAIL",
+      "verified": true,
+      "reason": "Synthetic fixture: invented financial figures exceed the scenario's limits."
+    }
+  },
+  "disclaimers": [
+    "Synthetic AzaLens test fixture. Not investment advice, not a fatwa, and not a real screening result."
+  ]
+}

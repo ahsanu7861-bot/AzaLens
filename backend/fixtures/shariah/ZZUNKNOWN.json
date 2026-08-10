@@ -1,0 +1,23 @@
+{
+  "symbol": "ZZUNKNOWN",
+  "canonical_symbol": "ZZUNKNOWN",
+  "name": "Zebra Zenith Synthetic Unscreened Corp (SYNTHETIC TEST DATA - NOT A REAL COMPANY)",
+  "asset_type": "EQUITY",
+  "sector": "Synthetic Unclassified",
+  "industry": "Fictional Unclassified",
+  "country": "Nowhere",
+  "website": "https://example.invalid/zzunknown",
+  "long_business_summary": "Fictional entity invented for AzaLens automated tests. The scenario deliberately omits every compliance determination so the screening result stays indeterminate. No real company, security, filing or provider response is represented.",
+  "disposition": "PENDING",
+  "business_screen_pass": null,
+  "business_screen_reason": "Synthetic fixture: no business determination is supplied in this scenario.",
+  "questionable_business": null,
+  "ifi_exempt": null,
+  "financial_screen_pass": null,
+  "purification_rate": null,
+  "compliance_explanation": "SYNTHETIC TEST DATA. No compliance verdict is present, so AzaLens must report an indeterminate status and withhold directional guidance rather than assume permissibility.",
+  "by_methodology": {},
+  "disclaimers": [
+    "Synthetic AzaLens test fixture. Not investment advice, not a fatwa, and not a real screening result."
+  ]
+}

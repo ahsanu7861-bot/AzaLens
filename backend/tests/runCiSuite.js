@@ -36,6 +36,7 @@ const deterministicSuites = [
   "testScannerService.js",
   "testShariahAAOIFI.js",
   "testShariahCostProtection.js",
+  "testShariahSyntheticFixtures.js",
   "testSupportResistanceReliability.js",
   "testTrendReliability.js",
   "testTrustProxy.js",

@@ -1,0 +1,17 @@
+{
+  "symbol": "ZZPROVIDERERROR",
+  "canonical_symbol": "ZZPROVIDERERROR",
+  "name": "Zebra Zenith Synthetic Outage Systems (SYNTHETIC TEST DATA - NOT A REAL COMPANY)",
+  "asset_type": "EQUITY",
+  "sector": "Synthetic Unclassified",
+  "industry": "Fictional Unclassified",
+  "country": "Nowhere",
+  "website": "https://example.invalid/zzprovidererror",
+  "long_business_summary": "Fictional entity invented for AzaLens automated tests. The scenario represents a screening service that answered with an error instead of a determination. No real company, security, filing or provider response is represented.",
+  "error": "SYNTHETIC_FIXTURE_SCREENING_ERROR",
+  "compliance_explanation": "SYNTHETIC TEST DATA. The scenario carries an error instead of a verdict, so AzaLens must treat the screening as unsuccessful and indeterminate rather than inferring permissibility.",
+  "by_methodology": {},
+  "disclaimers": [
+    "Synthetic AzaLens test fixture. Not investment advice, not a fatwa, and not a real screening result."
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "symbol": "ZZNONCOMPBUS",
+  "canonical_symbol": "ZZNONCOMPBUS",
+  "name": "Zebra Zenith Synthetic Wagering Holdings (SYNTHETIC TEST DATA - NOT A REAL COMPANY)",
+  "asset_type": "EQUITY",
+  "sector": "Synthetic Leisure",
+  "industry": "Fictional Wagering Parlours",
+  "country": "Nowhere",
+  "website": "https://example.invalid/zznoncompbus",
+  "long_business_summary": "Fictional entity invented for AzaLens automated tests. Its imaginary revenue comes from wagering parlours, chosen so the business screen fails for an unambiguous reason. No real company, security, filing or provider response is represented.",
+  "is_compliant": false,
+  "overall_status": "NON_COMPLIANT",
+  "disposition": "FAIL",
+  "business_screen_pass": false,
+  "business_screen_reason": "Synthetic fixture: the invented primary activity is wagering, which the test scenario treats as impermissible.",
+  "questionable_business": true,
+  "ifi_exempt": false,
+  "financial_screen_pass": true,
+  "purification_rate": 0,
+  "compliance_explanation": "SYNTHETIC TEST DATA. The business screen fails while the financial screen passes, so AzaLens can exercise a business-activity refusal without contacting a screening provider.",
+  "by_methodology": {
+    "AAOIFI": {
+      "is_compliant": false,
+      "disposition": "FAIL",
+      "verified": true,
+      "reason": "Synthetic fixture: invented primary activity is excluded by the scenario."
+    }
+  },
+  "disclaimers": [
+    "Synthetic AzaLens test fixture. Not investment advice, not a fatwa, and not a real screening result."
+  ]
+}

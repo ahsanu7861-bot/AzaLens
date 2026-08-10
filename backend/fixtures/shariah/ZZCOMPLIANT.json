@@ -1,0 +1,32 @@
+{
+  "symbol": "ZZCOMPLIANT",
+  "canonical_symbol": "ZZCOMPLIANT",
+  "name": "Zebra Zenith Synthetic Utilities PLC (SYNTHETIC TEST DATA - NOT A REAL COMPANY)",
+  "asset_type": "EQUITY",
+  "sector": "Synthetic Utilities",
+  "industry": "Fictional Water Distribution",
+  "country": "Nowhere",
+  "website": "https://example.invalid/zzcompliant",
+  "long_business_summary": "Fictional entity invented for AzaLens automated tests. It distributes imaginary water in a country that does not exist. No real company, security, filing or provider response is represented.",
+  "is_compliant": true,
+  "overall_status": "COMPLIANT",
+  "disposition": "PASS",
+  "business_screen_pass": true,
+  "business_screen_reason": "Synthetic fixture: primary activity is fictional water distribution, which the test scenario treats as permissible.",
+  "questionable_business": false,
+  "ifi_exempt": false,
+  "financial_screen_pass": true,
+  "purification_rate": 0,
+  "compliance_explanation": "SYNTHETIC TEST DATA. Both screens pass in this invented scenario so that AzaLens can exercise its compliant path without contacting a screening provider.",
+  "by_methodology": {
+    "AAOIFI": {
+      "is_compliant": true,
+      "disposition": "PASS",
+      "verified": true,
+      "reason": "Synthetic fixture: invented figures satisfy the scenario's thresholds."
+    }
+  },
+  "disclaimers": [
+    "Synthetic AzaLens test fixture. Not investment advice, not a fatwa, and not a real screening result."
+  ]
+}
