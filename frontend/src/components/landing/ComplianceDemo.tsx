@@ -1,4 +1,4 @@
-import AIVerdictCard from "../analysis/AIVerdictCard";
+import VerdictCard from "../analysis/VerdictCard";
 import IslamicCompliance from "../analysis/IslamicCompliance";
 import VerdictWithheld from "../analysis/VerdictWithheld";
 import {
@@ -29,7 +29,7 @@ export default function ComplianceDemo() {
 
         <div className="space-y-4" data-testid="landing-demo-confirmed">
           <DemoLabel>Demonstration — compliance confirmed</DemoLabel>
-          <AIVerdictCard
+          <VerdictCard
             direction={confirmedDemoAnalysis.agreement.direction}
             trend={confirmedDemoAnalysis.trend.trend}
             confidence={confirmedDemoAnalysis.agreement.confidence}

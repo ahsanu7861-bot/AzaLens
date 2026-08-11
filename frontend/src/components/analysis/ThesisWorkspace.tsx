@@ -1,7 +1,7 @@
 import { BrainCircuit } from "lucide-react";
 
 import type { AnalysisData } from "../../types/analysis";
-import AIExplanation from "../dashboard/AIExplanation";
+import EvidenceSummary from "../dashboard/EvidenceSummary";
 
 type ThesisWorkspaceProps = {
   data?: AnalysisData;
@@ -14,7 +14,7 @@ export default function ThesisWorkspace({
 }: ThesisWorkspaceProps) {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]">
-      <AIExplanation
+      <EvidenceSummary
         trend={data?.trend?.trend ?? "Unavailable"}
         confidence={data?.agreement?.confidence ?? "—"}
         risk={data?.risk?.riskLevel ?? "Review required"}

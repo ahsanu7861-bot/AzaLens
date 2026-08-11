@@ -1,7 +1,7 @@
 import { AlertTriangle, Compass, Eye, Gauge, Scale, ShieldCheck } from "lucide-react";
 
 import type { AnalysisData } from "../../types/analysis";
-import AIVerdictCard from "./AIVerdictCard";
+import VerdictCard from "./VerdictCard";
 
 type Guidance = NonNullable<AnalysisData["guidance"]>;
 
@@ -86,7 +86,7 @@ export default function GuidanceVerdict({
 
   return (
     <div className="space-y-5" data-testid="guidance-verdict">
-      <AIVerdictCard
+      <VerdictCard
         direction={verdictLabel(guidance)}
         trend={horizonLabel(guidance?.horizon)}
         confidence={agreement?.percent ?? undefined}

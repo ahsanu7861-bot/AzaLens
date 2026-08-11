@@ -44,7 +44,7 @@ const workspaceLabels: Record<WorkspaceId, string> = {
   fundamentals: "fundamentals",
   risk: "risk",
   shariah: "Shariah",
-  thesis: "AI thesis",
+  thesis: "Thesis",
 };
 
 function isWorkspaceId(value: string | null): value is WorkspaceId {

@@ -1,6 +1,6 @@
 import { BrainCircuit } from 'lucide-react'
 
-type AIExplanationProps = {
+type EvidenceSummaryProps = {
   trend: string
   confidence: string | number
   risk: string
@@ -8,13 +8,13 @@ type AIExplanationProps = {
   explanation: string
 }
 
-export default function AIExplanation({
+export default function EvidenceSummary({
   trend,
   confidence,
   risk,
   shariah,
   explanation,
-}: AIExplanationProps) {
+}: EvidenceSummaryProps) {
   const normalizedShariah = shariah.trim().toLowerCase()
   const shariahTone =
     normalizedShariah === 'compliant'

@@ -43,7 +43,7 @@ const workspaceOptions: Array<{ value: DefaultWorkspace; label: string }> = [
   { value: "fundamentals", label: "Fundamentals" },
   { value: "risk", label: "Risk assessment" },
   { value: "shariah", label: "AAOIFI Shariah" },
-  { value: "thesis", label: "AI thesis" },
+  { value: "thesis", label: "Thesis" },
 ];
 
 function SectionHeading({

@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
 import type { ThesisInvalidation } from "../../types/overview";
 import { Badge, Card } from "../ui";
 
-interface AIVerdictCardProps {
+interface VerdictCardProps {
   direction?: string;
   trend?: string;
   confidence?: number;
@@ -44,6 +44,62 @@ function getVerdictTone(value: string): VerdictTone {
     return { accent: "text-caution", badge: "warning", bar: "bg-caution" };
   }
   return { accent: "text-ink-soft", badge: "neutral", bar: "bg-ink-muted" };
+}
+
+/*
+ * Temporary presentation safeguard (PR 1B).
+ *
+ * A graded label - High/Moderate/Low agreement - is a claim about how much
+ * complete, directional evidence agrees. The backend already says so in
+ * `evidenceState`, which carries "Limited evidence", "No directional evidence"
+ * and "Conflicting evidence" for the states that must never be graded.
+ *
+ * Two gaps remained here, both presentation-only:
+ *
+ *   1. With no `evidenceState`, this card graded a bare percentage. A percentage
+ *      alone cannot tell complete evidence from limited, neutral or deadlocked
+ *      evidence, so grading it invented a confidence the data does not support.
+ *   2. A graded state arriving alongside demonstrably incomplete coverage was
+ *      still shown as a grade.
+ *
+ * This function only decides which words appear. It changes no number, no
+ * threshold and no contract value; `confidence` is still rendered verbatim as
+ * the percentage. Distinguishing neutral from conflicting evidence remains the
+ * backend's job via `evidenceState` - this card never infers it.
+ */
+const GRADED_AGREEMENT_LABELS = [
+  "High agreement",
+  "Moderate agreement",
+  "Low agreement",
+];
+
+const LIMITED_EVIDENCE_LABEL = "Limited evidence";
+const AWAITING_EVIDENCE_LABEL = "Awaiting evidence";
+
+function resolveAgreementLabel({
+  evidenceState,
+  availableIndicators,
+  expectedIndicators,
+}: Pick<
+  VerdictCardProps,
+  "evidenceState" | "availableIndicators" | "expectedIndicators"
+>) {
+  const declared = evidenceState?.trim();
+  const coverageIncomplete =
+    typeof availableIndicators === "number" &&
+    typeof expectedIndicators === "number" &&
+    expectedIndicators > 0 &&
+    availableIndicators < expectedIndicators;
+
+  if (declared) {
+    // A grade may only stand when the evidence behind it is complete.
+    return coverageIncomplete && GRADED_AGREEMENT_LABELS.includes(declared)
+      ? LIMITED_EVIDENCE_LABEL
+      : declared;
+  }
+
+  // No declared state: never grade. Say what is actually known.
+  return coverageIncomplete ? LIMITED_EVIDENCE_LABEL : AWAITING_EVIDENCE_LABEL;
 }
 
 function InvalidationBox({
@@ -116,7 +172,7 @@ function InvalidationBox({
   );
 }
 
-export default function AIVerdictCard({
+export default function VerdictCard({
   direction,
   trend,
   confidence,
@@ -127,18 +183,15 @@ export default function AIVerdictCard({
   summary,
   invalidation,
   isLoading = false,
-}: AIVerdictCardProps) {
+}: VerdictCardProps) {
   const verdict = direction?.trim() || trend?.trim() || "Unavailable";
   const safeConfidence =
     typeof confidence === "number" ? Math.min(100, Math.max(0, confidence)) : 0;
-  const agreementLabel = evidenceState?.trim() ||
-    (safeConfidence >= 75
-      ? "High agreement"
-      : safeConfidence >= 50
-        ? "Moderate agreement"
-        : safeConfidence > 0
-          ? "Low agreement"
-          : "Awaiting evidence");
+  const agreementLabel = resolveAgreementLabel({
+    evidenceState,
+    availableIndicators,
+    expectedIndicators,
+  });
   const evidenceBasis =
     typeof availableIndicators === "number" &&
     typeof expectedIndicators === "number"

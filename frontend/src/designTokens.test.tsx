@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import AIVerdictCard from "./components/analysis/AIVerdictCard";
+import VerdictCard from "./components/analysis/VerdictCard";
 import IslamicCompliance from "./components/analysis/IslamicCompliance";
 
 /*
@@ -53,9 +53,9 @@ describe("Islamic Compliance eyebrow color (Phase 0 item 1.10)", () => {
 });
 
 describe("Other eyebrows remain on the generic brand/intelligence color", () => {
-  it("does not recolor AIVerdictCard's 'AzaLens Verdict' eyebrow", () => {
+  it("does not recolor VerdictCard's 'AzaLens Verdict' eyebrow", () => {
     render(
-      <AIVerdictCard direction="Bullish" trend="Bullish" confidence={50} />,
+      <VerdictCard direction="Bullish" trend="Bullish" confidence={50} />,
     );
 
     const eyebrow = screen.getByText("AzaLens Verdict");
