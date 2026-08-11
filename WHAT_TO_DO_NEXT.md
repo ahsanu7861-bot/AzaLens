@@ -55,6 +55,23 @@ All Phase 0 items need one later, separately approved code session (this session
 | 2.12 | Watchlist server-side size cap (audit N7) | Not Built | 17, 23 | None |
 | 2.13 | **Correct invalid-input semantics on `/api/analyze`.** Invalid ticker input reportedly reaches HTTP 500 instead of a client-error response. Reproduce hermetically and fix separately without changing Shariah gating or verdict behavior | Newly observed; unverified | 7, 8 | None |
 
+### Deferred evidence-contract and copy debt (recorded during PR 2, 2026-08-12)
+
+These three items were **found and proven** during the PR 2 canonical-evidence work
+and deliberately left unfixed, because each would change user-visible output and
+therefore needs its own reviewed PR. PR 2 changed no rendered wording. Primary
+locators are file and symbol names; line numbers are observed references at commit
+`5c7780c` and will drift.
+
+| # | Item | Status | Rules | Cost |
+|---|---|---|---|---|
+| 2.14 | **`explanationEngine.js` independently re-grades the agreement percentage.** `analyzeExplanation` in `backend/analysis/explanation/explanationEngine.js` applies its **own `>= 70` threshold** when composing `overallAssessment` (observed near lines 402–427), producing wording such as "moderate-to-strong indicator agreement". `analyzeAgreement` in `backend/analysis/agreement/agreementEngine.js` already grades the same number at **75 / 50** into `evidenceState`. Two gradings of one percentage can disagree — at confidence 72 the engine reports `Moderate agreement` while the explanation reports "moderate-to-strong". The same function also still emits the word **"confidence"** in its agreement sentence (observed near line 94), which is not the approved Evidence Agreement terminology settled in PR 1B. This text reaches users through `ThesisWorkspace.tsx`, which falls back to `data.explanation.overallAssessment`. **Correcting it may change user-visible copy, so it requires a separate reviewed PR.** **This is not PR 3 confidence-math work** — the mathematics are not being redesigned; it is contract/copy alignment. It only becomes PR 3 work if its thresholds are intentionally redesigned later | Proven, deliberately deferred | 5, 6, 7 | None |
+| 2.15 | **The landing demo bypasses the canonical guidance contract.** `ComplianceDemo` in `frontend/src/components/landing/ComplianceDemo.tsx` renders `VerdictCard` directly from raw `agreement.*` fields in `frontend/src/data/landingDemo.ts`, passing `direction: "Bullish"` as the headline. It never reads `guidance.publicLabel`, so the marketing surface can present a verdict style the real product does not issue. Migrating it changes the rendered headline to the approved public label and therefore **requires new Linux Playwright baselines reviewed in CI** — a macOS capture cannot satisfy Linux CI (see item 1.11). Must be done in a separately reviewed landing/copy PR | Proven, deliberately deferred | 6, 7, 13 | None |
+| 2.16 | **`landingDemo.ts` publishes `riskLevel: "Medium"`.** `docs/VERDICT_CONTRACT.md` §9.1 states `MEDIUM` is not a value this system produces in either field, and `backend/tests/testGuidanceContract.js` explicitly rejects both `"Medium"` and `"MEDIUM"` as incoherent. The landing demo therefore shows a risk level the live contract refuses to publish. Fix alongside item 2.15, not before | Proven, deliberately deferred | 7 | None |
+
+**Not fixed in PR 2 by explicit instruction.** PR 2 was scoped to canonical evidence
+vocabulary and payload ownership with zero behaviour, wording or snapshot change.
+
 ## PART 3 — ADD (in order)
 
 | # | Item | Status | Rules | Cost |

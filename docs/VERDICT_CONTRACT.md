@@ -128,6 +128,50 @@ engine itself classifies as low is by definition not established.
 candidate is demoted to `LIMITED_EVIDENCE` unless the independent established-evidence
 test in §4 passes.
 
+### 2.2 Where the seven wire values are declared
+
+These seven strings are **wire values**, not display copy. They cross the API
+boundary verbatim, and an unrecognised one fails closed to `UNAVAILABLE` (§3.2) —
+which means a silent rename does not throw, it quietly strips the directional
+verdict from every affected analysis. That failure mode is why the vocabulary is
+named rather than retyped at each use site.
+
+**The declarations, stated honestly:**
+
+- `backend/analysis/agreement/agreementEngine.js` exports `EVIDENCE_STATES` and
+  `GRADED_EVIDENCE_STATES`. This is the **canonical declaration and the only
+  producer** of the seven values. `guidanceContractService.js` imports it and
+  builds `EVIDENCE_STATE_TO_INTERNAL`, `ESTABLISHABLE_EVIDENCE_STATES` and the
+  unavailable-state fallback from it, so the backend has one source.
+- `frontend/src/types/analysis.ts` declares `EVIDENCE_STATES`,
+  `GRADED_EVIDENCE_STATES` and `LIMITED_EVIDENCE_STATE` **separately**.
+
+**There is no frontend-to-backend import, and this document does not claim the
+repository has a single physical declaration site.** The backend module is
+CommonJS and server-only; the browser bundle cannot import it. The two
+declarations exist by necessity.
+
+What keeps them from drifting is symmetry, not sharing: **both sides pin the same
+seven literals in their own test suite** —
+`backend/tests/testEvidenceAgreementContract.js` from the backend side, and the
+`evidence-state wire vocabulary` block in
+`frontend/src/components/analysis/VerdictCard.test.tsx` from the frontend side.
+Either declaration changing alone fails its own suite. The backend suite
+additionally proves every declared state is reachable from a real census and that
+no census produces an undeclared state; `testGuidanceContract.js` proves the
+guidance map closes over exactly that vocabulary in both directions.
+
+`buildGuidanceContract` remains the canonical owner of the public payload.
+`buildEvidenceAgreement` publishes the engine's census under the contract's field
+names and never re-derives a percentage, a grade or a count — proven by
+`testEvidenceAgreementIsNotReDerived`, which runs the real `analyzeAgreement` and
+compares the published contract against the engine's own output field by field.
+
+**No API field, value, threshold or rendered wording changed when this was
+recorded.** `data.agreement` and `data.guidance.evidenceAgreement` both still
+carry the same census under their existing names; aligning those two surfaces is
+deliberately not part of this change.
+
 ---
 
 ## 3. Backend ownership of `publicLabel`, and fail-closed behaviour
@@ -306,7 +350,7 @@ This fallback is always rendered, and it never qualifies evidence as established
 
 ## 7. Invalidation
 
-`AIVerdictCard` already renders honest fallback text for both technical and
+`VerdictCard` already renders honest fallback text for both technical and
 fundamental invalidation when the analysis API supplies none
 ("No technical invalidation rule was supplied by the analysis API."). That behaviour
 is correct and is preserved unchanged. Invalidation is not claimed to be absent when
@@ -355,9 +399,9 @@ competing verdicts:
   explains the same canonical result — level with its score, volatility, summary and
   notes — as context for the limitations beside it.
 
-Both read the *same object*: `masterAnalysisService.js:1877` builds one `risk` from
-`analyzeRisk`, passes it to `buildGuidanceContract` (`:1931`), and exposes it as
-`data.risk` (`:2065`). `buildRisk` copies `riskLevel` verbatim and **never re-derives
+Both read the *same object*: `masterAnalysisService.js:1885` builds one `risk` from
+`analyzeRisk`, passes it to `buildGuidanceContract` (`:1932`), and exposes it as
+`data.risk` (`:2075`). `buildRisk` copies `riskLevel` verbatim and **never re-derives
 a level from the score**. The risk engine is the canonical owner of the level;
 guidance is a consumer. For any result the engine actually produces, the two panels
 therefore show the same level.
@@ -439,8 +483,9 @@ repository, never against the report.
 
 ### 11.1 Backend CI suite count
 
-`backend/tests/runCiSuite.js` now registers **32** deterministic suites, following the
-direct registration of `testGuidanceContract.js`.
+`backend/tests/runCiSuite.js` now registers **35** deterministic suites, following the
+direct registration of `testGuidanceContract.js` and, later,
+`testEvidenceAgreementContract.js`.
 
 That registration made existing coverage *explicit*; it did not add coverage that was
 missing. `testGuidanceContract.js` was already running in CI **indirectly**, because

@@ -1,6 +1,6 @@
 # AzaLens — LLM Decision for v1
 
-**Status:** Proposed — awaiting approval. Blocks PR 1B and PR 2.
+**Status:** Approved — 2026-08-11, commit `7a9c4c6`.
 **Baseline inspected:** `d6458d97579d3a2d187db7b9ab3f5ac15bcff18b` (main, clean worktree).
 
 ---

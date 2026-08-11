@@ -2,6 +2,7 @@
 
 const { evaluateComplianceGate } = require("./complianceGateService");
 const { isCoherentRiskResult } = require("../analysis/risk/riskEngine");
+const { EVIDENCE_STATES } = require("../analysis/agreement/agreementEngine");
 
 const CONTRACT_VERSION = "1.0";
 const EXPECTED_HORIZON = "SWING_2_TO_10_SESSIONS";
@@ -27,24 +28,36 @@ const PUBLIC_LABELS = {
   WITHHELD: "Verdict Withheld — Shariah Gate Not Cleared"
 };
 
+// Lookups are performed on the trimmed, lowercased wire value.
+function evidenceStateKey(state) {
+  return String(state).toLowerCase();
+}
+
 /*
  * Every value `agreementEngine.js` can emit is mapped explicitly. Anything not
  * listed here - absent, null, malformed, stale, unsupported, or simply new -
  * resolves to UNAVAILABLE. Unrecognised input must never produce a confident
  * verdict.
+ *
+ * Keyed off the engine's own exported vocabulary rather than retyped literals, so
+ * this map cannot silently stop covering a state the engine still emits. The keys
+ * and internal states are unchanged.
  */
 const EVIDENCE_STATE_TO_INTERNAL = {
-  "evidence unavailable": "UNAVAILABLE",
-  "no directional evidence": "NEUTRAL",
-  "conflicting evidence": "CONFLICTING",
-  "limited evidence": "LIMITED_EVIDENCE",
-  "low agreement": "LIMITED_EVIDENCE",
-  "moderate agreement": "FAVORED",
-  "high agreement": "FAVORED"
+  [evidenceStateKey(EVIDENCE_STATES.UNAVAILABLE)]: "UNAVAILABLE",
+  [evidenceStateKey(EVIDENCE_STATES.NO_DIRECTION)]: "NEUTRAL",
+  [evidenceStateKey(EVIDENCE_STATES.CONFLICTING)]: "CONFLICTING",
+  [evidenceStateKey(EVIDENCE_STATES.LIMITED)]: "LIMITED_EVIDENCE",
+  [evidenceStateKey(EVIDENCE_STATES.LOW)]: "LIMITED_EVIDENCE",
+  [evidenceStateKey(EVIDENCE_STATES.MODERATE)]: "FAVORED",
+  [evidenceStateKey(EVIDENCE_STATES.HIGH)]: "FAVORED"
 };
 
 // Evidence states that may carry established evidence, before the §4 test runs.
-const ESTABLISHABLE_EVIDENCE_STATES = ["moderate agreement", "high agreement"];
+const ESTABLISHABLE_EVIDENCE_STATES = [
+  evidenceStateKey(EVIDENCE_STATES.MODERATE),
+  evidenceStateKey(EVIDENCE_STATES.HIGH)
+];
 
 const NO_CONFIRMATION_AVAILABLE =
   "No independent confirmation condition is available from the current evidence.";
@@ -78,6 +91,24 @@ function buildEvidenceItems(agreement, names) {
         String(detail).toLowerCase().includes(String(name).toLowerCase())
       ) || `${name} contributes to the current evidence balance.`
   }));
+}
+
+/*
+ * The published evidence census. It is a *copy* of what the agreement engine
+ * already decided - never a second opinion about it. Nothing here recomputes a
+ * percentage, re-grades a state, or reconciles the counts: each field is the
+ * engine's own value under the contract's field name, so the two can never
+ * disagree about the same analysis. `data.agreement` still carries the same
+ * numbers under the engine's names; aligning those two surfaces is deliberately
+ * out of scope here.
+ */
+function buildEvidenceAgreement(agreement) {
+  return {
+    percent: finite(agreement.confidence),
+    state: agreement.evidenceState || EVIDENCE_STATES.UNAVAILABLE,
+    available: finite(agreement.availableIndicators) || 0,
+    expected: finite(agreement.expectedIndicators) || 0
+  };
 }
 
 /*
@@ -399,12 +430,7 @@ function buildGuidanceContract(input = {}) {
     ...base,
     verdict: { state, direction },
       publicLabel: publicLabelFor(state, direction),
-    evidenceAgreement: {
-      percent: finite(agreement.confidence),
-      state: agreement.evidenceState || "Evidence unavailable",
-      available: finite(agreement.availableIndicators) || 0,
-      expected: finite(agreement.expectedIndicators) || 0
-    },
+    evidenceAgreement: buildEvidenceAgreement(agreement),
     currentSituation: agreement.agreementSummary || "Directional evidence is incomplete.",
     supportingEvidence: buildEvidenceItems(agreement, supportingNames),
     opposingEvidence: buildEvidenceItems(agreement, opposingNames),
@@ -424,6 +450,9 @@ module.exports = {
   EXPECTED_HORIZON,
   PUBLIC_LABELS,
   NO_CONFIRMATION_AVAILABLE,
+  // Exported so the contract test can prove this map closes over exactly the
+  // engine's vocabulary in both directions, rather than only sampling it.
+  EVIDENCE_STATE_TO_INTERNAL,
   buildGuidanceContract,
   findCoherenceViolation,
   applyCoherenceGuard
