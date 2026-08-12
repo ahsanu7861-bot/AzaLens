@@ -13,10 +13,15 @@ const assert = require("node:assert/strict");
 const {
   PUBLIC_LABELS,
   NO_CONFIRMATION_AVAILABLE,
+  EVIDENCE_STATE_TO_INTERNAL,
   buildGuidanceContract,
   findCoherenceViolation,
   applyCoherenceGuard
 } = require("../services/guidanceContractService");
+const {
+  analyzeAgreement,
+  EVIDENCE_STATES
+} = require("../analysis/agreement/agreementEngine");
 
 const COMPLIANT_SHARIAH = {
   success: true,
@@ -591,6 +596,197 @@ function testCoherenceGuard() {
   }
 }
 
+/*
+ * ---------------------------------------------------------------------------
+ * The contract publishes the agreement engine's census; it never forms a second
+ * opinion about it.
+ *
+ * Every other test in this file hands `buildGuidanceContract` a hand-written
+ * agreement object, which proves the mapping but cannot prove the two modules
+ * agree. These run the *real* engine and compare the published contract against
+ * the engine's own output field by field. Nothing here recomputes a percentage or
+ * re-grades a state - doing so would install a third opinion in the test suite
+ * itself, which is exactly the failure being guarded against.
+ * ---------------------------------------------------------------------------
+ */
+
+// Hand-authored indicator readings. No provider, no fixture, no network.
+function indicatorCensus({ bullish = 0, bearish = 0, neutral = 0 }) {
+  const directionalSlots = [
+    ["rsi", "Oversold", "Overbought"],
+    ["ema", "Above EMA20", "Below EMA20"],
+    ["sma", "Above SMA50", "Below SMA50"],
+    ["macd", "Bullish", "Bearish"],
+    ["bollinger", "Price Near Upper Band", "Price Near Lower Band"],
+    ["candlestick", "Bullish", "Bearish"]
+  ];
+
+  // adx, rvol and volumeSpike are structurally neutral in the engine.
+  const indicators = {
+    adx: { success: neutral > 0, adx: 25, signal: "Strong Trend" },
+    rvol: { success: neutral > 1, rvol: 1.1 },
+    volumeSpike: { success: neutral > 2, volumeSpikeDetected: false, signal: "No Volume Spike" }
+  };
+
+  let bullishLeft = bullish;
+  let bearishLeft = bearish;
+  let neutralLeft = Math.max(0, neutral - 3);
+
+  for (const [name, bullishSignal, bearishSignal] of directionalSlots) {
+    let signal = null;
+
+    if (bullishLeft > 0) {
+      signal = bullishSignal;
+      bullishLeft -= 1;
+    } else if (bearishLeft > 0) {
+      signal = bearishSignal;
+      bearishLeft -= 1;
+    } else if (neutralLeft > 0) {
+      signal = "Neutral";
+      neutralLeft -= 1;
+    }
+
+    if (signal === null) {
+      indicators[name] = { success: false };
+      continue;
+    }
+
+    indicators[name] = name === "candlestick"
+      ? { success: true, pattern: "Test pattern", bias: signal }
+      : { success: true, rsi: 50, signal };
+  }
+
+  return indicators;
+}
+
+function testEvidenceAgreementIsNotReDerived() {
+  const censuses = [
+    { name: "no usable indicators", counts: { bullish: 0, bearish: 0, neutral: 0 } },
+    { name: "complete but undirected", counts: { bullish: 0, bearish: 0, neutral: 9 } },
+    { name: "deadlocked directional", counts: { bullish: 3, bearish: 3, neutral: 3 } },
+    { name: "incomplete coverage", counts: { bullish: 4, bearish: 0, neutral: 0 } },
+    { name: "complete, weakly agreed", counts: { bullish: 3, bearish: 2, neutral: 4 } },
+    { name: "complete, moderately agreed", counts: { bullish: 5, bearish: 0, neutral: 4 } },
+    { name: "complete, strongly agreed", counts: { bullish: 6, bearish: 0, neutral: 3 } },
+    { name: "bearish, strongly agreed", counts: { bullish: 0, bearish: 6, neutral: 3 } }
+  ];
+
+  const observedStates = new Set();
+
+  for (const census of censuses) {
+    const agreement = analyzeAgreement(indicatorCensus(census.counts));
+    const contract = buildGuidanceContract(input({ agreement }));
+    const published = contract.evidenceAgreement;
+
+    observedStates.add(agreement.evidenceState);
+
+    assert.ok(published, `${census.name} must publish an evidence census`);
+
+    assert.equal(
+      published.percent,
+      agreement.confidence,
+      `${census.name}: published percent must be the engine's confidence`
+    );
+    assert.equal(
+      published.state,
+      agreement.evidenceState,
+      `${census.name}: published state must be the engine's evidenceState`
+    );
+    assert.equal(
+      published.available,
+      agreement.availableIndicators,
+      `${census.name}: published available must be the engine's availableIndicators`
+    );
+    assert.equal(
+      published.expected,
+      agreement.expectedIndicators,
+      `${census.name}: published expected must be the engine's expectedIndicators`
+    );
+
+    // Exactly four published fields - the contract adds no census of its own.
+    assert.deepEqual(
+      Object.keys(published).sort(),
+      ["available", "expected", "percent", "state"],
+      `${census.name}: the published census shape must not drift`
+    );
+
+    // The counts describe one evidence set, so the pair must stay coherent.
+    assert.ok(
+      published.available <= published.expected,
+      `${census.name}: available must never exceed expected`
+    );
+  }
+
+  assert.equal(
+    observedStates.size,
+    Object.keys(EVIDENCE_STATES).length,
+    "the no-re-derivation cases must exercise every declared evidence state"
+  );
+}
+
+/*
+ * Closure in both directions. The map must recognise every state the engine can
+ * emit (otherwise a real analysis fails closed to Analysis Limited for no reason),
+ * and must recognise nothing else (otherwise a state no longer produced still has
+ * a live mapping, and the vocabulary has silently drifted apart).
+ */
+function testGuidanceMapClosesOverTheEngineVocabulary() {
+  const engineKeys = Object.values(EVIDENCE_STATES)
+    .map((state) => state.toLowerCase())
+    .sort();
+
+  assert.deepEqual(
+    Object.keys(EVIDENCE_STATE_TO_INTERNAL).sort(),
+    engineKeys,
+    "the guidance map must key on exactly the engine's vocabulary"
+  );
+
+  // The documented internal state for each wire value (VERDICT_CONTRACT.md §2.1).
+  const expectedInternalStates = [
+    [EVIDENCE_STATES.UNAVAILABLE, "UNAVAILABLE"],
+    [EVIDENCE_STATES.NO_DIRECTION, "NEUTRAL"],
+    [EVIDENCE_STATES.CONFLICTING, "CONFLICTING"],
+    [EVIDENCE_STATES.LIMITED, "LIMITED_EVIDENCE"],
+    [EVIDENCE_STATES.LOW, "LIMITED_EVIDENCE"],
+    [EVIDENCE_STATES.MODERATE, "FAVORED"],
+    [EVIDENCE_STATES.HIGH, "FAVORED"]
+  ];
+
+  for (const [wireValue, internalState] of expectedInternalStates) {
+    assert.equal(
+      EVIDENCE_STATE_TO_INTERNAL[wireValue.toLowerCase()],
+      internalState,
+      `"${wireValue}" must map to ${internalState}`
+    );
+  }
+
+  /*
+   * Every engine state must survive the contract as something other than the
+   * fail-closed default. A state that silently degraded to Analysis Limited would
+   * pass the key comparison above while still being broken in practice.
+   */
+  for (const wireValue of Object.values(EVIDENCE_STATES)) {
+    const contract = buildGuidanceContract(
+      withAgreement({ evidenceState: wireValue })
+    );
+
+    assert.ok(
+      ["FAVORED", "LIMITED_EVIDENCE", "NEUTRAL", "CONFLICTING", "UNAVAILABLE"].includes(
+        contract.verdict.state
+      ),
+      `"${wireValue}" must resolve to a recognised internal state`
+    );
+
+    if (wireValue !== EVIDENCE_STATES.UNAVAILABLE) {
+      assert.notEqual(
+        contract.verdict.state,
+        "UNAVAILABLE",
+        `"${wireValue}" must not fail closed - it is a declared state`
+      );
+    }
+  }
+}
+
 function testNoTransactionCommands() {
   const contracts = [
     buildGuidanceContract(input()),
@@ -619,6 +815,8 @@ function run() {
   testRiskLevelIsCanonicalNotReDerived();
   testIncoherentRiskPairsAreWithheld();
   testCoherenceGuard();
+  testEvidenceAgreementIsNotReDerived();
+  testGuidanceMapClosesOverTheEngineVocabulary();
   testNoTransactionCommands();
 
   console.log("Guidance contract v1 tests passed.");

@@ -1,7 +1,58 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import {
+  EVIDENCE_STATES,
+  GRADED_EVIDENCE_STATES,
+  LIMITED_EVIDENCE_STATE,
+} from "../../types/analysis";
 import VerdictCard from "./VerdictCard";
+
+/*
+ * The frontend declares the seven wire values independently of the backend: it
+ * cannot import backend/analysis/agreement/agreementEngine.js, which is CommonJS
+ * and server-only. There is therefore no shared cross-language source to trust.
+ *
+ * What replaces that trust is symmetry: this suite pins the exact strings from
+ * the frontend side, and backend/tests/testEvidenceAgreementContract.js pins the
+ * same strings from the backend side. Either declaration drifting alone fails its
+ * own suite. These literals are written out on purpose - importing the constant
+ * and comparing it to itself would assert nothing.
+ */
+describe("evidence-state wire vocabulary", () => {
+  it("declares exactly the seven approved wire strings, in order", () => {
+    expect([...EVIDENCE_STATES]).toEqual([
+      "Evidence unavailable",
+      "No directional evidence",
+      "Conflicting evidence",
+      "Limited evidence",
+      "Low agreement",
+      "Moderate agreement",
+      "High agreement",
+    ]);
+  });
+
+  it("contains no duplicate wire values", () => {
+    expect(new Set(EVIDENCE_STATES).size).toBe(EVIDENCE_STATES.length);
+  });
+
+  it("grades only the three states that assert how strongly evidence agrees", () => {
+    expect([...GRADED_EVIDENCE_STATES]).toEqual([
+      "High agreement",
+      "Moderate agreement",
+      "Low agreement",
+    ]);
+
+    for (const graded of GRADED_EVIDENCE_STATES) {
+      expect(EVIDENCE_STATES).toContain(graded);
+    }
+  });
+
+  it("degrades an unsupported grade to a declared state, not invented wording", () => {
+    expect(LIMITED_EVIDENCE_STATE).toBe("Limited evidence");
+    expect(EVIDENCE_STATES).toContain(LIMITED_EVIDENCE_STATE);
+  });
+});
 
 describe("VerdictCard Evidence Agreement presentation", () => {
   it.each([

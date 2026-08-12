@@ -1,5 +1,9 @@
 import { AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
 
+import {
+  GRADED_EVIDENCE_STATES,
+  LIMITED_EVIDENCE_STATE,
+} from "../../types/analysis";
 import type { ThesisInvalidation } from "../../types/overview";
 import { Badge, Card } from "../ui";
 
@@ -67,13 +71,14 @@ function getVerdictTone(value: string): VerdictTone {
  * the percentage. Distinguishing neutral from conflicting evidence remains the
  * backend's job via `evidenceState` - this card never infers it.
  */
-const GRADED_AGREEMENT_LABELS = [
-  "High agreement",
-  "Moderate agreement",
-  "Low agreement",
-];
-
-const LIMITED_EVIDENCE_LABEL = "Limited evidence";
+/*
+ * The graded and limited states come from the shared wire vocabulary in
+ * types/analysis.ts, so this card cannot fall out of step with the backend by
+ * retyping one of them. "Awaiting evidence" stays local on purpose: it is not a
+ * backend state, it is what this card says when it was given nothing to render.
+ */
+const GRADED_AGREEMENT_LABELS: readonly string[] = GRADED_EVIDENCE_STATES;
+const LIMITED_EVIDENCE_LABEL: string = LIMITED_EVIDENCE_STATE;
 const AWAITING_EVIDENCE_LABEL = "Awaiting evidence";
 
 function resolveAgreementLabel({

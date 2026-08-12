@@ -1,5 +1,36 @@
 const EXPECTED_INDICATOR_COUNT = 9;
 
+/*
+ * The canonical backend declaration of every `evidenceState` value this engine
+ * can emit. These exact strings travel on the wire and are mapped by
+ * services/guidanceContractService.js, so they are named here once rather than
+ * retyped at each use site: a silent rename in one branch below would otherwise
+ * fall through the guidance map's fail-closed default and quietly degrade every
+ * affected verdict to Analysis Limited.
+ *
+ * The strings themselves are unchanged. See docs/VERDICT_CONTRACT.md §2.1.
+ */
+const EVIDENCE_STATES = Object.freeze({
+  UNAVAILABLE: "Evidence unavailable",
+  NO_DIRECTION: "No directional evidence",
+  CONFLICTING: "Conflicting evidence",
+  LIMITED: "Limited evidence",
+  LOW: "Low agreement",
+  MODERATE: "Moderate agreement",
+  HIGH: "High agreement"
+});
+
+/*
+ * The subset that asserts a *grade* - how strongly complete directional evidence
+ * agrees. Presentation code must never show one of these beside incomplete
+ * coverage, which is what the PR 1B safeguard in VerdictCard.tsx enforces.
+ */
+const GRADED_EVIDENCE_STATES = Object.freeze([
+  EVIDENCE_STATES.HIGH,
+  EVIDENCE_STATES.MODERATE,
+  EVIDENCE_STATES.LOW
+]);
+
 function analyzeAgreement(indicators) {
   const bullish = [];
   const bearish = [];
@@ -275,20 +306,20 @@ function analyzeAgreement(indicators) {
     rawAgreementPercent * coveragePercent / 100
   );
 
-  let evidenceState = "Low agreement";
+  let evidenceState = EVIDENCE_STATES.LOW;
 
   if (totalIndicators === 0) {
-    evidenceState = "Evidence unavailable";
+    evidenceState = EVIDENCE_STATES.UNAVAILABLE;
   } else if (bullishSignals === 0 && bearishSignals === 0) {
-    evidenceState = "No directional evidence";
+    evidenceState = EVIDENCE_STATES.NO_DIRECTION;
   } else if (bullishSignals === bearishSignals) {
-    evidenceState = "Conflicting evidence";
+    evidenceState = EVIDENCE_STATES.CONFLICTING;
   } else if (totalIndicators < EXPECTED_INDICATOR_COUNT) {
-    evidenceState = "Limited evidence";
+    evidenceState = EVIDENCE_STATES.LIMITED;
   } else if (confidence >= 75) {
-    evidenceState = "High agreement";
+    evidenceState = EVIDENCE_STATES.HIGH;
   } else if (confidence >= 50) {
-    evidenceState = "Moderate agreement";
+    evidenceState = EVIDENCE_STATES.MODERATE;
   }
 
   // ============================
@@ -368,5 +399,8 @@ function analyzeAgreement(indicators) {
 }
 
 module.exports = {
-  analyzeAgreement
+  analyzeAgreement,
+  EVIDENCE_STATES,
+  GRADED_EVIDENCE_STATES,
+  EXPECTED_INDICATOR_COUNT
 };

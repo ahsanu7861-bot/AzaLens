@@ -14,6 +14,7 @@ const deterministicSuites = [
   "testCrudStorageSafety.js",
   "testEnvironmentStrategy.js",
   "testEnvironmentValidation.js",
+  "testEvidenceAgreementContract.js",
   "testFeatureTruthfulness.js",
   "testFinnhubProviderResilience.js",
   "testFinnhubQuoteRejectionSafety.js",

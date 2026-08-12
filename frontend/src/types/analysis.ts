@@ -172,6 +172,59 @@ export interface FundamentalsData {
 }
 
 /*
+ * The seven `evidenceState` values the backend can put on the wire.
+ *
+ * This is a deliberate, independent mirror of the canonical declaration in
+ * `backend/analysis/agreement/agreementEngine.js`. The frontend cannot import
+ * that module - it is CommonJS, server-only, and outside the Vite build - so the
+ * strings are declared twice by necessity, not by oversight. What keeps them
+ * honest is that both sides pin the same literals in their own test suite:
+ * `backend/tests/testEvidenceAgreementContract.js` and
+ * `VerdictCard.test.tsx`. A change on either side without the other fails there.
+ *
+ * These are wire values, not display copy. The UI renders them verbatim; it never
+ * translates, prettifies or infers one. See docs/VERDICT_CONTRACT.md §2.1.
+ */
+export const EVIDENCE_STATES = [
+  "Evidence unavailable",
+  "No directional evidence",
+  "Conflicting evidence",
+  "Limited evidence",
+  "Low agreement",
+  "Moderate agreement",
+  "High agreement",
+] as const
+
+export type EvidenceState = (typeof EVIDENCE_STATES)[number]
+
+/*
+ * The three states that assert a *grade* - how strongly complete directional
+ * evidence agrees. A grade may only be shown when the evidence behind it is
+ * complete; the safeguard that enforces that lives in VerdictCard.tsx.
+ */
+export const GRADED_EVIDENCE_STATES = [
+  "High agreement",
+  "Moderate agreement",
+  "Low agreement",
+] as const satisfies ReadonlyArray<EvidenceState>
+
+/* What a graded claim degrades to when its coverage is demonstrably incomplete. */
+export const LIMITED_EVIDENCE_STATE: EvidenceState = "Limited evidence"
+
+/*
+ * The published evidence census. `state` stays assignable from any string so an
+ * unrecognised backend value remains a runtime concern handled by the existing
+ * fail-closed presentation path, never a build failure that would take the whole
+ * app down over one unexpected word.
+ */
+export interface EvidenceAgreement {
+  percent: number | null
+  state: EvidenceState | (string & {})
+  available: number
+  expected: number
+}
+
+/*
  * Deterministic risk contract carried by the guidance response. Every field maps
  * to a value the backend risk engine actually returns; nothing is derived in the
  * UI. See docs/VERDICT_CONTRACT.md §9.
@@ -209,12 +262,7 @@ export interface AnalysisResponse {
        * renders it verbatim and never rebuilds it. See docs/VERDICT_CONTRACT.md.
        */
       publicLabel: string
-      evidenceAgreement: {
-        percent: number | null
-        state: string
-        available: number
-        expected: number
-      } | null
+      evidenceAgreement: EvidenceAgreement | null
       currentSituation: string
       supportingEvidence: Array<{ source: string; statement: string }>
       opposingEvidence: Array<{ source: string; statement: string }>
@@ -307,7 +355,7 @@ export interface AnalysisResponse {
       confidence?: number
       rawAgreementPercent?: number
       coveragePercent?: number
-      evidenceState?: string
+      evidenceState?: EvidenceState | (string & {})
       expectedIndicators?: number
       availableIndicators?: number
       agreement?: string

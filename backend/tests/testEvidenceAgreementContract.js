@@ -1,6 +1,11 @@
 const assert = require("node:assert/strict");
 
-const { analyzeAgreement } = require("../analysis/agreement/agreementEngine");
+const {
+  analyzeAgreement,
+  EVIDENCE_STATES,
+  GRADED_EVIDENCE_STATES,
+  EXPECTED_INDICATOR_COUNT
+} = require("../analysis/agreement/agreementEngine");
 
 function indicatorSet({ bullish = 0, bearish = 0, neutral = 0 }) {
   const slots = [
@@ -88,3 +93,149 @@ for (const testCase of cases) {
 }
 
 console.log("Evidence Agreement contract: all five audit cases passed.");
+
+/*
+ * ============================================================================
+ * Wire-vocabulary closure
+ *
+ * `evidenceState` is a wire value: services/guidanceContractService.js maps it to
+ * an internal verdict state, and anything it does not recognise fails closed to
+ * Analysis Limited. A silent rename here would therefore not throw - it would
+ * quietly strip the directional verdict from every affected analysis. These
+ * assertions pin the exact strings so that failure mode cannot ship unnoticed.
+ *
+ * frontend/src/types/analysis.ts declares the same seven strings independently
+ * (no cross-language import exists). Its own test pins them from the frontend
+ * side; the two suites must agree by construction, not by coincidence.
+ * ============================================================================
+ */
+
+const APPROVED_WIRE_STATES = [
+  "Evidence unavailable",
+  "No directional evidence",
+  "Conflicting evidence",
+  "Limited evidence",
+  "Low agreement",
+  "Moderate agreement",
+  "High agreement"
+];
+
+const declaredStates = Object.values(EVIDENCE_STATES);
+
+assert.deepEqual(
+  declaredStates,
+  APPROVED_WIRE_STATES,
+  "EVIDENCE_STATES must declare exactly the seven approved wire strings, in order"
+);
+
+assert.equal(
+  new Set(declaredStates).size,
+  APPROVED_WIRE_STATES.length,
+  "EVIDENCE_STATES must contain no duplicate wire values"
+);
+
+assert.ok(
+  Object.isFrozen(EVIDENCE_STATES),
+  "EVIDENCE_STATES must be frozen so no consumer can mutate the vocabulary"
+);
+
+assert.deepEqual(
+  [...GRADED_EVIDENCE_STATES],
+  ["High agreement", "Moderate agreement", "Low agreement"],
+  "GRADED_EVIDENCE_STATES must list exactly the three grading claims"
+);
+
+for (const graded of GRADED_EVIDENCE_STATES) {
+  assert.ok(
+    declaredStates.includes(graded),
+    `graded state "${graded}" must be a declared evidence state`
+  );
+}
+
+assert.equal(
+  EXPECTED_INDICATOR_COUNT,
+  9,
+  "the expected indicator census must remain 9"
+);
+
+console.log("Evidence Agreement contract: wire vocabulary pinned.");
+
+/*
+ * Every declared state must be reachable from a real census, and no census may
+ * produce a state outside the declared vocabulary. Reachability matters because a
+ * state nobody can reach is a state nobody tests; the counts below are chosen to
+ * land on each branch of the engine's existing classification, not to change it.
+ */
+
+const reachability = [
+  { name: "no usable indicators", counts: { bullish: 0, bearish: 0, neutral: 0 }, expected: EVIDENCE_STATES.UNAVAILABLE },
+  { name: "complete but undirected", counts: { bullish: 0, bearish: 0, neutral: 9 }, expected: EVIDENCE_STATES.NO_DIRECTION },
+  { name: "deadlocked directional", counts: { bullish: 3, bearish: 3, neutral: 3 }, expected: EVIDENCE_STATES.CONFLICTING },
+  { name: "incomplete coverage", counts: { bullish: 4, bearish: 0, neutral: 0 }, expected: EVIDENCE_STATES.LIMITED },
+  { name: "complete, weakly agreed", counts: { bullish: 3, bearish: 2, neutral: 4 }, expected: EVIDENCE_STATES.LOW },
+  { name: "complete, moderately agreed", counts: { bullish: 5, bearish: 0, neutral: 4 }, expected: EVIDENCE_STATES.MODERATE },
+  { name: "complete, strongly agreed", counts: { bullish: 6, bearish: 0, neutral: 3 }, expected: EVIDENCE_STATES.HIGH }
+];
+
+const reached = new Set();
+
+for (const scenario of reachability) {
+  const result = analyzeAgreement(indicatorSet(scenario.counts));
+
+  assert.equal(
+    result.evidenceState,
+    scenario.expected,
+    `${scenario.name} must report "${scenario.expected}"`
+  );
+
+  reached.add(result.evidenceState);
+}
+
+assert.equal(
+  reached.size,
+  APPROVED_WIRE_STATES.length,
+  "every declared evidence state must be reachable from a real census"
+);
+
+assert.deepEqual(
+  [...reached].sort(),
+  [...APPROVED_WIRE_STATES].sort(),
+  "the reachable states must be exactly the declared states"
+);
+
+/*
+ * Exhaustive sweep: no census the engine accepts may produce a state outside the
+ * vocabulary. This is the assertion that catches a new branch added without a
+ * corresponding declaration.
+ */
+let sweptCensuses = 0;
+
+for (let bullish = 0; bullish <= 6; bullish += 1) {
+  for (let bearish = 0; bearish + bullish <= 6; bearish += 1) {
+    for (let neutral = 0; neutral <= 3; neutral += 1) {
+      const result = analyzeAgreement(indicatorSet({ bullish, bearish, neutral }));
+      sweptCensuses += 1;
+
+      assert.ok(
+        declaredStates.includes(result.evidenceState),
+        `census ${bullish}/${bearish}/${neutral} produced undeclared state "${result.evidenceState}"`
+      );
+
+      assert.equal(
+        result.expectedIndicators,
+        EXPECTED_INDICATOR_COUNT,
+        `census ${bullish}/${bearish}/${neutral} must report the canonical expected count`
+      );
+
+      assert.equal(
+        result.availableIndicators,
+        result.totalIndicators,
+        `census ${bullish}/${bearish}/${neutral} must count one evidence set`
+      );
+    }
+  }
+}
+
+console.log(
+  `Evidence Agreement contract: all seven states reachable; ${sweptCensuses} censuses produced no undeclared state.`
+);
