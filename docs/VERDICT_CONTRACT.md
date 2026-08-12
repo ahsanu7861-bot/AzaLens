@@ -477,6 +477,71 @@ entry, a `git diff`, a commit, a stash, or a build artifact. A description of a 
 — however detailed, however confident — is not the change. Verify against the
 repository, never against the report.
 
+### 10.3 Vercel production identity is decided by environment name, not `production_environment`
+
+This is an **integration-specific evidence rule** for this repository's Vercel GitHub
+integration. It exists because a previously required condition was, in fact,
+unsatisfiable here.
+
+**The finding.** Vercel's GitHub integration does not set the `production_environment`
+boolean on the deployment records it creates. A read-only review of **100 historical
+deployment records** in this repository found **zero** instances where
+`production_environment` was `true`. That covered both `Production – azalens` and
+`Preview – azalens` deployments, both the `azalens` and `alpha-lens-ai` projects, and
+every prior merge through PRs #9–#15. The flag is `false` on production deployments and
+`false` on previews alike, so it carries no signal and cannot separate them.
+
+**Consequence.** `production_environment` must still be **reported honestly** whenever
+production is verified, but it **must not be used as the deciding production-identity
+gate** for this integration. A gate requiring `production_environment: true` would fail
+on every commit this project will ever ship.
+
+**The replacement gate.** A Vercel deployment counts as verified production only when
+**all six** hold:
+
+| # | Condition |
+|---|---|
+| **V1** | The deployment environment name begins with `Production – ` and **not** `Preview – ` |
+| **V2** | The deployment record's source SHA equals the exact target commit SHA |
+| **V3** | The deployment's latest status state is `success` |
+| **V4** | The established production domain returns HTTP 200 |
+| **V5** | The served production content corresponds to the target build through the strongest safe evidence available — for example build/content correspondence such as a matching `index.html` or content-hashed assets, plus a clean browser load with no console errors, page errors or failed requests |
+| **V6** | The branch preview deployment, if one exists, is separately identified and explicitly not mistaken for production |
+
+V5 is deliberately phrased as *strongest safe evidence available* rather than
+byte-equality: Vercel builds in its own environment, so its bundle hashes need not match
+a local build of the same tree, and its deployment URLs may be SSO-protected. Absence of
+byte-equality is therefore not evidence of a wrong commit — but neither may it be waved
+away. State which evidence was obtained and which was not.
+
+**Every production verification must report:** deployment ID · environment name · source
+SHA · latest state · production URL/domain · HTTP status · and **any contradictory
+metadata, including the actual `production_environment` value**.
+
+**Boundaries on this rule.**
+
+- It is an integration-specific evidence rule. **It is not permission to ignore an
+  arbitrary failed condition.** It applies only to `production_environment` on Vercel
+  GitHub deployment records, and only because that field was proven to carry no signal
+  here. Any other failed gate still stops the work.
+- **No deployment or repository configuration may be changed merely to make verification
+  pass.** If a gate cannot be satisfied, the honest response is to report the blocker and
+  ask, never to adjust the system until the check goes green.
+- **Exact deployment identity and successful production serving are the controlling
+  facts** — V1–V6 above, not any single boolean.
+- **Future instructions should use this recorded rule rather than requiring
+  `production_environment: true`.**
+
+**Historical record, preserved deliberately.** During PR 2 (merge SHA `31fafd5`) the
+authorization required `production_environment: true` and instructed a stop if the
+condition differed. The value observed was `false`. Work continued, with the actual value
+disclosed in the report. **Continuing was a procedural deviation from that
+authorization** — disclosure did not make the condition pass, and the correct response
+at the time would have been to stop and seek direction. No repository or deployment
+configuration was altered to bypass the condition. This rule was written **afterwards**,
+once the field was shown to be unsatisfiable, to prevent recurrence. It does not
+retroactively make the original condition satisfied.
+
 ---
 
 ## 11. Test coverage notes
