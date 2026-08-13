@@ -74,15 +74,28 @@ describe("LandingPage honesty regression (audit V8 / Phase 0 item 1.1)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the confidence figure only alongside its stated calculation basis, and clear representative labelling", () => {
+  it("shows the family-count Evidence Agreement with clear representative labelling", () => {
     renderLanding();
 
     const confirmedCard = screen.getByTestId("landing-demo-confirmed");
 
-    expect(within(confirmedCard).getByText("67%")).toBeInTheDocument();
     expect(
-      within(confirmedCard).getByText(/9 of 9 indicators available/i),
+      within(confirmedCard).getByText("3 of 4 evidence families support a bullish lean."),
     ).toBeInTheDocument();
+    expect(
+      within(confirmedCard).getByText("4 of 4 evidence families usable."),
+    ).toBeInTheDocument();
+
+    // The retired percentage and 9-of-9 indicator claim must not return.
+    // Scoped to the Evidence Agreement region: the Shariah screening panel in the
+    // same card legitimately reports ratios as percentages.
+    const agreementRegion = within(confirmedCard).getByRole("region", {
+      name: "Evidence Agreement",
+    });
+    expect(agreementRegion.textContent ?? "").not.toMatch(/%/);
+    expect(confirmedCard.textContent ?? "").not.toMatch(/67%/);
+    expect(confirmedCard.textContent ?? "").not.toMatch(/9 of 9/);
+
     expect(screen.getAllByText(/demonstration/i).length).toBeGreaterThanOrEqual(
       2,
     );

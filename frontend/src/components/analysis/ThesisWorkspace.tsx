@@ -16,7 +16,12 @@ export default function ThesisWorkspace({
     <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]">
       <EvidenceSummary
         trend={data?.trend?.trend ?? "Unavailable"}
-        confidence={data?.agreement?.confidence ?? "—"}
+        evidenceAgreement={
+          typeof data?.agreement?.support?.supportingFamilies === "number" &&
+          typeof data?.agreement?.coverage?.expectedFamilies === "number"
+            ? `${data.agreement.support.supportingFamilies} of ${data.agreement.coverage.expectedFamilies} families`
+            : "—"
+        }
         risk={data?.risk?.riskLevel ?? "Review required"}
         shariah={
           data?.shariah?.summary?.status === "COMPLIANT"
@@ -26,7 +31,7 @@ export default function ThesisWorkspace({
               : "Review required"
         }
         explanation={
-          data?.agreement?.agreementSummary ??
+          data?.agreement?.summary ??
           data?.explanation?.overallAssessment ??
           "AzaLens is waiting for enough verified evidence to explain this thesis."
         }

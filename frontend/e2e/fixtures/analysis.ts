@@ -42,9 +42,22 @@ export const analysisData = {
     score: 72,
   },
   agreement: {
-    agreement: "BULLISH",
-    direction: "BULLISH",
-    confidence: 72,
+    agreement: "aligned",
+    direction: "Bullish",
+    evidenceState: "Moderate agreement",
+    support: {
+      direction: "BULLISH",
+      supportingFamilies: 3,
+      opposingFamilies: 0,
+      neutralFamilies: 1,
+    },
+    coverage: {
+      usableFamilies: 4,
+      expectedFamilies: 4,
+      unavailableFamilies: 0,
+      families: [],
+    },
+    summary: "3 of 4 evidence families support a bullish lean.",
     bullishSignals: 4,
     bearishSignals: 1,
     neutralSignals: 1,
@@ -123,10 +136,52 @@ export const analysisData = {
     },
     publicLabel: "Constructive — Upside Evidence Established",
     evidenceAgreement: {
-      percent: 74,
       state: "Moderate agreement",
-      available: 9,
-      expected: 9,
+      support: {
+        direction: "BULLISH",
+        supportingFamilies: 3,
+        opposingFamilies: 0,
+        neutralFamilies: 1,
+      },
+      coverage: {
+        usableFamilies: 4,
+        expectedFamilies: 4,
+        unavailableFamilies: 0,
+        families: [
+          {
+            id: "trendPosition",
+            label: "Trend position",
+            vote: "BULLISH",
+            members: [
+              { name: "EMA", vote: "BULLISH" },
+              { name: "SMA", vote: "BULLISH" },
+              { name: "Bollinger Bands", vote: "BEARISH" },
+            ],
+          },
+          {
+            id: "momentum",
+            label: "Momentum",
+            vote: "BULLISH",
+            members: [
+              { name: "RSI", vote: "BULLISH" },
+              { name: "MACD", vote: "BULLISH" },
+            ],
+          },
+          {
+            id: "priceAction",
+            label: "Price action",
+            vote: "NEUTRAL",
+            members: [{ name: "Candlestick", vote: "NEUTRAL" }],
+          },
+          {
+            id: "volumeFlow",
+            label: "Volume flow",
+            vote: "BULLISH",
+            members: [{ name: "OBV", vote: "BULLISH" }],
+          },
+        ],
+      },
+      summary: "3 of 4 evidence families support a bullish lean.",
     },
     currentSituation:
       "Upside evidence currently leads the available indicator set, with confirmation still conditional.",

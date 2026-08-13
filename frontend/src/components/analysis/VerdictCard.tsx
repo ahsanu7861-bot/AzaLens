@@ -1,20 +1,18 @@
 import { AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
 
-import {
-  GRADED_EVIDENCE_STATES,
-  LIMITED_EVIDENCE_STATE,
-} from "../../types/analysis";
+import type { EvidenceAgreement, EvidenceFamily } from "../../types/analysis";
 import type { ThesisInvalidation } from "../../types/overview";
 import { Badge, Card } from "../ui";
 
 interface VerdictCardProps {
   direction?: string;
   trend?: string;
-  confidence?: number;
-  evidenceState?: string;
-  coveragePercent?: number;
-  availableIndicators?: number;
-  expectedIndicators?: number;
+  /*
+   * The canonical evidence assessment. There is deliberately no numeric
+   * agreement prop: a missing number used to be coerced to 0 and rendered as
+   * "0%", which stated a measurement that had not been made.
+   */
+  evidence?: EvidenceAgreement | null;
   summary?: string;
   invalidation?: ThesisInvalidation | null;
   isLoading?: boolean;
@@ -23,88 +21,81 @@ interface VerdictCardProps {
 type VerdictTone = {
   accent: string;
   badge: "success" | "warning" | "danger" | "neutral";
-  bar: string;
 };
 
 function getVerdictTone(value: string): VerdictTone {
   const normalized = value.toLowerCase();
   if (normalized.includes("bullish") || normalized.includes("positive")) {
-    return { accent: "text-positive", badge: "success", bar: "bg-positive" };
+    return { accent: "text-positive", badge: "success" };
   }
   if (normalized.includes("constructive")) {
-    return { accent: "text-positive", badge: "success", bar: "bg-positive" };
+    return { accent: "text-positive", badge: "success" };
   }
   if (normalized.includes("bearish") || normalized.includes("negative")) {
-    return { accent: "text-critical", badge: "danger", bar: "bg-critical" };
+    return { accent: "text-critical", badge: "danger" };
   }
-  if (
-    normalized.includes("adverse") ||
-    normalized.includes("deteriorating") ||
-    normalized.includes("invalidated")
-  ) {
-    return { accent: "text-critical", badge: "danger", bar: "bg-critical" };
+  if (normalized.includes("adverse")) {
+    return { accent: "text-critical", badge: "danger" };
   }
   if (normalized.includes("neutral") || normalized.includes("mixed")) {
-    return { accent: "text-caution", badge: "warning", bar: "bg-caution" };
+    return { accent: "text-caution", badge: "warning" };
   }
-  return { accent: "text-ink-soft", badge: "neutral", bar: "bg-ink-muted" };
+  return { accent: "text-ink-soft", badge: "neutral" };
 }
 
 /*
- * Temporary presentation safeguard (PR 1B).
+ * Family state presentation.
  *
- * A graded label - High/Moderate/Low agreement - is a claim about how much
- * complete, directional evidence agrees. The backend already says so in
- * `evidenceState`, which carries "Limited evidence", "No directional evidence"
- * and "Conflicting evidence" for the states that must never be graded.
- *
- * Two gaps remained here, both presentation-only:
- *
- *   1. With no `evidenceState`, this card graded a bare percentage. A percentage
- *      alone cannot tell complete evidence from limited, neutral or deadlocked
- *      evidence, so grading it invented a confidence the data does not support.
- *   2. A graded state arriving alongside demonstrably incomplete coverage was
- *      still shown as a grade.
- *
- * This function only decides which words appear. It changes no number, no
- * threshold and no contract value; `confidence` is still rendered verbatim as
- * the percentage. Distinguishing neutral from conflicting evidence remains the
- * backend's job via `evidenceState` - this card never infers it.
+ * Every state carries a word, never colour alone: a reader who cannot
+ * distinguish the tones still gets the full meaning from the text, and the
+ * accessible name of each row is "{family}: {state}".
  */
-/*
- * The graded and limited states come from the shared wire vocabulary in
- * types/analysis.ts, so this card cannot fall out of step with the backend by
- * retyping one of them. "Awaiting evidence" stays local on purpose: it is not a
- * backend state, it is what this card says when it was given nothing to render.
- */
-const GRADED_AGREEMENT_LABELS: readonly string[] = GRADED_EVIDENCE_STATES;
-const LIMITED_EVIDENCE_LABEL: string = LIMITED_EVIDENCE_STATE;
-const AWAITING_EVIDENCE_LABEL = "Awaiting evidence";
+const FAMILY_STATE_TEXT: Record<string, string> = {
+  BULLISH: "Bullish",
+  BEARISH: "Bearish",
+  NEUTRAL: "Neutral",
+  UNAVAILABLE: "Unavailable",
+};
 
-function resolveAgreementLabel({
-  evidenceState,
-  availableIndicators,
-  expectedIndicators,
-}: Pick<
-  VerdictCardProps,
-  "evidenceState" | "availableIndicators" | "expectedIndicators"
->) {
-  const declared = evidenceState?.trim();
-  const coverageIncomplete =
-    typeof availableIndicators === "number" &&
-    typeof expectedIndicators === "number" &&
-    expectedIndicators > 0 &&
-    availableIndicators < expectedIndicators;
+const FAMILY_STATE_TONE: Record<string, string> = {
+  BULLISH: "border-positive/35 bg-positive/10 text-positive",
+  BEARISH: "border-critical/35 bg-critical/10 text-critical",
+  NEUTRAL: "border-caution/35 bg-caution/10 text-caution",
+  UNAVAILABLE: "border-stroke bg-surface text-ink-muted",
+};
 
-  if (declared) {
-    // A grade may only stand when the evidence behind it is complete.
-    return coverageIncomplete && GRADED_AGREEMENT_LABELS.includes(declared)
-      ? LIMITED_EVIDENCE_LABEL
-      : declared;
-  }
+function familyStateText(vote: string) {
+  return FAMILY_STATE_TEXT[vote] ?? "Unavailable";
+}
 
-  // No declared state: never grade. Say what is actually known.
-  return coverageIncomplete ? LIMITED_EVIDENCE_LABEL : AWAITING_EVIDENCE_LABEL;
+function FamilyStrip({ families }: { families: EvidenceFamily[] }) {
+  return (
+    <ul className="mt-3 grid gap-1.5" data-testid="evidence-family-strip">
+      {families.map((family) => {
+        const vote = String(family.vote);
+        const stateText = familyStateText(vote);
+        return (
+          <li
+            key={family.id}
+            aria-label={`${family.label}: ${stateText}`}
+            className="flex items-center justify-between gap-3 rounded-lg border border-stroke bg-surface px-2.5 py-1.5"
+          >
+            <span className="min-w-0 truncate text-[11px] font-medium text-ink-soft">
+              {family.label}
+            </span>
+            <span
+              aria-hidden="true"
+              className={`shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide ${
+                FAMILY_STATE_TONE[vote] ?? FAMILY_STATE_TONE.UNAVAILABLE
+              }`}
+            >
+              {stateText}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 function InvalidationBox({
@@ -180,31 +171,22 @@ function InvalidationBox({
 export default function VerdictCard({
   direction,
   trend,
-  confidence,
-  evidenceState,
-  coveragePercent,
-  availableIndicators,
-  expectedIndicators,
+  evidence,
   summary,
   invalidation,
   isLoading = false,
 }: VerdictCardProps) {
   const verdict = direction?.trim() || trend?.trim() || "Unavailable";
-  const safeConfidence =
-    typeof confidence === "number" ? Math.min(100, Math.max(0, confidence)) : 0;
-  const agreementLabel = resolveAgreementLabel({
-    evidenceState,
-    availableIndicators,
-    expectedIndicators,
-  });
-  const evidenceBasis =
-    typeof availableIndicators === "number" &&
-    typeof expectedIndicators === "number"
-      ? `${availableIndicators} of ${expectedIndicators} indicators available`
-      : typeof coveragePercent === "number"
-        ? `${coveragePercent}% evidence coverage`
-        : "Coverage details unavailable";
   const tone = getVerdictTone(verdict);
+  const families = evidence?.coverage?.families ?? [];
+  const state = evidence?.state?.trim();
+  const synthesis = evidence?.summary?.trim();
+  const coverage = evidence?.coverage;
+
+  const coverageStatement =
+    coverage && typeof coverage.usableFamilies === "number"
+      ? `${coverage.usableFamilies} of ${coverage.expectedFamilies ?? 4} evidence families usable.`
+      : "Evidence coverage is unavailable for this analysis.";
 
   return (
     <Card variant="brand" padding="lg">
@@ -229,32 +211,44 @@ export default function VerdictCard({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-stroke bg-surface-soft p-3.5 sm:p-5">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                Evidence Agreement
-              </p>
-              <p className="mt-2 font-mono text-3xl font-bold tabular-nums text-ink sm:text-4xl">
-                {isLoading ? "--" : `${safeConfidence}%`}
-              </p>
-            </div>
-            <span className={`text-right text-xs font-medium ${tone.accent}`}>
-              {isLoading ? "Calculating" : agreementLabel}
-            </span>
+        <section
+          aria-labelledby="evidence-agreement-heading"
+          className="rounded-2xl border border-stroke bg-surface-soft p-3.5 sm:p-5"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <h3
+              id="evidence-agreement-heading"
+              className="font-mono text-[11px] font-semibold uppercase tracking-wider text-ink-muted"
+            >
+              Evidence Agreement
+            </h3>
+            {!isLoading && state && (
+              <span className={`text-right text-xs font-medium ${tone.accent}`}>
+                {state}
+              </span>
+            )}
           </div>
-          <div className="mt-4 h-2 overflow-hidden rounded-full bg-stroke">
-            <div
-              className={`h-full rounded-full transition-[width] duration-1000 ${tone.bar}`}
-              style={{ width: `${isLoading ? 0 : safeConfidence}%` }}
-            />
-          </div>
-          <p className="mt-3 break-words text-[11px] leading-5 text-ink-muted">
-            {isLoading
-              ? "Measuring agreement and evidence coverage."
-              : `${evidenceBasis}. Not a probability or performance guarantee.`}
-          </p>
-        </div>
+
+          {isLoading ? (
+            <p className="mt-3 text-[11px] leading-5 text-ink-muted">
+              Reading the four evidence families.
+            </p>
+          ) : families.length > 0 ? (
+            <>
+              <FamilyStrip families={families} />
+              <p className="mt-3 break-words text-sm leading-6 text-ink-soft">
+                {synthesis || "No evidence assessment was supplied by the analysis API."}
+              </p>
+              <p className="mt-2 break-words text-[11px] leading-5 text-ink-muted">
+                {coverageStatement}
+              </p>
+            </>
+          ) : (
+            <p className="mt-3 break-words text-sm leading-6 text-ink-soft">
+              {synthesis || "No evidence assessment was supplied by the analysis API."}
+            </p>
+          )}
+        </section>
       </div>
 
       <InvalidationBox invalidation={invalidation} isLoading={isLoading} />

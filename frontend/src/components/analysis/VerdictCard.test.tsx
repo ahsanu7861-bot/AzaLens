@@ -1,28 +1,28 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import {
   EVIDENCE_STATES,
-  GRADED_EVIDENCE_STATES,
-  LIMITED_EVIDENCE_STATE,
+  EVIDENCE_FAMILY_IDS,
+  EXPECTED_EVIDENCE_FAMILIES,
+  type EvidenceAgreement,
+  type EvidenceFamily,
+  type FamilyVote,
 } from "../../types/analysis";
 import VerdictCard from "./VerdictCard";
 
 /*
- * The frontend declares the seven wire values independently of the backend: it
+ * The frontend declares the wire vocabulary independently of the backend: it
  * cannot import backend/analysis/agreement/agreementEngine.js, which is CommonJS
- * and server-only. There is therefore no shared cross-language source to trust.
- *
- * What replaces that trust is symmetry: this suite pins the exact strings from
- * the frontend side, and backend/tests/testEvidenceAgreementContract.js pins the
- * same strings from the backend side. Either declaration drifting alone fails its
- * own suite. These literals are written out on purpose - importing the constant
- * and comparing it to itself would assert nothing.
+ * and server-only. Both sides therefore pin the same literals in their own suite,
+ * written out longhand — importing the constant and comparing it to itself would
+ * assert nothing.
  */
 describe("evidence-state wire vocabulary", () => {
-  it("declares exactly the seven approved wire strings, in order", () => {
+  it("declares exactly the eight approved wire strings, in order", () => {
     expect([...EVIDENCE_STATES]).toEqual([
       "Evidence unavailable",
+      "Insufficient evidence",
       "No directional evidence",
       "Conflicting evidence",
       "Limited evidence",
@@ -32,180 +32,193 @@ describe("evidence-state wire vocabulary", () => {
     ]);
   });
 
-  it("contains no duplicate wire values", () => {
+  it("contains no duplicates and fixes the denominator at four", () => {
     expect(new Set(EVIDENCE_STATES).size).toBe(EVIDENCE_STATES.length);
-  });
-
-  it("grades only the three states that assert how strongly evidence agrees", () => {
-    expect([...GRADED_EVIDENCE_STATES]).toEqual([
-      "High agreement",
-      "Moderate agreement",
-      "Low agreement",
+    expect(EXPECTED_EVIDENCE_FAMILIES).toBe(4);
+    expect([...EVIDENCE_FAMILY_IDS]).toEqual([
+      "trendPosition",
+      "momentum",
+      "priceAction",
+      "volumeFlow",
     ]);
-
-    for (const graded of GRADED_EVIDENCE_STATES) {
-      expect(EVIDENCE_STATES).toContain(graded);
-    }
-  });
-
-  it("degrades an unsupported grade to a declared state, not invented wording", () => {
-    expect(LIMITED_EVIDENCE_STATE).toBe("Limited evidence");
-    expect(EVIDENCE_STATES).toContain(LIMITED_EVIDENCE_STATE);
   });
 });
 
-describe("VerdictCard Evidence Agreement presentation", () => {
-  it.each([
-    ["Limited evidence", 44, 4, 9],
-    ["No directional evidence", 35, 9, 9],
-    ["Conflicting evidence", 50, 9, 9],
-  ])("shows %s as a domain state, not a confidence tier", (
-    evidenceState,
-    confidence,
-    availableIndicators,
-    expectedIndicators,
-  ) => {
-    render(
-      <VerdictCard
-        direction="Mixed"
-        confidence={confidence}
-        evidenceState={evidenceState}
-        availableIndicators={availableIndicators}
-        expectedIndicators={expectedIndicators}
-      />,
-    );
+function family(
+  id: string,
+  label: string,
+  vote: FamilyVote,
+  members: Array<[string, FamilyVote]>,
+): EvidenceFamily {
+  return { id, label, vote, members: members.map(([name, v]) => ({ name, vote: v })) };
+}
 
-    expect(screen.getByText("Evidence Agreement")).toBeInTheDocument();
-    expect(screen.getByText(evidenceState)).toBeInTheDocument();
-    expect(
-      screen.getByText(`${availableIndicators} of ${expectedIndicators} indicators available. Not a probability or performance guarantee.`),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/confidence$/i)).not.toBeInTheDocument();
-  });
-
-  /*
-   * Temporary PR 1B presentation safeguards. A graded label may appear only when
-   * the evidence behind it is complete and directional. These assertions read the
-   * rendered output, so they prove what a user actually sees.
-   */
-  const GRADES = /\b(High|Moderate|Low) agreement\b/;
-
-  it("preserves current behaviour for complete directional evidence", () => {
-    render(
-      <VerdictCard
-        direction="Constructive"
-        confidence={74}
-        evidenceState="Moderate agreement"
-        availableIndicators={9}
-        expectedIndicators={9}
-      />,
-    );
-
-    expect(screen.getByText("Moderate agreement")).toBeInTheDocument();
-    // The percentage itself is untouched by the safeguard.
-    expect(screen.getByText("74%")).toBeInTheDocument();
-  });
-
-  it.each([
-    ["High agreement", 80],
-    ["Moderate agreement", 60],
-    ["Low agreement", 30],
-  ])("never shows %s when coverage is incomplete", (evidenceState, confidence) => {
-    render(
-      <VerdictCard
-        direction="Constructive"
-        confidence={confidence}
-        evidenceState={evidenceState}
-        availableIndicators={4}
-        expectedIndicators={9}
-      />,
-    );
-
-    expect(screen.queryByText(GRADES)).not.toBeInTheDocument();
-    expect(screen.getByText("Limited evidence")).toBeInTheDocument();
-    // The underlying number is still reported verbatim - only wording changed.
-    expect(screen.getByText(`${confidence}%`)).toBeInTheDocument();
-  });
-
-  it.each([
-    ["No directional evidence"],
-    ["Conflicting evidence"],
-    ["Limited evidence"],
-  ])("renders the backend state %s verbatim and never grades it", (evidenceState) => {
-    render(
-      <VerdictCard
-        direction="Mixed"
-        confidence={50}
-        evidenceState={evidenceState}
-        availableIndicators={9}
-        expectedIndicators={9}
-      />,
-    );
-
-    expect(screen.getByText(evidenceState)).toBeInTheDocument();
-    expect(screen.queryByText(GRADES)).not.toBeInTheDocument();
-  });
-
-  it.each([
-    [undefined, undefined, undefined, "Awaiting evidence"],
-    ["", undefined, undefined, "Awaiting evidence"],
-    ["   ", undefined, undefined, "Awaiting evidence"],
-    [undefined, 4, 9, "Limited evidence"],
-  ])(
-    "fails closed for missing or malformed evidence state (%j)",
-    (evidenceState, available, expected, label) => {
-      render(
-        <VerdictCard
-          direction="Constructive"
-          confidence={92}
-          evidenceState={evidenceState as string | undefined}
-          availableIndicators={available as number | undefined}
-          expectedIndicators={expected as number | undefined}
-        />,
-      );
-
-      // A high percentage alone must never be promoted into a grade.
-      expect(screen.queryByText(GRADES)).not.toBeInTheDocument();
-      expect(screen.getByText(label)).toBeInTheDocument();
+function evidence(overrides: Partial<EvidenceAgreement> = {}): EvidenceAgreement {
+  return {
+    state: "Moderate agreement",
+    support: {
+      direction: "BULLISH",
+      supportingFamilies: 3,
+      opposingFamilies: 0,
+      neutralFamilies: 1,
     },
-  );
+    coverage: {
+      usableFamilies: 4,
+      expectedFamilies: 4,
+      unavailableFamilies: 0,
+      families: [
+        family("trendPosition", "Trend position", "BULLISH", [
+          ["EMA", "BULLISH"],
+          ["SMA", "BULLISH"],
+          ["Bollinger Bands", "BEARISH"],
+        ]),
+        family("momentum", "Momentum", "BULLISH", [
+          ["RSI", "BULLISH"],
+          ["MACD", "BULLISH"],
+        ]),
+        family("priceAction", "Price action", "NEUTRAL", [["Candlestick", "NEUTRAL"]]),
+        family("volumeFlow", "Volume flow", "BULLISH", [["OBV", "BULLISH"]]),
+      ],
+    },
+    summary: "3 of 4 evidence families support a bullish lean.",
+    ...overrides,
+  };
+}
 
-  it("cannot turn incomplete evidence into a permissive conclusion", () => {
+function region() {
+  return screen.getByRole("region", { name: "Evidence Agreement" });
+}
+
+describe("VerdictCard Evidence Agreement presentation", () => {
+  it("labels the Evidence Agreement region and lists all four families", () => {
+    render(<VerdictCard direction="Constructive" evidence={evidence()} />);
+
+    const view = region();
+    const items = within(view).getAllByRole("listitem");
+    expect(items).toHaveLength(4);
+
+    for (const label of ["Trend position", "Momentum", "Price action", "Volume flow"]) {
+      expect(within(view).getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it("exposes each family state programmatically as '{family}: {state}'", () => {
+    render(<VerdictCard direction="Constructive" evidence={evidence()} />);
+    const view = region();
+
+    expect(within(view).getByLabelText("Trend position: Bullish")).toBeInTheDocument();
+    expect(within(view).getByLabelText("Momentum: Bullish")).toBeInTheDocument();
+    expect(within(view).getByLabelText("Price action: Neutral")).toBeInTheDocument();
+    expect(within(view).getByLabelText("Volume flow: Bullish")).toBeInTheDocument();
+  });
+
+  it("renders the synthesis and coverage as real text", () => {
+    render(<VerdictCard direction="Constructive" evidence={evidence()} />);
+    const view = region();
+
+    expect(
+      within(view).getByText("3 of 4 evidence families support a bullish lean."),
+    ).toBeInTheDocument();
+    expect(within(view).getByText("4 of 4 evidence families usable.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["directional", "Moderate agreement", "3 of 4 evidence families support a bullish lean."],
+    ["limited evidence", "Limited evidence", "2 of 4 evidence families support a bullish lean. 2 families are unavailable."],
+    ["no directional evidence", "No directional evidence", "All 4 usable evidence families are neutral; none expresses a direction."],
+    ["conflicting", "Conflicting evidence", "Directional evidence is split 2 against 2."],
+    ["insufficient", "Insufficient evidence", "Only 1 of 4 evidence families is usable — not enough to assess agreement."],
+    ["unavailable", "Evidence unavailable", "No evidence families are usable for this analysis."],
+  ])("renders the %s state verbatim with its synthesis", (_label, state, summary) => {
     render(
       <VerdictCard
-        direction="Constructive"
-        confidence={99}
-        evidenceState="High agreement"
-        availableIndicators={1}
-        expectedIndicators={9}
+        direction="Mixed"
+        evidence={evidence({ state, summary })}
       />,
     );
 
-    const view = screen.getByText("Limited evidence");
-    expect(view).toBeInTheDocument();
-    expect(screen.queryByText(GRADES)).not.toBeInTheDocument();
-    // No transaction command is introduced by the safeguard.
-    expect(document.body.textContent).not.toMatch(/\b(?:buy|sell|hold)\b/i);
+    const view = region();
+    expect(within(view).getByText(state)).toBeInTheDocument();
+    expect(within(view).getByText(summary)).toBeInTheDocument();
+  });
+
+  it("never renders a percentage in the Evidence Agreement region", () => {
+    for (const state of EVIDENCE_STATES) {
+      const { unmount } = render(
+        <VerdictCard direction="Mixed" evidence={evidence({ state })} />,
+      );
+      expect(region().textContent ?? "").not.toMatch(/%/);
+      expect(region().textContent ?? "").not.toMatch(/confidence/i);
+      unmount();
+    }
+  });
+
+  it("uses no progressbar and no aria-valuenow", () => {
+    const { container } = render(
+      <VerdictCard direction="Constructive" evidence={evidence()} />,
+    );
+
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(container.querySelector("[aria-valuenow]")).toBeNull();
+    expect(container.querySelector("[role='progressbar']")).toBeNull();
+  });
+
+  it("never falls back to 0% when no evidence is supplied", () => {
+    const { container } = render(<VerdictCard direction="Analysis Limited" />);
+
+    expect(container.textContent ?? "").not.toMatch(/0%/);
+    expect(container.textContent ?? "").not.toMatch(/%/);
+    expect(
+      screen.getByText("No evidence assessment was supplied by the analysis API."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an unavailable family as unavailable rather than neutral", () => {
+    const limited = evidence({
+      state: "Limited evidence",
+      support: { direction: "BULLISH", supportingFamilies: 2, opposingFamilies: 0, neutralFamilies: 0 },
+      coverage: {
+        usableFamilies: 2,
+        expectedFamilies: 4,
+        unavailableFamilies: 2,
+        families: [
+          family("trendPosition", "Trend position", "BULLISH", [["EMA", "BULLISH"]]),
+          family("momentum", "Momentum", "BULLISH", [["RSI", "BULLISH"], ["MACD", "BULLISH"]]),
+          family("priceAction", "Price action", "UNAVAILABLE", [["Candlestick", "UNAVAILABLE"]]),
+          family("volumeFlow", "Volume flow", "UNAVAILABLE", [["OBV", "UNAVAILABLE"]]),
+        ],
+      },
+      summary: "2 of 4 evidence families support a bullish lean. 2 families are unavailable.",
+    });
+
+    render(<VerdictCard direction="Unconfirmed" evidence={limited} />);
+    const view = region();
+
+    expect(within(view).getByLabelText("Price action: Unavailable")).toBeInTheDocument();
+    expect(within(view).getByLabelText("Volume flow: Unavailable")).toBeInTheDocument();
+    expect(within(view).getByText("2 of 4 evidence families usable.")).toBeInTheDocument();
+  });
+
+  it("does not rely on colour alone: every family state carries its word", () => {
+    render(<VerdictCard direction="Constructive" evidence={evidence()} />);
+    const view = region();
+
+    expect(within(view).getAllByText("Bullish").length).toBeGreaterThan(0);
+    expect(within(view).getByText("Neutral")).toBeInTheDocument();
   });
 
   it("keeps invalidation evidence inside valid definition-list descriptions", () => {
     const { container } = render(
       <VerdictCard
         direction="Bullish"
-        confidence={60}
+        evidence={evidence()}
         invalidation={{
           status: "intact",
           technical: "Price remains above support.",
           fundamental: "Risk boundaries remain intact.",
           evidence: {
-            technical: {
-              status: "intact",
-              evidence: "Technical evidence note.",
-            },
-            fundamental: {
-              status: "intact",
-              evidence: "Fundamental evidence note.",
-            },
+            technical: { status: "intact", evidence: "Technical evidence note." },
+            fundamental: { status: "intact", evidence: "Fundamental evidence note." },
           },
         }}
       />,
@@ -216,5 +229,12 @@ describe("VerdictCard Evidence Agreement presentation", () => {
     expect(definitionList?.querySelector("p")).toBeNull();
     expect(screen.getByText("Technical evidence note.").tagName).toBe("DD");
     expect(screen.getByText("Fundamental evidence note.").tagName).toBe("DD");
+  });
+
+  it("introduces no transaction language", () => {
+    const { container } = render(
+      <VerdictCard direction="Constructive" evidence={evidence()} />,
+    );
+    expect(container.textContent ?? "").not.toMatch(/\b(?:buy|sell|hold)\b/i);
   });
 });

@@ -303,8 +303,9 @@ export default function TechnicalEvidence({
             >
               {isLoading
                 ? "Analyzing indicators"
-                : isFiniteNumber(agreement?.confidence)
-                  ? `${Math.round(agreement.confidence)}% evidence agreement`
+                : isFiniteNumber(agreement?.support?.supportingFamilies) &&
+                    isFiniteNumber(agreement?.coverage?.expectedFamilies)
+                  ? `${agreement.support.supportingFamilies} of ${agreement.coverage.expectedFamilies} evidence families`
                   : "Agreement unavailable"}
             </Badge>
           )}
