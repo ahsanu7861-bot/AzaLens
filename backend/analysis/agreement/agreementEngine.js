@@ -1,17 +1,41 @@
-const EXPECTED_INDICATOR_COUNT = 9;
+/*
+ * ============================================================================
+ * AzaLens — Evidence Agreement (independence-aware family model)
+ *
+ * The previous model counted nine indicators as nine independent votes and
+ * published a percentage. Three of those nine could never express a direction,
+ * six were derived from one shared close series, and one of them (Volume Spike)
+ * was a deterministic function of another (RVOL). The published figure could
+ * therefore never fall below 35 or rise above 78, reached an internal "100%"
+ * on a single available indicator, and grew larger as a deadlock deepened.
+ *
+ * This model groups the readings into four evidence families, gives each family
+ * one vote, and reports two separate facts: how many families support the
+ * dominant lean, and how many families were usable at all. The denominator is
+ * always four. There is no percentage.
+ *
+ * The grouping is structural — derived from how the indicators are computed —
+ * and is deliberately labelled provisional. It is NOT empirically measured:
+ * no historical sample exists in this repository from which indicator
+ * dependence could be estimated. See docs/VERDICT_CONTRACT.md.
+ * ============================================================================
+ */
+
+const BULLISH = "BULLISH";
+const BEARISH = "BEARISH";
+const NEUTRAL = "NEUTRAL";
+const UNAVAILABLE = "UNAVAILABLE";
 
 /*
- * The canonical backend declaration of every `evidenceState` value this engine
- * can emit. These exact strings travel on the wire and are mapped by
- * services/guidanceContractService.js, so they are named here once rather than
- * retyped at each use site: a silent rename in one branch below would otherwise
- * fall through the guidance map's fail-closed default and quietly degrade every
- * affected verdict to Analysis Limited.
- *
- * The strings themselves are unchanged. See docs/VERDICT_CONTRACT.md §2.1.
+ * The eight wire values. These exact strings cross the API boundary and are
+ * mapped by services/guidanceContractService.js; anything unrecognised there
+ * fails closed. frontend/src/types/analysis.ts declares the same eight
+ * independently (it cannot import this CommonJS module) and both sides pin them
+ * in their own test suite.
  */
 const EVIDENCE_STATES = Object.freeze({
   UNAVAILABLE: "Evidence unavailable",
+  INSUFFICIENT: "Insufficient evidence",
   NO_DIRECTION: "No directional evidence",
   CONFLICTING: "Conflicting evidence",
   LIMITED: "Limited evidence",
@@ -20,381 +44,332 @@ const EVIDENCE_STATES = Object.freeze({
   HIGH: "High agreement"
 });
 
-/*
- * The subset that asserts a *grade* - how strongly complete directional evidence
- * agrees. Presentation code must never show one of these beside incomplete
- * coverage, which is what the PR 1B safeguard in VerdictCard.tsx enforces.
- */
 const GRADED_EVIDENCE_STATES = Object.freeze([
   EVIDENCE_STATES.HIGH,
   EVIDENCE_STATES.MODERATE,
   EVIDENCE_STATES.LOW
 ]);
 
-function analyzeAgreement(indicators) {
-  const bullish = [];
-  const bearish = [];
-  const neutral = [];
-  const agreementDetails = [];
-  const unavailableIndicators = [];
+// ---------------------------------------------------------------------------
+// Member readings
+//
+// Each reader turns one indicator result into a directional vote. An indicator
+// that did not succeed is UNAVAILABLE - it never becomes NEUTRAL, because
+// "we could not measure this" and "we measured this and it points nowhere" are
+// different findings.
+// ---------------------------------------------------------------------------
 
-  function markUnavailable(name, label) {
-    unavailableIndicators.push(name);
+function includesAny(value, needles) {
+  const text = String(value ?? "");
+  return needles.some((needle) => text.includes(needle));
+}
 
-    agreementDetails.push(
-      `${label} data is unavailable for this analysis and was excluded from indicator agreement.`
-    );
+function readSignal(indicator, bullishNeedles, bearishNeedles) {
+  if (indicator?.success !== true) return UNAVAILABLE;
+  if (includesAny(indicator.signal, bullishNeedles)) return BULLISH;
+  if (includesAny(indicator.signal, bearishNeedles)) return BEARISH;
+  return NEUTRAL;
+}
+
+const MEMBER_READERS = {
+  RSI: (i) => readSignal(i.rsi, ["Oversold"], ["Overbought"]),
+  EMA: (i) => readSignal(i.ema, ["Above EMA"], ["Below EMA"]),
+  SMA: (i) => readSignal(i.sma, ["Above SMA"], ["Below SMA"]),
+  MACD: (i) => readSignal(i.macd, ["Bullish"], ["Bearish"]),
+  "Bollinger Bands": (i) =>
+    readSignal(i.bollinger, ["Above Upper Band", "Near Upper Band"], ["Below Lower Band", "Near Lower Band"]),
+  Candlestick: (i) => {
+    if (i.candlestick?.success !== true) return UNAVAILABLE;
+    if (i.candlestick.bias === "Bullish") return BULLISH;
+    if (i.candlestick.bias === "Bearish") return BEARISH;
+    return NEUTRAL;
+  },
+  // On-balance volume signs cumulative volume by the direction of the close, so
+  // it is the only directional reading that carries volume information.
+  OBV: (i) => readSignal(i.obv, ["Accumulation"], ["Distribution"])
+};
+
+/*
+ * The four evidence families.
+ *
+ * `minimumUsableMembers` is the availability threshold a family must meet before
+ * it may vote at all. Trend position needs a majority of its three moving-average
+ * readings; momentum needs both of its two distinct statistics; the single-member
+ * families need their one member.
+ */
+const EVIDENCE_FAMILIES = Object.freeze([
+  Object.freeze({
+    id: "trendPosition",
+    label: "Trend position",
+    members: Object.freeze(["EMA", "SMA", "Bollinger Bands"]),
+    minimumUsableMembers: 2,
+    basis: "where price sits relative to a recent mean of the same close series"
+  }),
+  Object.freeze({
+    id: "momentum",
+    label: "Momentum",
+    members: Object.freeze(["RSI", "MACD"]),
+    minimumUsableMembers: 2,
+    basis: "rate-of-change statistics of the same close series"
+  }),
+  Object.freeze({
+    id: "priceAction",
+    label: "Price action",
+    members: Object.freeze(["Candlestick"]),
+    minimumUsableMembers: 1,
+    basis: "the shape of the most recent bar"
+  }),
+  Object.freeze({
+    id: "volumeFlow",
+    label: "Volume flow",
+    members: Object.freeze(["OBV"]),
+    minimumUsableMembers: 1,
+    basis: "direction weighted by traded volume"
+  })
+]);
+
+const EXPECTED_FAMILIES = EVIDENCE_FAMILIES.length;
+
+/*
+ * Context readings. ADX measures trend strength and RVOL measures participation;
+ * neither expresses a direction, so neither votes. Volume Spike is omitted
+ * entirely: services/volumeSpikeService.js derives it from getRVOL and passes
+ * that same ratio into detectVolumeSpike, so counting both would count one
+ * observation twice.
+ */
+const CONTEXT_READINGS = Object.freeze([
+  Object.freeze({ name: "ADX", key: "adx", describes: "trend strength" }),
+  Object.freeze({ name: "RVOL", key: "rvol", describes: "participation" })
+]);
+
+// ---------------------------------------------------------------------------
+// Family aggregation
+// ---------------------------------------------------------------------------
+
+function assessFamily(family, indicators) {
+  const members = family.members.map((name) => ({
+    name,
+    vote: MEMBER_READERS[name](indicators)
+  }));
+
+  const usable = members.filter((member) => member.vote !== UNAVAILABLE);
+
+  if (usable.length < family.minimumUsableMembers) {
+    return { id: family.id, label: family.label, vote: UNAVAILABLE, members };
   }
 
-  // ============================
-  // RSI
-  // ============================
-
-  if (indicators.rsi?.success === true) {
-    if (indicators.rsi.signal === "Oversold") {
-      bullish.push("RSI");
-
-      agreementDetails.push(
-        `RSI is ${indicators.rsi.rsi}, indicating oversold conditions.`
-      );
-    } else if (indicators.rsi.signal === "Overbought") {
-      bearish.push("RSI");
-
-      agreementDetails.push(
-        `RSI is ${indicators.rsi.rsi}, indicating overbought conditions.`
-      );
-    } else {
-      neutral.push("RSI");
-
-      agreementDetails.push(
-        `RSI is ${indicators.rsi.rsi}, currently neutral.`
-      );
-    }
-  } else {
-    markUnavailable("RSI", "RSI");
-  }
-
-  // ============================
-  // EMA
-  // ============================
-
-  if (indicators.ema?.success === true) {
-    if (indicators.ema.signal.includes("Above EMA")) {
-      bullish.push("EMA");
-      agreementDetails.push("Price is above EMA20.");
-    } else if (indicators.ema.signal.includes("Below EMA")) {
-      bearish.push("EMA");
-      agreementDetails.push("Price is below EMA20.");
-    } else {
-      neutral.push("EMA");
-      agreementDetails.push("Price is near EMA20.");
-    }
-  } else {
-    markUnavailable("EMA", "EMA");
-  }
-
-  // ============================
-  // SMA
-  // ============================
-
-  if (indicators.sma?.success === true) {
-    if (indicators.sma.signal.includes("Above SMA")) {
-      bullish.push("SMA");
-      agreementDetails.push("Price is above SMA50.");
-    } else if (indicators.sma.signal.includes("Below SMA")) {
-      bearish.push("SMA");
-      agreementDetails.push("Price is below SMA50.");
-    } else {
-      neutral.push("SMA");
-      agreementDetails.push("Price is near SMA50.");
-    }
-  } else {
-    markUnavailable("SMA", "SMA");
-  }
-
-  // ============================
-  // MACD
-  // ============================
-
-  if (indicators.macd?.success === true) {
-    if (indicators.macd.signal.includes("Bullish")) {
-      bullish.push("MACD");
-      agreementDetails.push("MACD indicates bullish momentum.");
-    } else if (indicators.macd.signal.includes("Bearish")) {
-      bearish.push("MACD");
-      agreementDetails.push("MACD indicates bearish momentum.");
-    } else {
-      neutral.push("MACD");
-      agreementDetails.push("MACD momentum is currently neutral.");
-    }
-  } else {
-    markUnavailable("MACD", "MACD");
-  }
-
-  // ============================
-  // Bollinger Bands
-  // ============================
-
-  if (indicators.bollinger?.success === true) {
-    if (
-      indicators.bollinger.signal === "Above Upper Band" ||
-      indicators.bollinger.signal === "Price Near Upper Band"
-    ) {
-      bullish.push("Bollinger Bands");
-
-      agreementDetails.push(
-        "Price is trading in the upper Bollinger Band region."
-      );
-    } else if (
-      indicators.bollinger.signal === "Below Lower Band" ||
-      indicators.bollinger.signal === "Price Near Lower Band"
-    ) {
-      bearish.push("Bollinger Bands");
-
-      agreementDetails.push(
-        "Price is trading in the lower Bollinger Band region."
-      );
-    } else {
-      neutral.push("Bollinger Bands");
-
-      agreementDetails.push(
-        "Price is trading near the middle Bollinger Band."
-      );
-    }
-  } else {
-    markUnavailable("Bollinger Bands", "Bollinger Bands");
-  }
-
-  // ============================
-  // ADX
-  // ============================
-
-  // ADX measures trend strength, not direction.
-  if (indicators.adx?.success === true) {
-    neutral.push("ADX");
-
-    agreementDetails.push(
-      `ADX is ${indicators.adx.adx} and reports "${indicators.adx.signal}".`
-    );
-  } else {
-    markUnavailable("ADX", "ADX");
-  }
-
-  // ============================
-  // Candlestick
-  // ============================
-
-  if (indicators.candlestick?.success === true) {
-    if (indicators.candlestick.bias === "Bullish") {
-      bullish.push("Candlestick");
-
-      agreementDetails.push(
-        `${indicators.candlestick.pattern} provides bullish price-action evidence.`
-      );
-    } else if (indicators.candlestick.bias === "Bearish") {
-      bearish.push("Candlestick");
-
-      agreementDetails.push(
-        `${indicators.candlestick.pattern} provides bearish price-action evidence.`
-      );
-    } else {
-      neutral.push("Candlestick");
-
-      agreementDetails.push(
-        "No directional candlestick pattern was detected."
-      );
-    }
-  } else {
-    markUnavailable("Candlestick", "Candlestick");
-  }
-
-  // ============================
-  // RVOL
-  // ============================
-
-  // RVOL measures participation, not direction.
-  if (indicators.rvol?.success === true) {
-    neutral.push("RVOL");
-
-    agreementDetails.push(
-      `Relative volume is ${indicators.rvol.rvol}× average volume.`
-    );
-  } else {
-    markUnavailable("RVOL", "Relative volume (RVOL)");
-  }
-
-  // ============================
-  // Volume Spike
-  // ============================
-
-  // A volume spike confirms participation, but not bullish/bearish direction.
-  if (indicators.volumeSpike?.success === true) {
-    neutral.push("Volume Spike");
-
-    if (indicators.volumeSpike.volumeSpikeDetected) {
-      agreementDetails.push(
-        `${indicators.volumeSpike.signal} detected; this confirms unusually strong participation but not direction by itself.`
-      );
-    } else {
-      agreementDetails.push("No unusual volume spike was detected.");
-    }
-  } else {
-    markUnavailable("Volume Spike", "Volume spike");
-  }
-
-  // ============================
-  // Signal Counts
-  // ============================
-
-  const bullishSignals = bullish.length;
-  const bearishSignals = bearish.length;
-  const neutralSignals = neutral.length;
-
-  const totalIndicators =
-    bullishSignals + bearishSignals + neutralSignals;
-
-  const dominantCount = Math.max(
-    bullishSignals,
-    bearishSignals
-  );
-
-  // ============================
-  // Direction
-  // ============================
-
-  let direction = "Mixed";
-
-  if (bullishSignals > bearishSignals) {
-    direction = "Bullish";
-  } else if (bearishSignals > bullishSignals) {
-    direction = "Bearish";
-  }
-
-  // ============================
-  // Confidence
-  // ============================
+  const bullish = usable.filter((member) => member.vote === BULLISH).length;
+  const bearish = usable.filter((member) => member.vote === BEARISH).length;
 
   /*
-   * Dominant directional signals receive full weight.
-   * Neutral signals receive partial credit because they do not oppose
-   * the dominant direction, but they also do not confirm it strongly.
-   *
-   * Raw agreement is calculated from the evidence that exists. The
-   * published percentage is then scaled by coverage so a small,
-   * unanimous subset cannot appear equivalent to complete evidence.
+   * Once the family is usable its direction is the balance of its bullish and
+   * bearish members. One directional member may therefore establish the family
+   * when the other usable members are neutral - but not when a required member
+   * is missing, because the threshold above would already have made the family
+   * unavailable.
    */
+  const vote = bullish > bearish ? BULLISH : bearish > bullish ? BEARISH : NEUTRAL;
 
-  let rawAgreementPercent = 0;
+  return { id: family.id, label: family.label, vote, members };
+}
 
-  if (totalIndicators > 0) {
-    rawAgreementPercent = Math.round(
-      (
-        dominantCount +
-        neutralSignals * 0.35
-      ) /
-      totalIndicators *
-      100
-    );
+// ---------------------------------------------------------------------------
+// Plain-language synthesis
+//
+// The backend owns this sentence. It never contains a percentage, and it states
+// support and coverage against the fixed denominator of four.
+// ---------------------------------------------------------------------------
+
+function leanWord(direction) {
+  return direction === BULLISH ? "bullish" : "bearish";
+}
+
+function buildSummary({ state, direction, supporting, opposing, neutral, usable, unavailable }) {
+  if (state === EVIDENCE_STATES.UNAVAILABLE) {
+    return "No evidence families are usable for this analysis.";
+  }
+  if (state === EVIDENCE_STATES.INSUFFICIENT) {
+    return `Only ${usable} of ${EXPECTED_FAMILIES} evidence families is usable — not enough to assess agreement.`;
+  }
+  if (state === EVIDENCE_STATES.NO_DIRECTION) {
+    return `All ${usable} usable evidence families are neutral; none expresses a direction.`;
+  }
+  if (state === EVIDENCE_STATES.CONFLICTING) {
+    const tail = neutral > 0 ? `, with ${neutral} expressing no direction` : "";
+    return `Directional evidence is split ${supporting} against ${opposing}${tail}.`;
   }
 
-  rawAgreementPercent = Math.min(100, Math.max(0, rawAgreementPercent));
+  const lead = `${supporting} of ${EXPECTED_FAMILIES} evidence families support a ${leanWord(direction)} lean.`;
 
-  const coveragePercent = Math.round(
-    totalIndicators / EXPECTED_INDICATOR_COUNT * 100
-  );
-  const confidence = Math.round(
-    rawAgreementPercent * coveragePercent / 100
-  );
+  if (unavailable > 0) {
+    const noun = unavailable === 1 ? "family is" : "families are";
+    return `${lead} ${unavailable} ${noun} unavailable.`;
+  }
+  if (opposing > 0) {
+    const noun = opposing === 1 ? "family opposes" : "families oppose";
+    return `${lead} ${opposing} ${noun} it.`;
+  }
+  return lead;
+}
 
-  let evidenceState = EVIDENCE_STATES.LOW;
+function buildCoverageStatement(usable) {
+  return `${usable} of ${EXPECTED_FAMILIES} evidence families usable.`;
+}
 
-  if (totalIndicators === 0) {
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+function analyzeAgreement(rawIndicators) {
+  const indicators =
+    rawIndicators && typeof rawIndicators === "object" ? rawIndicators : {};
+
+  const families = EVIDENCE_FAMILIES.map((family) => assessFamily(family, indicators));
+
+  const bullishFamilies = families.filter((f) => f.vote === BULLISH).length;
+  const bearishFamilies = families.filter((f) => f.vote === BEARISH).length;
+  const neutralFamilies = families.filter((f) => f.vote === NEUTRAL).length;
+  const unavailableFamilies = families.filter((f) => f.vote === UNAVAILABLE).length;
+  const usableFamilies = EXPECTED_FAMILIES - unavailableFamilies;
+
+  const hasLean = bullishFamilies !== bearishFamilies;
+  const enoughFamilies = usableFamilies >= 2;
+
+  const direction =
+    enoughFamilies && hasLean
+      ? bullishFamilies > bearishFamilies
+        ? BULLISH
+        : BEARISH
+      : null;
+
+  const supportingFamilies = direction
+    ? Math.max(bullishFamilies, bearishFamilies)
+    : Math.min(bullishFamilies, bearishFamilies);
+  const opposingFamilies = direction
+    ? Math.min(bullishFamilies, bearishFamilies)
+    : Math.min(bullishFamilies, bearishFamilies);
+
+  let evidenceState;
+
+  if (usableFamilies === 0) {
     evidenceState = EVIDENCE_STATES.UNAVAILABLE;
-  } else if (bullishSignals === 0 && bearishSignals === 0) {
+  } else if (usableFamilies === 1) {
+    evidenceState = EVIDENCE_STATES.INSUFFICIENT;
+  } else if (bullishFamilies === 0 && bearishFamilies === 0) {
     evidenceState = EVIDENCE_STATES.NO_DIRECTION;
-  } else if (bullishSignals === bearishSignals) {
+  } else if (bullishFamilies === bearishFamilies) {
     evidenceState = EVIDENCE_STATES.CONFLICTING;
-  } else if (totalIndicators < EXPECTED_INDICATOR_COUNT) {
+  } else if (usableFamilies < EXPECTED_FAMILIES) {
     evidenceState = EVIDENCE_STATES.LIMITED;
-  } else if (confidence >= 75) {
+  } else if (supportingFamilies === 4) {
     evidenceState = EVIDENCE_STATES.HIGH;
-  } else if (confidence >= 50) {
+  } else if (supportingFamilies === 3) {
     evidenceState = EVIDENCE_STATES.MODERATE;
+  } else {
+    evidenceState = EVIDENCE_STATES.LOW;
   }
 
-  // ============================
-  // Agreement Status
-  // ============================
+  // Counts published for insufficient/unavailable states are zero: no assessment
+  // was formed, so there is no supporting or opposing side to report.
+  const assessed = evidenceState !== EVIDENCE_STATES.UNAVAILABLE
+    && evidenceState !== EVIDENCE_STATES.INSUFFICIENT;
 
-  let agreement = "conflicting";
+  const support = {
+    direction,
+    supportingFamilies: assessed ? supportingFamilies : 0,
+    opposingFamilies: assessed ? opposingFamilies : 0,
+    neutralFamilies: assessed ? neutralFamilies : 0
+  };
 
-  const opposingCount =
-    direction === "Bullish"
-      ? bearishSignals
-      : direction === "Bearish"
-      ? bullishSignals
-      : Math.max(bullishSignals, bearishSignals);
+  const coverage = {
+    usableFamilies,
+    expectedFamilies: EXPECTED_FAMILIES,
+    unavailableFamilies,
+    families
+  };
 
-  if (
-    direction !== "Mixed" &&
-    dominantCount >= 3 &&
-    dominantCount > opposingCount &&
-    confidence >= 60
-  ) {
-    agreement = "aligned";
-  }
+  const summary = buildSummary({
+    state: evidenceState,
+    direction,
+    supporting: support.supportingFamilies,
+    opposing: support.opposingFamilies,
+    neutral: support.neutralFamilies,
+    usable: usableFamilies,
+    unavailable: unavailableFamilies
+  });
 
-  // ============================
-  // Agreement Summary
-  // ============================
+  const context = CONTEXT_READINGS.map((reading) => ({
+    name: reading.name,
+    describes: reading.describes,
+    available: indicators[reading.key]?.success === true
+  }));
 
-  let agreementSummary =
-    "Indicators are mixed and do not currently provide clear directional agreement.";
+  /*
+   * Established-evidence candidate, read by guidanceContractService (E1): a
+   * dominant lean, backed by at least three of the four families, unopposed by a
+   * larger side, and drawn from complete coverage.
+   */
+  const aligned =
+    direction !== null &&
+    usableFamilies === EXPECTED_FAMILIES &&
+    support.supportingFamilies >= 3 &&
+    support.supportingFamilies > support.opposingFamilies;
 
-  if (totalIndicators === 0) {
-    agreementSummary =
-      "No indicators were available to establish directional agreement.";
-  } else if (agreement === "aligned" && direction === "Bullish") {
-    agreementSummary =
-      "Bullish indicators are aligned, although neutral signals may reduce conviction.";
-  } else if (agreement === "aligned" && direction === "Bearish") {
-    agreementSummary =
-      "Bearish indicators are aligned, although neutral signals may reduce conviction.";
-  } else if (direction === "Bullish") {
-    agreementSummary =
-      "Bullish evidence is present, but confirmation is incomplete or conflicting.";
-  } else if (direction === "Bearish") {
-    agreementSummary =
-      "Bearish evidence is present, but confirmation is incomplete or conflicting.";
-  }
+  // Indicator-level diagnostics. These describe the readings, not the verdict.
+  const directionalMembers = families.flatMap((family) => family.members);
+  const bullish = directionalMembers.filter((m) => m.vote === BULLISH).map((m) => m.name);
+  const bearish = directionalMembers.filter((m) => m.vote === BEARISH).map((m) => m.name);
+  const neutral = directionalMembers.filter((m) => m.vote === NEUTRAL).map((m) => m.name);
+  const unavailableIndicators = directionalMembers
+    .filter((m) => m.vote === UNAVAILABLE)
+    .map((m) => m.name)
+    .concat(context.filter((entry) => !entry.available).map((entry) => entry.name));
 
-  if (unavailableIndicators.length > 0) {
-    agreementSummary +=
-      ` (${unavailableIndicators.length} of ${unavailableIndicators.length + totalIndicators} indicators were unavailable and excluded.)`;
-  }
+  const availableIndicators =
+    bullish.length + bearish.length + neutral.length +
+    context.filter((entry) => entry.available).length;
+
+  const agreementDetails = families
+    .flatMap((family) =>
+      family.members.map((member) =>
+        member.vote === UNAVAILABLE
+          ? `${member.name} data is unavailable and was excluded from ${family.label.toLowerCase()}.`
+          : `${member.name} reads ${member.vote.toLowerCase()} within ${family.label.toLowerCase()}.`
+      )
+    )
+    .concat(
+      context
+        .filter((entry) => !entry.available)
+        .map((entry) => `${entry.name} data is unavailable, so ${entry.describes} could not be reported.`)
+    );
 
   return {
-    agreement,
-    direction,
-    confidence,
-    rawAgreementPercent,
-    coveragePercent,
+    // Canonical family contract
     evidenceState,
-    expectedIndicators: EXPECTED_INDICATOR_COUNT,
-    availableIndicators: totalIndicators,
-    agreementSummary,
+    support,
+    coverage,
+    summary,
+    coverageStatement: buildCoverageStatement(usableFamilies),
+    context,
+
+    // Legacy-compatible directional word, still read by services that present
+    // the lean (analysisTrustService's invalidation boundary among them).
+    direction: direction === BULLISH ? "Bullish" : direction === BEARISH ? "Bearish" : "Mixed",
+    agreement: aligned ? "aligned" : "conflicting",
+    agreementSummary: summary,
     agreementDetails,
 
-    bullishSignals,
-    bearishSignals,
-    neutralSignals,
-
+    // Indicator-level diagnostics
     bullish,
     bearish,
     neutral,
-
-    totalIndicators,
-    unavailableIndicators
+    bullishSignals: bullish.length,
+    bearishSignals: bearish.length,
+    neutralSignals: neutral.length,
+    unavailableIndicators,
+    availableIndicators,
+    expectedIndicators: 9,
+    totalIndicators: availableIndicators
   };
 }
 
@@ -402,5 +377,7 @@ module.exports = {
   analyzeAgreement,
   EVIDENCE_STATES,
   GRADED_EVIDENCE_STATES,
-  EXPECTED_INDICATOR_COUNT
+  EVIDENCE_FAMILIES,
+  EXPECTED_FAMILIES,
+  CONTEXT_READINGS
 };

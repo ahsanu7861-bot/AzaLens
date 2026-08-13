@@ -2,7 +2,10 @@
 
 const { evaluateComplianceGate } = require("./complianceGateService");
 const { isCoherentRiskResult } = require("../analysis/risk/riskEngine");
-const { EVIDENCE_STATES } = require("../analysis/agreement/agreementEngine");
+const {
+  EVIDENCE_STATES,
+  EXPECTED_FAMILIES
+} = require("../analysis/agreement/agreementEngine");
 
 const CONTRACT_VERSION = "1.0";
 const EXPECTED_HORIZON = "SWING_2_TO_10_SESSIONS";
@@ -45,6 +48,8 @@ function evidenceStateKey(state) {
  */
 const EVIDENCE_STATE_TO_INTERNAL = {
   [evidenceStateKey(EVIDENCE_STATES.UNAVAILABLE)]: "UNAVAILABLE",
+  // Too little usable evidence to form an assessment at all.
+  [evidenceStateKey(EVIDENCE_STATES.INSUFFICIENT)]: "UNAVAILABLE",
   [evidenceStateKey(EVIDENCE_STATES.NO_DIRECTION)]: "NEUTRAL",
   [evidenceStateKey(EVIDENCE_STATES.CONFLICTING)]: "CONFLICTING",
   [evidenceStateKey(EVIDENCE_STATES.LIMITED)]: "LIMITED_EVIDENCE",
@@ -103,11 +108,32 @@ function buildEvidenceItems(agreement, names) {
  * out of scope here.
  */
 function buildEvidenceAgreement(agreement) {
+  const support = agreement.support || {};
+  const coverage = agreement.coverage || {};
+
   return {
-    percent: finite(agreement.confidence),
     state: agreement.evidenceState || EVIDENCE_STATES.UNAVAILABLE,
-    available: finite(agreement.availableIndicators) || 0,
-    expected: finite(agreement.expectedIndicators) || 0
+    support: {
+      direction: ["BULLISH", "BEARISH"].includes(support.direction) ? support.direction : null,
+      supportingFamilies: finite(support.supportingFamilies) || 0,
+      opposingFamilies: finite(support.opposingFamilies) || 0,
+      neutralFamilies: finite(support.neutralFamilies) || 0
+    },
+    coverage: {
+      usableFamilies: finite(coverage.usableFamilies) || 0,
+      expectedFamilies: finite(coverage.expectedFamilies) || EXPECTED_FAMILIES,
+      unavailableFamilies: finite(coverage.unavailableFamilies) || 0,
+      families: list(coverage.families).map((family) => ({
+        id: String(family.id),
+        label: String(family.label),
+        vote: String(family.vote),
+        members: list(family.members).map((member) => ({
+          name: String(member.name),
+          vote: String(member.vote)
+        }))
+      }))
+    },
+    summary: text(agreement.summary) || "Evidence coverage is unavailable for this analysis."
   };
 }
 
@@ -132,19 +158,19 @@ function hasEstablishedEvidence({ agreement, metadata, dataQuality }) {
   // E1 - the agreement engine's own structural verdict.
   if (agreement?.agreement !== "aligned") return false;
 
-  // E2 - complete usable evidence coverage.
-  const available = finite(agreement.availableIndicators);
-  const expected = finite(agreement.expectedIndicators);
-  if (available === null || expected === null) return false;
-  if (expected <= 0 || available < expected) return false;
+  // E2 - complete family coverage: every expected evidence family was usable.
+  const usable = finite(agreement.coverage?.usableFamilies);
+  const expected = finite(agreement.coverage?.expectedFamilies);
+  if (usable === null || expected === null) return false;
+  if (expected <= 0 || usable < expected) return false;
 
-  // E3 - no conflicting-evidence condition.
-  const bullishSignals = finite(agreement.bullishSignals);
-  const bearishSignals = finite(agreement.bearishSignals);
-  if (bullishSignals === null || bearishSignals === null) return false;
-  if (Math.max(bullishSignals, bearishSignals) <= Math.min(bullishSignals, bearishSignals)) {
-    return false;
-  }
+  // E3 - no conflicting-evidence condition: the supporting side must strictly
+  // outnumber the opposing side, counted in families rather than in correlated
+  // indicator votes.
+  const supporting = finite(agreement.support?.supportingFamilies);
+  const opposing = finite(agreement.support?.opposingFamilies);
+  if (supporting === null || opposing === null) return false;
+  if (supporting <= opposing) return false;
   if (!ESTABLISHABLE_EVIDENCE_STATES.includes(normalizedEvidenceState(agreement))) {
     return false;
   }

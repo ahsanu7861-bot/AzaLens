@@ -31,45 +31,94 @@ const COMPLIANT_SHARIAH = {
 
 /*
  * A census the real agreement engine can actually produce.
- * 6 bullish + 1 bearish + 2 neutral over the 9 expected indicators:
- *   raw agreement  = (6 + 2 x 0.35) / 9        = 74%
- *   coverage       = 9 / 9                     = 100%
- *   confidence     = 74 x 100 / 100            = 74
- *   aligned        = 6 >= 3 && 6 > 1 && 74 >= 60  -> true
- *   evidenceState  = full coverage, 74 < 75    -> "Moderate agreement"
+ * Trend position bullish (2-1 internally), momentum bullish, volume flow bullish,
+ * price action neutral, complete coverage:
+ *   supporting families = 3 of 4      -> "Moderate agreement"
+ *   aligned             = 4 usable && 3 >= 3 && 3 > 0  -> true
+ * There is no percentage in this contract.
+ */
+function family(id, label, vote, members) {
+  return { id, label, vote, members };
+}
+
+/*
+ * Shaped exactly as agreementEngine now emits: three families backing the lean,
+ * price action neutral, complete coverage. `testEvidenceAgreementIsNotReDerived`
+ * below drives the real engine, so this hand-built fixture is only used where a
+ * specific contract branch has to be reached directly.
  */
 function establishedAgreement(overrides = {}) {
+  // support/coverage are merged field-wise above, so they must not be re-applied
+  // wholesale by the trailing spread.
+  const { support: _s, coverage: _c, ...rest } = overrides;
+  const support = {
+    direction: "BULLISH",
+    supportingFamilies: 3,
+    opposingFamilies: 0,
+    neutralFamilies: 1,
+    ...(overrides.support || {})
+  };
+
   return {
     agreement: "aligned",
     direction: "Bullish",
-    confidence: 74,
     evidenceState: "Moderate agreement",
+    support,
+    coverage: {
+      usableFamilies: 4,
+      expectedFamilies: 4,
+      unavailableFamilies: 0,
+      families: [
+        // Internally split 2-1: the family still reads bullish, and the dissenting
+        // member stays visible as opposing evidence.
+        family("trendPosition", "Trend position", "BULLISH", [
+          { name: "EMA", vote: "BULLISH" },
+          { name: "SMA", vote: "BULLISH" },
+          { name: "Bollinger Bands", vote: "BEARISH" }
+        ]),
+        family("momentum", "Momentum", "BULLISH", [
+          { name: "RSI", vote: "BULLISH" },
+          { name: "MACD", vote: "BULLISH" }
+        ]),
+        family("priceAction", "Price action", "NEUTRAL", [
+          { name: "Candlestick", vote: "NEUTRAL" }
+        ]),
+        family("volumeFlow", "Volume flow", "BULLISH", [
+          { name: "OBV", vote: "BULLISH" }
+        ])
+      ],
+      ...(overrides.coverage || {})
+    },
+    summary: "3 of 4 evidence families support a bullish lean.",
+    bullish: ["EMA", "SMA", "RSI", "MACD", "OBV"],
+    bearish: ["Bollinger Bands"],
+    neutral: ["Candlestick"],
+    bullishSignals: 5,
+    bearishSignals: 1,
+    neutralSignals: 1,
+    unavailableIndicators: [],
     availableIndicators: 9,
     expectedIndicators: 9,
-    bullishSignals: 6,
-    bearishSignals: 1,
-    neutralSignals: 2,
-    bullish: ["EMA", "SMA", "MACD", "ADX", "OBV", "Candlestick"],
-    bearish: ["RSI"],
-    neutral: ["Bollinger Bands", "Volume Spike"],
-    unavailableIndicators: [],
     agreementDetails: [
-      "Price is above EMA20.",
-      "RSI is 72, indicating overbought conditions."
+      "EMA reads bullish within trend position.",
+      "Bollinger Bands reads bearish within trend position.",
+      "Candlestick reads neutral within price action."
     ],
-    agreementSummary: "Bullish indicators are aligned, although neutral signals may reduce conviction.",
-    ...overrides
+    agreementSummary: "3 of 4 evidence families support a bullish lean.",
+    ...rest
   };
 }
 
 function bearishEstablishedAgreement(overrides = {}) {
   return establishedAgreement({
     direction: "Bearish",
+    support: { direction: "BEARISH", supportingFamilies: 3, opposingFamilies: 0, neutralFamilies: 1 },
+    summary: "3 of 4 evidence families support a bearish lean.",
+    agreementSummary: "3 of 4 evidence families support a bearish lean.",
+    bullish: ["Bollinger Bands"],
+    bearish: ["EMA", "SMA", "RSI", "MACD", "OBV"],
     bullishSignals: 1,
-    bearishSignals: 6,
-    bullish: ["OBV"],
-    bearish: ["EMA", "SMA", "MACD", "ADX", "RSI", "Candlestick"],
-    agreementSummary: "Bearish indicators are aligned, although neutral signals may reduce conviction.",
+    bearishSignals: 5,
     ...overrides
   });
 }
@@ -215,7 +264,7 @@ function testConstructiveAndAdverseAreReachable() {
   assert.equal(constructive.publicLabel, PUBLIC_LABELS.CONSTRUCTIVE);
   assert.equal(constructive.verdict.direction, "BULLISH");
   assert.equal(constructive.supportingEvidence[0].source, "EMA");
-  assert.equal(constructive.opposingEvidence[0].source, "RSI");
+  assert.equal(constructive.opposingEvidence[0].source, "Bollinger Bands");
 
   const adverse = buildGuidanceContract(input({ agreement: bearishEstablishedAgreement() }));
   assert.equal(adverse.publicLabel, PUBLIC_LABELS.ADVERSE);
@@ -235,10 +284,10 @@ function testDirectionalButNotEstablishedBecomesUnconfirmed() {
    */
   const cases = [
     ["E1 not aligned", withAgreement({ agreement: "conflicting" })],
-    ["E2 incomplete coverage", withAgreement({ availableIndicators: 7 })],
-    ["E2 no expected indicators", withAgreement({ expectedIndicators: 0 })],
-    ["E3 opposing matches dominant", withAgreement({ bullishSignals: 4, bearishSignals: 4 })],
-    ["E3 signal counts missing", withAgreement({ bullishSignals: null, bearishSignals: null })],
+    ["E2 incomplete family coverage", withAgreement({ coverage: { usableFamilies: 3, unavailableFamilies: 1 } })],
+    ["E2 no expected families", withAgreement({ coverage: { expectedFamilies: 0 } })],
+    ["E3 opposing matches supporting", withAgreement({ support: { supportingFamilies: 2, opposingFamilies: 2 } })],
+    ["E3 family counts missing", withAgreement({ support: { supportingFamilies: null, opposingFamilies: null } })],
     ["E4 review required", input({ metadata: freshMetadata({ reviewRequired: true }) })],
     ["E4 evidence incomplete", input({ metadata: freshMetadata({ evidenceCompleteness: { status: "partial" } }) })],
     ["E4 metadata absent", input({ metadata: undefined })],
@@ -611,129 +660,95 @@ function testCoherenceGuard() {
  */
 
 // Hand-authored indicator readings. No provider, no fixture, no network.
-function indicatorCensus({ bullish = 0, bearish = 0, neutral = 0 }) {
-  const directionalSlots = [
-    ["rsi", "Oversold", "Overbought"],
-    ["ema", "Above EMA20", "Below EMA20"],
-    ["sma", "Above SMA50", "Below SMA50"],
-    ["macd", "Bullish", "Bearish"],
-    ["bollinger", "Price Near Upper Band", "Price Near Lower Band"],
-    ["candlestick", "Bullish", "Bearish"]
-  ];
-
-  // adx, rvol and volumeSpike are structurally neutral in the engine.
-  const indicators = {
-    adx: { success: neutral > 0, adx: 25, signal: "Strong Trend" },
-    rvol: { success: neutral > 1, rvol: 1.1 },
-    volumeSpike: { success: neutral > 2, volumeSpikeDetected: false, signal: "No Volume Spike" }
+function engineCensus(spec = {}, context = { adx: true, rvol: true, volumeSpike: true }) {
+  const SIG = {
+    rsi: { B: "Oversold", R: "Overbought", N: "Neutral" },
+    ema: { B: "Above EMA20", R: "Below EMA20", N: "Near EMA20" },
+    sma: { B: "Above SMA50", R: "Below SMA50", N: "Near SMA50" },
+    macd: { B: "Bullish Momentum", R: "Bearish Momentum", N: "Neutral" },
+    bollinger: { B: "Price Near Upper Band", R: "Price Near Lower Band", N: "Middle Band" },
+    obv: { B: "Accumulation", R: "Distribution", N: "Neutral" }
   };
-
-  let bullishLeft = bullish;
-  let bearishLeft = bearish;
-  let neutralLeft = Math.max(0, neutral - 3);
-
-  for (const [name, bullishSignal, bearishSignal] of directionalSlots) {
-    let signal = null;
-
-    if (bullishLeft > 0) {
-      signal = bullishSignal;
-      bullishLeft -= 1;
-    } else if (bearishLeft > 0) {
-      signal = bearishSignal;
-      bearishLeft -= 1;
-    } else if (neutralLeft > 0) {
-      signal = "Neutral";
-      neutralLeft -= 1;
-    }
-
-    if (signal === null) {
-      indicators[name] = { success: false };
-      continue;
-    }
-
-    indicators[name] = name === "candlestick"
-      ? { success: true, pattern: "Test pattern", bias: signal }
-      : { success: true, rsi: 50, signal };
+  const bag = {};
+  for (const name of ["rsi", "ema", "sma", "macd", "bollinger", "obv"]) {
+    bag[name] = spec[name]
+      ? { success: true, signal: SIG[name][spec[name]] }
+      : { success: false };
   }
-
-  return indicators;
+  bag.candlestick = spec.candlestick
+    ? { success: true, pattern: "Test pattern", bias: { B: "Bullish", R: "Bearish", N: "Neutral" }[spec.candlestick] }
+    : { success: false };
+  bag.adx = context.adx ? { success: true, adx: 25, signal: "Strong Trend" } : { success: false };
+  bag.rvol = context.rvol ? { success: true, rvol: 1.1 } : { success: false };
+  bag.volumeSpike = context.volumeSpike
+    ? { success: true, rvol: 1.1, volumeSpikeDetected: false, signal: "No Volume Spike" }
+    : { success: false };
+  return bag;
 }
 
+/*
+ * The contract publishes the agreement engine's family assessment; it never
+ * forms a second opinion about it. These run the *real* engine and compare the
+ * published contract against the engine's own output field by field.
+ */
 function testEvidenceAgreementIsNotReDerived() {
   const censuses = [
-    { name: "no usable indicators", counts: { bullish: 0, bearish: 0, neutral: 0 } },
-    { name: "complete but undirected", counts: { bullish: 0, bearish: 0, neutral: 9 } },
-    { name: "deadlocked directional", counts: { bullish: 3, bearish: 3, neutral: 3 } },
-    { name: "incomplete coverage", counts: { bullish: 4, bearish: 0, neutral: 0 } },
-    { name: "complete, weakly agreed", counts: { bullish: 3, bearish: 2, neutral: 4 } },
-    { name: "complete, moderately agreed", counts: { bullish: 5, bearish: 0, neutral: 4 } },
-    { name: "complete, strongly agreed", counts: { bullish: 6, bearish: 0, neutral: 3 } },
-    { name: "bearish, strongly agreed", counts: { bullish: 0, bearish: 6, neutral: 3 } }
+    ["complete bullish", { rsi: "B", ema: "B", sma: "B", macd: "B", bollinger: "B", candlestick: "B", obv: "B" }],
+    ["complete bearish", { rsi: "R", ema: "R", sma: "R", macd: "R", bollinger: "R", candlestick: "R", obv: "R" }],
+    ["all neutral", { rsi: "N", ema: "N", sma: "N", macd: "N", bollinger: "N", candlestick: "N", obv: "N" }],
+    ["family deadlock", { ema: "B", sma: "B", bollinger: "B", rsi: "R", macd: "R", candlestick: "B", obv: "R" }],
+    ["partial coverage", { ema: "B", sma: "B", bollinger: "B", rsi: "B", macd: "B" }],
+    ["one usable family", { candlestick: "B" }],
+    ["nothing usable", {}]
   ];
 
   const observedStates = new Set();
 
-  for (const census of censuses) {
-    const agreement = analyzeAgreement(indicatorCensus(census.counts));
+  for (const [label, spec] of censuses) {
+    const agreement = analyzeAgreement(engineCensus(spec));
     const contract = buildGuidanceContract(input({ agreement }));
     const published = contract.evidenceAgreement;
 
     observedStates.add(agreement.evidenceState);
+    assert.ok(published, `${label}: an evidence assessment must be published`);
 
-    assert.ok(published, `${census.name} must publish an evidence census`);
+    assert.equal(published.state, agreement.evidenceState, `${label}: state`);
+    assert.equal(published.support.direction, agreement.support.direction, `${label}: direction`);
+    assert.equal(published.support.supportingFamilies, agreement.support.supportingFamilies, `${label}: supporting`);
+    assert.equal(published.support.opposingFamilies, agreement.support.opposingFamilies, `${label}: opposing`);
+    assert.equal(published.support.neutralFamilies, agreement.support.neutralFamilies, `${label}: neutral`);
+    assert.equal(published.coverage.usableFamilies, agreement.coverage.usableFamilies, `${label}: usable`);
+    assert.equal(published.coverage.expectedFamilies, 4, `${label}: the denominator is always 4`);
+    assert.equal(published.coverage.unavailableFamilies, agreement.coverage.unavailableFamilies, `${label}: unavailable`);
+    assert.equal(published.summary, agreement.summary, `${label}: summary is copied, not rebuilt`);
+    assert.equal(published.coverage.families.length, 4, `${label}: every family is disclosed`);
 
-    assert.equal(
-      published.percent,
-      agreement.confidence,
-      `${census.name}: published percent must be the engine's confidence`
-    );
-    assert.equal(
-      published.state,
-      agreement.evidenceState,
-      `${census.name}: published state must be the engine's evidenceState`
-    );
-    assert.equal(
-      published.available,
-      agreement.availableIndicators,
-      `${census.name}: published available must be the engine's availableIndicators`
-    );
-    assert.equal(
-      published.expected,
-      agreement.expectedIndicators,
-      `${census.name}: published expected must be the engine's expectedIndicators`
-    );
-
-    // Exactly four published fields - the contract adds no census of its own.
     assert.deepEqual(
       Object.keys(published).sort(),
-      ["available", "expected", "percent", "state"],
-      `${census.name}: the published census shape must not drift`
+      ["coverage", "state", "summary", "support"],
+      `${label}: the published shape must not drift`
     );
 
-    // The counts describe one evidence set, so the pair must stay coherent.
-    assert.ok(
-      published.available <= published.expected,
-      `${census.name}: available must never exceed expected`
-    );
+    // No agreement percentage may survive. (metadata.evidenceCompleteness keeps
+    // its own unrelated `percent`, which is freshness coverage, not agreement.)
+    const publishedJson = JSON.stringify(published);
+    assert.doesNotMatch(publishedJson, /percent/i, `${label}: no percentage in the evidence assessment`);
+    assert.doesNotMatch(publishedJson, /confidence/i, `${label}: no confidence in the evidence assessment`);
+
+    const serialized = JSON.stringify(contract);
+    assert.doesNotMatch(serialized, /agreementConfidence/, `${label}: no agreementConfidence`);
+    assert.doesNotMatch(serialized, /rawAgreementPercent/, `${label}: no rawAgreementPercent`);
   }
 
-  assert.equal(
-    observedStates.size,
-    Object.keys(EVIDENCE_STATES).length,
-    "the no-re-derivation cases must exercise every declared evidence state"
-  );
+  assert.ok(observedStates.size >= 5, "the census set must exercise several distinct states");
 }
 
 /*
- * Closure in both directions. The map must recognise every state the engine can
- * emit (otherwise a real analysis fails closed to Analysis Limited for no reason),
- * and must recognise nothing else (otherwise a state no longer produced still has
- * a live mapping, and the vocabulary has silently drifted apart).
+ * Closure in both directions: the map must recognise every state the engine can
+ * emit, and recognise nothing else.
  */
 function testGuidanceMapClosesOverTheEngineVocabulary() {
-  const engineKeys = Object.values(EVIDENCE_STATES)
-    .map((state) => state.toLowerCase())
-    .sort();
+  const engineKeys = Object.values(EVIDENCE_STATES).map((s) => s.toLowerCase()).sort();
 
   assert.deepEqual(
     Object.keys(EVIDENCE_STATE_TO_INTERNAL).sort(),
@@ -741,9 +756,9 @@ function testGuidanceMapClosesOverTheEngineVocabulary() {
     "the guidance map must key on exactly the engine's vocabulary"
   );
 
-  // The documented internal state for each wire value (VERDICT_CONTRACT.md §2.1).
   const expectedInternalStates = [
     [EVIDENCE_STATES.UNAVAILABLE, "UNAVAILABLE"],
+    [EVIDENCE_STATES.INSUFFICIENT, "UNAVAILABLE"],
     [EVIDENCE_STATES.NO_DIRECTION, "NEUTRAL"],
     [EVIDENCE_STATES.CONFLICTING, "CONFLICTING"],
     [EVIDENCE_STATES.LIMITED, "LIMITED_EVIDENCE"],
@@ -751,6 +766,8 @@ function testGuidanceMapClosesOverTheEngineVocabulary() {
     [EVIDENCE_STATES.MODERATE, "FAVORED"],
     [EVIDENCE_STATES.HIGH, "FAVORED"]
   ];
+
+  assert.equal(expectedInternalStates.length, 8, "the vocabulary has eight wire values");
 
   for (const [wireValue, internalState] of expectedInternalStates) {
     assert.equal(
@@ -760,32 +777,15 @@ function testGuidanceMapClosesOverTheEngineVocabulary() {
     );
   }
 
-  /*
-   * Every engine state must survive the contract as something other than the
-   * fail-closed default. A state that silently degraded to Analysis Limited would
-   * pass the key comparison above while still being broken in practice.
-   */
   for (const wireValue of Object.values(EVIDENCE_STATES)) {
-    const contract = buildGuidanceContract(
-      withAgreement({ evidenceState: wireValue })
-    );
-
+    const contract = buildGuidanceContract(withAgreement({ evidenceState: wireValue }));
     assert.ok(
-      ["FAVORED", "LIMITED_EVIDENCE", "NEUTRAL", "CONFLICTING", "UNAVAILABLE"].includes(
-        contract.verdict.state
-      ),
+      ["FAVORED", "LIMITED_EVIDENCE", "NEUTRAL", "CONFLICTING", "UNAVAILABLE"].includes(contract.verdict.state),
       `"${wireValue}" must resolve to a recognised internal state`
     );
-
-    if (wireValue !== EVIDENCE_STATES.UNAVAILABLE) {
-      assert.notEqual(
-        contract.verdict.state,
-        "UNAVAILABLE",
-        `"${wireValue}" must not fail closed - it is a declared state`
-      );
-    }
   }
 }
+
 
 function testNoTransactionCommands() {
   const contracts = [

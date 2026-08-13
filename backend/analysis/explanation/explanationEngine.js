@@ -89,28 +89,49 @@ function analyzeExplanation(analysis) {
   // Agreement
   // ============================
 
-  if (agreement.success === true) {
-    observations.push(
-      `Indicator agreement is ${agreement.agreement}, with a ${agreement.direction.toLowerCase()} direction and ${agreement.confidence}% confidence.`
-    );
+  /*
+   * Evidence Agreement publishes independent family counts, not a percentage.
+   * This block quotes the canonical summary the agreement engine already built -
+   * it never recomputes an assessment, and it never publishes a figure the
+   * contract no longer contains.
+   */
+  const agreementSummary =
+    typeof agreement.summary === "string" ? agreement.summary.trim() : "";
+  const supportingFamilies = Number(agreement.support?.supportingFamilies);
+  const expectedFamilies = Number(agreement.coverage?.expectedFamilies);
+  const usableFamilies = Number(agreement.coverage?.usableFamilies);
+
+  if (agreement.success === true && agreementSummary) {
+    observations.push(agreementSummary);
+
+    const countsUsable =
+      Number.isFinite(supportingFamilies) &&
+      Number.isFinite(expectedFamilies) &&
+      Number.isFinite(usableFamilies);
 
     if (
       agreement.agreement === "aligned" &&
-      agreement.direction === "Bullish"
+      agreement.direction === "Bullish" &&
+      countsUsable
     ) {
       positives.push(
-        `${agreement.bullishSignals} indicators support the bullish direction.`
+        `${supportingFamilies} of ${expectedFamilies} independent evidence families support the bullish direction.`
       );
     } else if (
       agreement.agreement === "aligned" &&
-      agreement.direction === "Bearish"
+      agreement.direction === "Bearish" &&
+      countsUsable
     ) {
       cautions.push(
-        `${agreement.bearishSignals} indicators support the bearish direction.`
+        `${supportingFamilies} of ${expectedFamilies} independent evidence families support the bearish direction.`
+      );
+    } else if (countsUsable && usableFamilies < expectedFamilies) {
+      cautions.push(
+        `Only ${usableFamilies} of ${expectedFamilies} evidence families were usable, so the reading rests on incomplete evidence.`
       );
     } else {
       cautions.push(
-        "The indicators are not fully aligned, which reduces directional conviction."
+        "The evidence families are not fully aligned, which reduces directional conviction."
       );
     }
   }
@@ -399,29 +420,40 @@ function analyzeExplanation(analysis) {
   // Overall Assessment
   // ============================
 
+  /*
+   * The strength of the reading is taken from the agreement engine's own graded
+   * state. This engine no longer applies a second threshold of its own: doing so
+   * meant two components grading the same evidence by different rules and
+   * occasionally disagreeing in public.
+   */
+  const gradedStates = ["Moderate agreement", "High agreement"];
+  const wellSupported = gradedStates.includes(agreement.evidenceState);
+
   let overallAssessment =
     "The technical evidence is mixed and does not currently provide strong directional clarity.";
 
-  if (
-    agreement.direction === "Bullish" &&
-    agreement.confidence >= 70
-  ) {
+  if (agreement.evidenceState === "No directional evidence") {
     overallAssessment =
-      `${symbol} currently shows a bullish technical structure with moderate-to-strong indicator agreement. However, the setup should still be evaluated alongside volatility, trend strength, and volume participation.`;
-  } else if (
-    agreement.direction === "Bullish"
-  ) {
+      `${symbol} shows usable evidence in every family, but none of them currently expresses a direction.`;
+  } else if (agreement.evidenceState === "Conflicting evidence") {
+    overallAssessment =
+      `${symbol} shows directional evidence that cancels out: the evidence families are split, so no dominant lean stands.`;
+  } else if (agreement.evidenceState === "Insufficient evidence") {
+    overallAssessment =
+      `${symbol} has too little usable evidence to assess agreement between independent families.`;
+  } else if (agreement.evidenceState === "Evidence unavailable") {
+    overallAssessment =
+      `${symbol} has no usable evidence families, so no technical reading can be formed.`;
+  } else if (agreement.direction === "Bullish" && wellSupported) {
+    overallAssessment =
+      `${symbol} currently shows a bullish technical structure supported by most independent evidence families. However, the setup should still be evaluated alongside volatility, trend strength, and volume participation.`;
+  } else if (agreement.direction === "Bullish") {
     overallAssessment =
       `${symbol} currently shows bullish technical evidence, but confirmation is incomplete or conviction is limited.`;
-  } else if (
-    agreement.direction === "Bearish" &&
-    agreement.confidence >= 70
-  ) {
+  } else if (agreement.direction === "Bearish" && wellSupported) {
     overallAssessment =
-      `${symbol} currently shows a bearish technical structure with moderate-to-strong indicator agreement. Volatility and volume conditions should still be considered carefully.`;
-  } else if (
-    agreement.direction === "Bearish"
-  ) {
+      `${symbol} currently shows a bearish technical structure supported by most independent evidence families. Volatility and volume conditions should still be considered carefully.`;
+  } else if (agreement.direction === "Bearish") {
     overallAssessment =
       `${symbol} currently shows bearish technical evidence, but confirmation is incomplete or conviction is limited.`;
   }

@@ -108,18 +108,19 @@ point of view the actionable content is identical: there is no established edge.
 ### 2.1 Evidence-state source mapping
 
 `agreement.evidenceState` is produced by `backend/analysis/agreement/agreementEngine.js`
-and has exactly seven values. All seven are mapped explicitly:
+and has exactly **eight** values. All eight are mapped explicitly:
 
-| `evidenceState` | Internal state |
-|---|---|
-| `Evidence unavailable` | `UNAVAILABLE` |
-| `No directional evidence` | `NEUTRAL` |
-| `Conflicting evidence` | `CONFLICTING` |
-| `Limited evidence` | `LIMITED_EVIDENCE` |
-| `Low agreement` | `LIMITED_EVIDENCE` |
-| `Moderate agreement` | `FAVORED` *(candidate — subject to §4)* |
-| `High agreement` | `FAVORED` *(candidate — subject to §4)* |
-| **anything else** | `UNAVAILABLE` |
+| `evidenceState` | Condition | Internal state |
+|---|---|---|
+| `Evidence unavailable` | no usable evidence family | `UNAVAILABLE` |
+| `Insufficient evidence` | exactly one usable family | `UNAVAILABLE` |
+| `No directional evidence` | every usable family neutral | `NEUTRAL` |
+| `Conflicting evidence` | equal bullish and bearish families | `CONFLICTING` |
+| `Limited evidence` | a dominant lean with incomplete coverage | `LIMITED_EVIDENCE` |
+| `Low agreement` | complete coverage, 1–2 families supporting | `LIMITED_EVIDENCE` |
+| `Moderate agreement` | complete coverage, 3 families supporting | `FAVORED` *(candidate — subject to §4)* |
+| `High agreement` | complete coverage, 4 families supporting | `FAVORED` *(candidate — subject to §4)* |
+| **anything else** | — | `UNAVAILABLE` |
 
 `Low agreement` maps to `LIMITED_EVIDENCE` rather than `FAVORED`: agreement the
 engine itself classifies as low is by definition not established.
@@ -128,9 +129,9 @@ engine itself classifies as low is by definition not established.
 candidate is demoted to `LIMITED_EVIDENCE` unless the independent established-evidence
 test in §4 passes.
 
-### 2.2 Where the seven wire values are declared
+### 2.2 Where the eight wire values are declared
 
-These seven strings are **wire values**, not display copy. They cross the API
+These eight strings are **wire values**, not display copy. They cross the API
 boundary verbatim, and an unrecognised one fails closed to `UNAVAILABLE` (§3.2) —
 which means a silent rename does not throw, it quietly strips the directional
 verdict from every affected analysis. That failure mode is why the vocabulary is
@@ -138,13 +139,13 @@ named rather than retyped at each use site.
 
 **The declarations, stated honestly:**
 
-- `backend/analysis/agreement/agreementEngine.js` exports `EVIDENCE_STATES` and
-  `GRADED_EVIDENCE_STATES`. This is the **canonical declaration and the only
-  producer** of the seven values. `guidanceContractService.js` imports it and
+- `backend/analysis/agreement/agreementEngine.js` exports `EVIDENCE_STATES`,
+  `EVIDENCE_FAMILIES` and `EXPECTED_FAMILIES`. This is the **canonical declaration
+  and the only producer** of the eight values. `guidanceContractService.js` imports it and
   builds `EVIDENCE_STATE_TO_INTERNAL`, `ESTABLISHABLE_EVIDENCE_STATES` and the
   unavailable-state fallback from it, so the backend has one source.
 - `frontend/src/types/analysis.ts` declares `EVIDENCE_STATES`,
-  `GRADED_EVIDENCE_STATES` and `LIMITED_EVIDENCE_STATE` **separately**.
+  `EVIDENCE_FAMILY_IDS` and `EXPECTED_EVIDENCE_FAMILIES` **separately**.
 
 **There is no frontend-to-backend import, and this document does not claim the
 repository has a single physical declaration site.** The backend module is
@@ -152,7 +153,7 @@ CommonJS and server-only; the browser bundle cannot import it. The two
 declarations exist by necessity.
 
 What keeps them from drifting is symmetry, not sharing: **both sides pin the same
-seven literals in their own test suite** —
+eight literals in their own test suite** —
 `backend/tests/testEvidenceAgreementContract.js` from the backend side, and the
 `evidence-state wire vocabulary` block in
 `frontend/src/components/analysis/VerdictCard.test.tsx` from the frontend side.
@@ -171,6 +172,56 @@ compares the published contract against the engine's own output field by field.
 recorded.** `data.agreement` and `data.guidance.evidenceAgreement` both still
 carry the same census under their existing names; aligning those two surfaces is
 deliberately not part of this change.
+
+### 2.3 Evidence Agreement is a count, not a score
+
+Evidence Agreement publishes **two separate facts** and no percentage:
+
+- **Directional support** — how many of the four independent evidence families back
+  the dominant lean (`support.supportingFamilies`, with opposing and neutral counts).
+- **Evidence coverage** — how many families were usable at all
+  (`coverage.usableFamilies` out of a constant `coverage.expectedFamilies` of 4).
+
+The denominator never shrinks. Two usable families that agree read as
+*"2 of 4 evidence families support a bullish lean. 2 families are unavailable."* —
+never as unanimity.
+
+**The four families**, and why they are grouped this way:
+
+| Family | Members | Minimum usable | Basis |
+|---|---|---|---|
+| Trend position | EMA, SMA, Bollinger Bands | 2 of 3 | where price sits relative to a recent mean of the same close series |
+| Momentum | RSI, MACD | 2 of 2 | rate-of-change statistics of the same close series |
+| Price action | Candlestick | 1 of 1 | the shape of the most recent bar |
+| Volume flow | OBV | 1 of 1 | direction weighted by traded volume |
+
+ADX and RVOL are **context**: they measure trend strength and participation, never a
+direction, so they do not vote. **Volume Spike does not vote at all** —
+`volumeSpikeService` derives it from `getRVOL` and passes that same ratio into
+`detectVolumeSpike`, so counting both would count one observation twice.
+
+**Family availability and voting.** A multi-indicator family must meet its minimum
+availability threshold before it may vote. Once usable, its direction is the balance
+of its bullish and bearish members. One directional member may therefore establish the
+family when the remaining usable members are neutral — but **not** when a required
+member is unavailable, because the threshold makes the family unavailable first.
+Unavailable members never become neutral: "we could not measure this" and "we measured
+this and it points nowhere" are different findings, and both stay inspectable in
+`coverage.families[].members`.
+
+**What the support count is not.** It is **not a probability**, **not predicted
+accuracy**, **not a performance guarantee**, and **not an empirically calibrated
+confidence score**. It is a count of independent evidence families, against a fixed
+denominator, and nothing more.
+
+**The grouping is provisional and structural, not measured.** It is derived from how
+the indicators are computed — shared close series, shared windows, one indicator
+derived from another — and not from any estimate of statistical dependence. No
+historical sample exists in this repository from which dependence could be measured,
+and none may be obtained by calling a provider. Any future re-grouping must be
+justified by measurement, and must not be described as validated until it is.
+
+---
 
 ---
 
@@ -232,15 +283,15 @@ Evidence is **established** only when **all four** independent conditions hold:
 
 | # | Condition | Source |
 |---|---|---|
-| **E1** | `agreement.agreement === "aligned"` | `agreementEngine` structural verdict: dominant side has ≥ 3 signals, strictly outnumbers the opposing side, and scaled confidence ≥ 60. |
-| **E2** | Complete usable coverage: `availableIndicators ≥ expectedIndicators`, and `expectedIndicators > 0` | `agreementEngine` indicator census. |
-| **E3** | No conflicting-evidence condition: the opposing signal count is strictly below the dominant count, and `evidenceState` is not a conflicting/limited/neutral/unavailable state | `agreementEngine` signal counts. |
+| **E1** | `agreement.agreement === "aligned"` | `agreementEngine` structural verdict: a dominant lean, complete family coverage, at least 3 of the 4 families supporting, and strictly outnumbering the opposing side. |
+| **E2** | Complete family coverage: `coverage.usableFamilies ≥ coverage.expectedFamilies`, and `expectedFamilies > 0` | `agreementEngine` family census. |
+| **E3** | No conflicting-evidence condition: `support.supportingFamilies > support.opposingFamilies`, and `evidenceState` is not a conflicting/limited/neutral/unavailable/insufficient state | `agreementEngine` family counts. |
 | **E4** | Evidence is fresh and reviewable: `metadata.reviewRequired !== true`, `metadata.evidenceCompleteness.status === "complete"`, and `dataQuality.status` is not `degraded` / `unavailable` | `analysisTrustService` freshness and data-quality state. |
 
 If any condition fails, the verdict degrades to `LIMITED_EVIDENCE` →
 `Unconfirmed — Evidence Still Developing`. It never degrades to `FAVORED`.
 
-E1 and E3 both read signal counts but test different properties: E1 is the engine's
+E1 and E3 both read family counts but test different properties: E1 is the engine's
 own composite aligned/conflicting verdict including its confidence floor; E3 is a
 direct check that the opposing side does not match the dominant side, and that the
 evidence state itself is not one the engine already flagged as unusable. E3 is the
@@ -272,12 +323,12 @@ Two behavioural consequences follow, and both are asserted by tests:
 
 ### 4.4 Reachability without weakening
 
-The rule is satisfiable by realistic agreement-engine output. With all 9 expected
-indicators available, 6 bullish, 1 bearish, 2 neutral: raw agreement
-`(6 + 2×0.35) / 9 = 74%`, coverage 100%, confidence 74 → `agreement === "aligned"`
-(6 ≥ 3, 6 > 1, 74 ≥ 60), `evidenceState === "Moderate agreement"`. With fresh
-metadata and complete evidence, E1–E4 all hold. The mirrored bearish census reaches
-`Adverse` identically.
+The rule is satisfiable by realistic agreement-engine output. With all four families
+usable and trend position, momentum and volume flow all reading bullish while price
+action is neutral: `supportingFamilies = 3`, `opposingFamilies = 0`,
+`usableFamilies = 4` → `agreement === "aligned"` (3 ≥ 3, 3 > 0, complete coverage),
+`evidenceState === "Moderate agreement"`. With fresh metadata and complete evidence,
+E1–E4 all hold. The mirrored bearish assessment reaches `Adverse` identically.
 
 The threshold must not be lowered to make an outcome reachable. If a well-drawn rule
 could not be satisfied by real inputs, the correct response would be to report the
@@ -548,7 +599,7 @@ retroactively make the original condition satisfied.
 
 ### 11.1 Backend CI suite count
 
-`backend/tests/runCiSuite.js` now registers **35** deterministic suites, following the
+`backend/tests/runCiSuite.js` now registers **38** deterministic suites, following the
 direct registration of `testGuidanceContract.js` and, later,
 `testEvidenceAgreementContract.js`.
 

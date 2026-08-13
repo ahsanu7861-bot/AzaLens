@@ -298,7 +298,11 @@ async function run() {
     assert.equal(result.data.complianceGate.unlocked, true);
     assert.equal(result.data.agreement.withheld, undefined);
     assert.equal(typeof result.data.agreement.direction, "string");
-    assert.equal(typeof result.data.agreement.confidence, "number");
+    // Evidence Agreement publishes family counts against a fixed denominator of
+    // four, not a percentage.
+    assert.equal(typeof result.data.agreement.support.supportingFamilies, "number");
+    assert.equal(result.data.agreement.coverage.expectedFamilies, 4);
+    assert.equal(result.data.agreement.confidence, undefined);
     assert.ok(
       result.data.agreement.unavailableIndicators.includes("RVOL"),
       "agreement must record which indicator was excluded"
