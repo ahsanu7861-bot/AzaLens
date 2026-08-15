@@ -55,7 +55,7 @@ describe("Islamic Compliance eyebrow color (Phase 0 item 1.10)", () => {
 describe("Other eyebrows remain on the generic brand/intelligence color", () => {
   it("does not recolor VerdictCard's 'AzaLens Verdict' eyebrow", () => {
     render(
-      <VerdictCard direction="Bullish" trend="Bullish" confidence={50} />,
+      <VerdictCard direction="Bullish" trend="Bullish" />,
     );
 
     const eyebrow = screen.getByText("AzaLens Verdict");

@@ -71,18 +71,42 @@ describe("ComplianceDemo honesty regression", () => {
     ).toBeInTheDocument();
   });
 
-  it("permits the confidence figure only when its stated calculation basis is shown alongside it", () => {
+  it("shows the canonical four-family Evidence Agreement, never a percentage", () => {
     render(<ComplianceDemo />);
 
     const confirmedCard = screen.getByTestId("landing-demo-confirmed");
 
-    // The confidence figure is legitimate, real-product output (Rule 4) —
-    // it must not stand alone without the plain-language basis for it.
+    // The demo consumes the same contract the product publishes: explicit family
+    // states, a support count, and coverage against a fixed denominator of four.
     expect(within(confirmedCard).getByText("Evidence Agreement")).toBeInTheDocument();
-    expect(within(confirmedCard).getByText("67%")).toBeInTheDocument();
     expect(
-      within(confirmedCard).getByText(/9 of 9 indicators available/i),
+      within(confirmedCard).getByText("3 of 4 evidence families support a bullish lean."),
     ).toBeInTheDocument();
+    expect(
+      within(confirmedCard).getByText("4 of 4 evidence families usable."),
+    ).toBeInTheDocument();
+
+    for (const [family, state] of [
+      ["Trend position", "Bullish"],
+      ["Momentum", "Bullish"],
+      ["Price action", "Neutral"],
+      ["Volume flow", "Bullish"],
+    ]) {
+      expect(within(confirmedCard).getByLabelText(`${family}: ${state}`)).toBeInTheDocument();
+    }
+
+    // No percentage inside the Evidence Agreement region, no progress bar, and
+    // no 9-of-9 indicator claim. (The Shariah panel's screening ratios are a
+    // different component and legitimately carry percentages.)
+    const agreementRegion = within(confirmedCard).getByRole("region", {
+      name: "Evidence Agreement",
+    });
+    expect(agreementRegion.textContent ?? "").not.toMatch(/%/);
+    expect(agreementRegion.textContent ?? "").not.toMatch(/confidence/i);
+    expect(confirmedCard.textContent ?? "").not.toMatch(/9 of 9/);
+    expect(confirmedCard.textContent ?? "").not.toMatch(/67%/);
+    expect(within(confirmedCard).queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(confirmedCard.querySelector("[aria-valuenow]")).toBeNull();
   });
 
   it("never renders a standalone BUY, SELL or HOLD verdict command anywhere", () => {

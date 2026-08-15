@@ -155,8 +155,12 @@ test.describe("@visual analysis workspace", () => {
         ].join("\n"),
       });
 
+      /*
+       * Both captures are soft so one screenshot mismatch does not hide the
+       * second review candidate; any mismatch still fails the test.
+       */
       try {
-        await expect(page).toHaveScreenshot(
+        await expect.soft(page).toHaveScreenshot(
           `analysis-overview-${theme}.png`,
           {
             fullPage: true,
@@ -191,7 +195,7 @@ test.describe("@visual analysis workspace", () => {
       }
       await settle();
 
-      await expect(guidance).toHaveScreenshot(
+      await expect.soft(guidance).toHaveScreenshot(
         `analysis-guidance-${theme}.png`,
         {
           animations: "disabled",

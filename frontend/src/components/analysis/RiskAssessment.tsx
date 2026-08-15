@@ -1,7 +1,12 @@
 import { Badge, Card } from "../ui";
-import type { AnalysisData } from "../../types/analysis";
+import type { AnalysisData, EvidenceAgreement } from "../../types/analysis";
 
 type RiskAssessmentProps = {
+  /*
+    The canonical Evidence Agreement object, owned by the backend. This workspace
+    renders it and performs no agreement calculation of its own.
+  */
+  evidence?: EvidenceAgreement | null;
   risk?: AnalysisData["risk"];
   currency?: string;
   isLoading?: boolean;
@@ -83,6 +88,7 @@ function formatPercent(value: number | null | undefined) {
 
 export default function RiskAssessment({
   risk,
+  evidence,
   currency,
   isLoading = false,
 }: RiskAssessmentProps) {
@@ -123,13 +129,21 @@ export default function RiskAssessment({
           : "ATR-based volatility data is currently unavailable.",
     },
     {
-      label: "Agreement Confidence",
-      value: isFiniteNumber(risk?.agreementConfidence)
-        ? `${Math.round(risk.agreementConfidence)}%`
-        : "—",
+      /*
+        The canonical family-count assessment, rendered from the backend object.
+        No agreement is calculated here, and no percentage is published.
+      */
+      label: "Evidence Agreement",
+      value:
+        typeof evidence?.support?.supportingFamilies === "number" &&
+        typeof evidence?.coverage?.expectedFamilies === "number" &&
+        evidence.support.direction !== null
+          ? `${evidence.support.supportingFamilies} of ${evidence.coverage.expectedFamilies} families`
+          : evidence?.state?.trim() || "Unavailable",
       badge: "info",
       description:
-        "The share of tracked indicators currently supporting the reported direction.",
+        evidence?.summary?.trim() ||
+        "Evidence Agreement is unavailable for this analysis.",
     },
   ];
   const referenceRanges = [

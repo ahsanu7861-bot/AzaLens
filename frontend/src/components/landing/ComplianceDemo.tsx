@@ -3,6 +3,7 @@ import IslamicCompliance from "../analysis/IslamicCompliance";
 import VerdictWithheld from "../analysis/VerdictWithheld";
 import {
   confirmedDemoAnalysis,
+  confirmedDemoEvidence,
   withheldDemoAnalysis,
 } from "../../data/landingDemo";
 import { Badge } from "../ui";
@@ -32,11 +33,7 @@ export default function ComplianceDemo() {
           <VerdictCard
             direction={confirmedDemoAnalysis.agreement.direction}
             trend={confirmedDemoAnalysis.trend.trend}
-            confidence={confirmedDemoAnalysis.agreement.confidence}
-            evidenceState={confirmedDemoAnalysis.agreement.evidenceState}
-            coveragePercent={confirmedDemoAnalysis.agreement.coveragePercent}
-            availableIndicators={confirmedDemoAnalysis.agreement.availableIndicators}
-            expectedIndicators={confirmedDemoAnalysis.agreement.expectedIndicators}
+            evidence={confirmedDemoEvidence}
             summary={confirmedDemoAnalysis.agreement.agreementSummary}
             invalidation={confirmedDemoAnalysis.thesisInvalidation}
           />

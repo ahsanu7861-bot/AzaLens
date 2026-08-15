@@ -1,4 +1,4 @@
-import type { AnalysisData } from "../types/analysis";
+import type { AnalysisData, EvidenceAgreement } from "../types/analysis";
 
 /*
   Representative fixtures for the landing-page compliance demonstration
@@ -116,22 +116,69 @@ export const confirmedDemoAnalysis: AnalysisData = {
     status: "COMPLETE",
     trend: "Bullish",
   },
+  /*
+   * Deterministic demonstration data shaped exactly as the agreement engine
+   * emits under Model A: three of the four independent evidence families back
+   * the lean, price action is neutral, and coverage is complete. There is no
+   * percentage — the product does not publish one.
+   */
   agreement: {
     success: true,
     direction: "Bullish",
-    agreement: "Bullish",
-    confidence: 67,
-    rawAgreementPercent: 67,
-    coveragePercent: 100,
+    agreement: "aligned",
     evidenceState: "Moderate agreement",
+    support: {
+      direction: "BULLISH",
+      supportingFamilies: 3,
+      opposingFamilies: 0,
+      neutralFamilies: 1,
+    },
+    coverage: {
+      usableFamilies: 4,
+      expectedFamilies: 4,
+      unavailableFamilies: 0,
+      families: [
+        {
+          id: "trendPosition",
+          label: "Trend position",
+          vote: "BULLISH",
+          members: [
+            { name: "EMA", vote: "BULLISH" },
+            { name: "SMA", vote: "BULLISH" },
+            { name: "Bollinger Bands", vote: "BEARISH" },
+          ],
+        },
+        {
+          id: "momentum",
+          label: "Momentum",
+          vote: "BULLISH",
+          members: [
+            { name: "RSI", vote: "BULLISH" },
+            { name: "MACD", vote: "BULLISH" },
+          ],
+        },
+        {
+          id: "priceAction",
+          label: "Price action",
+          vote: "NEUTRAL",
+          members: [{ name: "Candlestick", vote: "NEUTRAL" }],
+        },
+        {
+          id: "volumeFlow",
+          label: "Volume flow",
+          vote: "BULLISH",
+          members: [{ name: "OBV", vote: "BULLISH" }],
+        },
+      ],
+    },
+    summary: "3 of 4 evidence families support a bullish lean.",
+    agreementSummary:
+      "Current technical evidence has a bullish lean—not a guarantee of future performance.",
+    bullishSignals: 5,
+    bearishSignals: 1,
+    neutralSignals: 1,
     availableIndicators: 9,
     expectedIndicators: 9,
-    agreementSummary:
-      "Current technical evidence has a bullish lean with moderate agreement—not a guarantee of future performance.",
-    bullishSignals: 6,
-    bearishSignals: 2,
-    neutralSignals: 2,
-    totalIndicators: 10,
   },
   explanation: {
     success: true,
@@ -191,3 +238,56 @@ export const confirmedDemoAnalysis: AnalysisData = {
     },
   },
 };
+
+/*
+ * The demonstration's Evidence Agreement, typed as the canonical contract so the
+ * landing page consumes exactly the shape the product publishes.
+ */
+export const confirmedDemoEvidence: EvidenceAgreement = {
+  state: "Moderate agreement",
+  support: {
+    direction: "BULLISH",
+    supportingFamilies: 3,
+    opposingFamilies: 0,
+    neutralFamilies: 1,
+  },
+  coverage: {
+    usableFamilies: 4,
+    expectedFamilies: 4,
+    unavailableFamilies: 0,
+    families: [
+      {
+        id: "trendPosition",
+        label: "Trend position",
+        vote: "BULLISH",
+        members: [
+          { name: "EMA", vote: "BULLISH" },
+          { name: "SMA", vote: "BULLISH" },
+          { name: "Bollinger Bands", vote: "BEARISH" },
+        ],
+      },
+      {
+        id: "momentum",
+        label: "Momentum",
+        vote: "BULLISH",
+        members: [
+          { name: "RSI", vote: "BULLISH" },
+          { name: "MACD", vote: "BULLISH" },
+        ],
+      },
+      {
+        id: "priceAction",
+        label: "Price action",
+        vote: "NEUTRAL",
+        members: [{ name: "Candlestick", vote: "NEUTRAL" }],
+      },
+      {
+        id: "volumeFlow",
+        label: "Volume flow",
+        vote: "BULLISH",
+        members: [{ name: "OBV", vote: "BULLISH" }],
+      },
+    ],
+  },
+  summary: "3 of 4 evidence families support a bullish lean.",
+}

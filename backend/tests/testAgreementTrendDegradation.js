@@ -19,6 +19,7 @@ function baseIndicators() {
       pattern: "Bullish Engulfing",
       bias: "Bullish"
     },
+    obv: { success: true, signal: "Accumulation" },
     rvol: { success: true, rvol: 1.4 },
     volumeSpike: {
       success: true,
@@ -38,7 +39,8 @@ function run() {
     const result = analyzeAgreement(baseIndicators());
 
     assert.equal(result.unavailableIndicators.length, 0);
-    assert.equal(result.totalIndicators, 9);
+    assert.equal(result.coverage.usableFamilies, 4);
+    assert.equal(result.coverage.unavailableFamilies, 0);
     assert.equal(result.direction, "Bullish");
   }
 
@@ -53,8 +55,11 @@ function run() {
 
     const result = analyzeAgreement(indicators);
 
+    // RVOL is context, not a voting family member: losing it must not change
+    // the directional assessment, only the context disclosure.
     assert.deepEqual(result.unavailableIndicators, ["RVOL"]);
-    assert.equal(result.totalIndicators, 8);
+    assert.equal(result.coverage.usableFamilies, 4);
+    assert.equal(result.support.direction, "BULLISH");
     assert.ok(!result.neutral.includes("RVOL"));
     assert.ok(
       result.agreementDetails.some((line) =>
@@ -73,6 +78,11 @@ function run() {
 
     const result = analyzeAgreement(indicators);
     assert.ok(result.unavailableIndicators.includes("MACD"));
+    // Momentum requires both of its members, so losing MACD makes the whole
+    // family unavailable rather than letting RSI speak for it alone.
+    const momentum = result.coverage.families.find((f) => f.id === "momentum");
+    assert.equal(momentum.vote, "UNAVAILABLE");
+    assert.equal(result.coverage.usableFamilies, 3);
   }
 
   // 4. Every indicator fails: honest summary, no crash, no
@@ -85,9 +95,10 @@ function run() {
 
     const result = analyzeAgreement(indicators);
 
-    assert.equal(result.totalIndicators, 0);
+    assert.equal(result.coverage.usableFamilies, 0);
     assert.equal(result.direction, "Mixed");
-    assert.match(result.agreementSummary, /No indicators were available/);
+    assert.equal(result.evidenceState, "Evidence unavailable");
+    assert.match(result.agreementSummary, /No evidence families are usable/);
   }
 
   console.log("agreementEngine.js degradation handling: all assertions passed.");

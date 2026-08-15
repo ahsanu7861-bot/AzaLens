@@ -187,6 +187,7 @@ export interface FundamentalsData {
  */
 export const EVIDENCE_STATES = [
   "Evidence unavailable",
+  "Insufficient evidence",
   "No directional evidence",
   "Conflicting evidence",
   "Limited evidence",
@@ -197,38 +198,58 @@ export const EVIDENCE_STATES = [
 
 export type EvidenceState = (typeof EVIDENCE_STATES)[number]
 
-/*
- * The three states that assert a *grade* - how strongly complete directional
- * evidence agrees. A grade may only be shown when the evidence behind it is
- * complete; the safeguard that enforces that lives in VerdictCard.tsx.
- */
-export const GRADED_EVIDENCE_STATES = [
-  "High agreement",
-  "Moderate agreement",
-  "Low agreement",
-] as const satisfies ReadonlyArray<EvidenceState>
+/* The four independent evidence families. The denominator is always four. */
+export const EVIDENCE_FAMILY_IDS = [
+  "trendPosition",
+  "momentum",
+  "priceAction",
+  "volumeFlow",
+] as const
 
-/* What a graded claim degrades to when its coverage is demonstrably incomplete. */
-export const LIMITED_EVIDENCE_STATE: EvidenceState = "Limited evidence"
+export type EvidenceFamilyId = (typeof EVIDENCE_FAMILY_IDS)[number]
+export type FamilyVote = "BULLISH" | "BEARISH" | "NEUTRAL" | "UNAVAILABLE"
 
-/*
- * The published evidence census. `state` stays assignable from any string so an
- * unrecognised backend value remains a runtime concern handled by the existing
- * fail-closed presentation path, never a build failure that would take the whole
- * app down over one unexpected word.
- */
-export interface EvidenceAgreement {
-  percent: number | null
-  state: EvidenceState | (string & {})
-  available: number
-  expected: number
+export const EXPECTED_EVIDENCE_FAMILIES = 4
+
+export interface EvidenceFamilyMember {
+  name: string
+  vote: FamilyVote | (string & {})
+}
+
+export interface EvidenceFamily {
+  id: EvidenceFamilyId | (string & {})
+  label: string
+  vote: FamilyVote | (string & {})
+  members: EvidenceFamilyMember[]
 }
 
 /*
- * Deterministic risk contract carried by the guidance response. Every field maps
- * to a value the backend risk engine actually returns; nothing is derived in the
- * UI. See docs/VERDICT_CONTRACT.md §9.
+ * How many independent families back the dominant lean. This is a count, not a
+ * score: it is not a probability, not predicted accuracy, not a performance
+ * guarantee and not an empirically calibrated confidence value.
  */
+export interface DirectionalSupport {
+  direction: "BULLISH" | "BEARISH" | null
+  supportingFamilies: number
+  opposingFamilies: number
+  neutralFamilies: number
+}
+
+/* How much of the expected evidence base was usable. The denominator never shrinks. */
+export interface EvidenceCoverage {
+  usableFamilies: number
+  expectedFamilies: number
+  unavailableFamilies: number
+  families: EvidenceFamily[]
+}
+
+export interface EvidenceAgreement {
+  state: EvidenceState | (string & {})
+  support: DirectionalSupport
+  coverage: EvidenceCoverage
+  summary: string
+}
+
 export interface GuidanceRisk {
   level: string | null
   score: number | null
@@ -352,10 +373,10 @@ export interface AnalysisResponse {
       error?: string | null
       provider?: string
       symbol?: string
-      confidence?: number
-      rawAgreementPercent?: number
-      coveragePercent?: number
       evidenceState?: EvidenceState | (string & {})
+      support?: DirectionalSupport
+      coverage?: EvidenceCoverage
+      summary?: string
       expectedIndicators?: number
       availableIndicators?: number
       agreement?: string
@@ -528,7 +549,6 @@ export interface AnalysisResponse {
       currentPrice?: number | null
       atr?: number | null
       atrPercent?: number | null
-      agreementConfidence?: number | null
       referenceDistances?: {
         tight?: {
           atrMultiplier?: number | null

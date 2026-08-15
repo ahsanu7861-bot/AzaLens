@@ -136,6 +136,11 @@ export default function AnalysisPage() {
     risk: (
       <RiskAssessment
         risk={data?.risk}
+        /*
+          The canonical Evidence Agreement object, passed straight through from
+          the backend. The Risk workspace renders it; it never recomputes one.
+        */
+        evidence={data?.guidance?.evidenceAgreement ?? null}
         currency={data?.market?.data?.currency}
         isLoading={isLoading}
       />

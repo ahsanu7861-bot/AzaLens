@@ -2,7 +2,11 @@ import { BrainCircuit } from 'lucide-react'
 
 type EvidenceSummaryProps = {
   trend: string
-  confidence: string | number
+  /*
+   * How many independent evidence families back the lean, as text. This is a
+   * count against a fixed denominator, never a percentage or a score.
+   */
+  evidenceAgreement: string
   risk: string
   shariah: string
   explanation: string
@@ -10,7 +14,7 @@ type EvidenceSummaryProps = {
 
 export default function EvidenceSummary({
   trend,
-  confidence,
+  evidenceAgreement,
   risk,
   shariah,
   explanation,
@@ -22,8 +26,6 @@ export default function EvidenceSummary({
       : normalizedShariah === 'non-compliant'
         ? 'text-critical'
         : 'text-caution'
-  const confidenceLabel =
-    typeof confidence === 'number' ? `${confidence}%` : confidence
 
   return (
     <article className="az-card az-workspace-card p-6">
@@ -55,7 +57,7 @@ export default function EvidenceSummary({
             <p className="text-xs text-ink-muted">Evidence Agreement</p>
 
             <p className="az-numeric mt-2 text-lg font-semibold text-ink">
-              {confidenceLabel}
+              {evidenceAgreement}
             </p>
           </div>
 

@@ -89,10 +89,7 @@ export default function GuidanceVerdict({
       <VerdictCard
         direction={verdictLabel(guidance)}
         trend={horizonLabel(guidance?.horizon)}
-        confidence={agreement?.percent ?? undefined}
-        evidenceState={agreement?.state}
-        availableIndicators={agreement?.available}
-        expectedIndicators={agreement?.expected}
+        evidence={agreement ?? null}
         summary={guidance?.currentSituation}
         invalidation={guidance?.invalidation}
         isLoading={isLoading}

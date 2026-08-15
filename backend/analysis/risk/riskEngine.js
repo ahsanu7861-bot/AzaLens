@@ -1,3 +1,7 @@
+const {
+  computeLegacyAgreementConfidenceForRisk
+} = require("./legacyAgreementCompat");
+
 function toNumber(value, fallback = null) {
   const number = Number(value);
 
@@ -122,7 +126,6 @@ function analyzeRisk(analysis) {
   const market = analysis.market || {};
   const indicators = analysis.indicators || {};
   const trend = analysis.trend || {};
-  const agreement = analysis.agreement || {};
 
   const marketData =
     market.success === true && market.data
@@ -138,7 +141,14 @@ function analyzeRisk(analysis) {
   const atr = toNumber(indicators.atr?.atr);
   const adx = toNumber(indicators.adx?.adx);
   const rvol = toNumber(indicators.rvol?.rvol);
-  const confidence = toNumber(agreement.confidence, 0);
+  /*
+   * Legacy risk input only. Evidence Agreement no longer publishes a percentage;
+   * this reproduces the pre-PR-3 figure from the nine legacy readings so risk
+   * output stays unchanged while the evidence contract moves. It is never
+   * serialized and never shown. See analysis/risk/legacyAgreementCompat.js for
+   * the removal condition.
+   */
+  const confidence = computeLegacyAgreementConfidenceForRisk(indicators);
 
   /*
     A relative-volume ratio only means what it claims to mean when
@@ -310,22 +320,33 @@ function analyzeRisk(analysis) {
     }
   }
 
-  // Agreement-confidence contribution
+  /*
+   * Evidence-confirmation contribution.
+   *
+   * The score bucket is still driven by the frozen legacy figure so risk levels
+   * do not move while Evidence Agreement changes. The wording, however, must not
+   * publish that figure: it is not a confidence measure and is no longer part of
+   * the public contract. The sentence therefore quotes the canonical family
+   * summary the agreement engine already produced - it does not recompute one.
+   */
+  const evidenceSummary = String(analysis.agreement?.summary || "").trim();
+  const evidenceClause = evidenceSummary ? ` ${evidenceSummary}` : "";
+
   if (confidence >= 75) {
     supportiveFactors.push(
-      `Indicator agreement confidence is ${confidence}%, providing relatively strong confirmation.`
+      `Directional confirmation is strong.${evidenceClause}`
     );
   } else if (confidence >= 60) {
     riskScore += 5;
 
     riskNotes.push(
-      `Indicator agreement confidence is ${confidence}%, which provides moderate rather than strong confirmation.`
+      `Directional confirmation is moderate rather than strong.${evidenceClause}`
     );
   } else {
     riskScore += 15;
 
     riskNotes.push(
-      `Indicator agreement confidence is only ${confidence}%, indicating limited confirmation.`
+      `Directional confirmation is limited.${evidenceClause}`
     );
   }
 
@@ -405,8 +426,6 @@ function analyzeRisk(analysis) {
     currentPrice: round(currentPrice),
     atr: round(atr),
     atrPercent,
-
-    agreementConfidence: confidence,
 
     referenceDistances,
     priceReferenceLevels,
