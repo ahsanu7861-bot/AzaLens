@@ -145,8 +145,9 @@ function analyzeRisk(analysis) {
    * Legacy risk input only. Evidence Agreement no longer publishes a percentage;
    * this reproduces the pre-PR-3 figure from the nine legacy readings so risk
    * output stays unchanged while the evidence contract moves. It is never
-   * serialized and never shown. See analysis/risk/legacyAgreementCompat.js for
-   * the removal condition.
+   * serialized, never shown, and never allowed to grade user-visible wording:
+   * it selects a score bucket and nothing else. See
+   * analysis/risk/legacyAgreementCompat.js for the removal condition.
    */
   const confidence = computeLegacyAgreementConfidenceForRisk(indicators);
 
@@ -321,33 +322,55 @@ function analyzeRisk(analysis) {
   }
 
   /*
-   * Evidence-confirmation contribution.
+   * Evidence contribution — two deliberately separated concerns.
    *
-   * The score bucket is still driven by the frozen legacy figure so risk levels
-   * do not move while Evidence Agreement changes. The wording, however, must not
-   * publish that figure: it is not a confidence measure and is no longer part of
-   * the public contract. The sentence therefore quotes the canonical family
-   * summary the agreement engine already produced - it does not recompute one.
+   * 1. NUMERIC. The frozen legacy figure still selects the score bucket, on the
+   *    same thresholds and penalties as before, so risk levels do not move.
+   * 2. USER-VISIBLE. The published note comes only from the canonical
+   *    four-family contract, never from the legacy figure.
+   *
+   * Keeping these joined is what produced the contradiction this separation
+   * fixes: the bucket was graded from the legacy scalar (which ignores OBV,
+   * credits neutral readings and multiplies in coverage) while the sentence it
+   * introduced quoted the family summary, so a note could read "Directional
+   * confirmation is limited. 4 of 4 evidence families support a bullish lean."
+   * The legacy figure is not confidence and not a measure of confirmation, so it
+   * must not grade any wording a user reads.
    */
-  const evidenceSummary = String(analysis.agreement?.summary || "").trim();
-  const evidenceClause = evidenceSummary ? ` ${evidenceSummary}` : "";
+  riskScore += confidence >= 75 ? 0 : confidence >= 60 ? 5 : 15;
 
-  if (confidence >= 75) {
-    supportiveFactors.push(
-      `Directional confirmation is strong.${evidenceClause}`
-    );
-  } else if (confidence >= 60) {
-    riskScore += 5;
+  /*
+   * `agreement.agreement === "aligned"` is the agreement engine's own
+   * established-evidence predicate (a lean, complete four-family coverage, at
+   * least three supporting families and no larger opposing side), already the
+   * canonical signal consumed by services/guidanceContractService.js. Reusing it
+   * introduces no second evidence model and no new threshold, and it is true
+   * exactly for "Moderate agreement" and "High agreement" - which is why a
+   * conflicted, directionless, insufficient, unavailable or incomplete-coverage
+   * state can never print under the "Supportive factors" heading.
+   *
+   * The summary is published verbatim behind a neutral label: never regraded,
+   * never reinterpreted, and carrying no percentage by contract. The string
+   * check is strict because coercion would let a stray number render as
+   * "Evidence context: 78".
+   */
+  const agreement =
+    analysis.agreement &&
+    typeof analysis.agreement === "object" &&
+    !Array.isArray(analysis.agreement)
+      ? analysis.agreement
+      : null;
 
-    riskNotes.push(
-      `Directional confirmation is moderate rather than strong.${evidenceClause}`
-    );
+  const evidenceSummary =
+    typeof agreement?.summary === "string" ? agreement.summary.trim() : "";
+
+  if (!evidenceSummary) {
+    // Fail safe: invent no sentence and publish no dangling fragment.
+    riskNotes.push("Evidence context is unavailable for this analysis.");
+  } else if (agreement.agreement === "aligned") {
+    supportiveFactors.push(`Evidence context: ${evidenceSummary}`);
   } else {
-    riskScore += 15;
-
-    riskNotes.push(
-      `Directional confirmation is limited.${evidenceClause}`
-    );
+    riskNotes.push(`Evidence context: ${evidenceSummary}`);
   }
 
   // Trend consistency
