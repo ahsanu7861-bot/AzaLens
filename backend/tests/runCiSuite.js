@@ -36,6 +36,7 @@ const deterministicSuites = [
   "testRateLimitHttp.js",
   "testReleaseHealthCheck.js",
   "testRiskBoundary.js",
+  "testRiskEvidenceCompatContract.js",
   "testRiskInvariance.js",
   "testReleaseScope.js",
   "testScannerService.js",

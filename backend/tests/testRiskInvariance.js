@@ -44,7 +44,7 @@ const assert = require("node:assert/strict");
 
 const { analyzeRisk } = require("../analysis/risk/riskEngine");
 const {
-  computeLegacyAgreementConfidenceForRisk
+  computeFrozenRiskEvidenceCompatValue
 } = require("../analysis/risk/legacyAgreementCompat");
 const { analyzeAgreement } = require("../analysis/agreement/agreementEngine");
 
@@ -288,7 +288,7 @@ function testLegacyFigureAndRiskAreUnchanged() {
               for (const obv of states) {
                 const spec = { ema, sma, bollinger, rsi, macd, candlestick, obv };
                 const expected = baselineLegacyConfidence(legacyCounts(spec, context));
-                const actual = computeLegacyAgreementConfidenceForRisk(indicators(spec, context));
+                const actual = computeFrozenRiskEvidenceCompatValue(indicators(spec, context));
 
                 assert.equal(
                   actual, expected,
@@ -640,7 +640,11 @@ function testShimIsNotSerialized() {
 
   // The compatibility module exports exactly one function and nothing else.
   const compat = require("../analysis/risk/legacyAgreementCompat");
-  assert.deepEqual(Object.keys(compat), ["computeLegacyAgreementConfidenceForRisk"]);
+  assert.deepEqual(Object.keys(compat).sort(), [
+    "FROZEN_RISK_EVIDENCE_COMPAT_CONTRACT",
+    "computeFrozenRiskEvidenceCompatValue",
+    "selectFrozenRiskEvidencePenalty"
+  ]);
 }
 
 // ---------------------------------------------------------------------------

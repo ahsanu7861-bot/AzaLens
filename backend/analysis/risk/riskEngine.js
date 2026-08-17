@@ -1,5 +1,5 @@
 const {
-  computeLegacyAgreementConfidenceForRisk
+  selectFrozenRiskEvidencePenalty
 } = require("./legacyAgreementCompat");
 
 function toNumber(value, fallback = null) {
@@ -142,14 +142,15 @@ function analyzeRisk(analysis) {
   const adx = toNumber(indicators.adx?.adx);
   const rvol = toNumber(indicators.rvol?.rvol);
   /*
-   * Legacy risk input only. Evidence Agreement no longer publishes a percentage;
-   * this reproduces the pre-PR-3 figure from the nine legacy readings so risk
-   * output stays unchanged while the evidence contract moves. It is never
-   * serialized, never shown, and never allowed to grade user-visible wording:
-   * it selects a score bucket and nothing else. See
-   * analysis/risk/legacyAgreementCompat.js for the removal condition.
+   * Frozen compatibility input only. The penalty is selected by
+   * analysis/risk/legacyAgreementCompat.js, which owns both the frozen formula
+   * and the frozen threshold/penalty schedule; this engine deliberately does not
+   * restate those boundaries. The underlying value is never serialized, never
+   * shown, and never allowed to grade user-visible wording. It is explicitly
+   * unvalidated compatibility behaviour, not a measurement — see that module for
+   * the governance contract and mandatory review date.
    */
-  const confidence = computeLegacyAgreementConfidenceForRisk(indicators);
+  const frozenEvidencePenalty = selectFrozenRiskEvidencePenalty(indicators);
 
   /*
     A relative-volume ratio only means what it claims to mean when
@@ -324,20 +325,21 @@ function analyzeRisk(analysis) {
   /*
    * Evidence contribution — two deliberately separated concerns.
    *
-   * 1. NUMERIC. The frozen legacy figure still selects the score bucket, on the
-   *    same thresholds and penalties as before, so risk levels do not move.
+   * 1. NUMERIC. The frozen compatibility schedule selects the score bucket, so
+   *    risk levels do not move. The boundaries and penalties live in
+   *    legacyAgreementCompat.js and are not restated here.
    * 2. USER-VISIBLE. The published note comes only from the canonical
-   *    four-family contract, never from the legacy figure.
+   *    four-family contract, never from the frozen compatibility value.
    *
    * Keeping these joined is what produced the contradiction this separation
-   * fixes: the bucket was graded from the legacy scalar (which ignores OBV,
-   * credits neutral readings and multiplies in coverage) while the sentence it
-   * introduced quoted the family summary, so a note could read "Directional
-   * confirmation is limited. 4 of 4 evidence families support a bullish lean."
-   * The legacy figure is not confidence and not a measure of confirmation, so it
-   * must not grade any wording a user reads.
+   * fixes: the bucket was graded from the compatibility value (which ignores
+   * OBV, credits directionless readings and multiplies in coverage) while the
+   * sentence it introduced quoted the family summary, so a note could read
+   * "Directional confirmation is limited. 4 of 4 evidence families support a
+   * bullish lean." That value measures no evidence property, so it must not
+   * grade any wording a user reads.
    */
-  riskScore += confidence >= 75 ? 0 : confidence >= 60 ? 5 : 15;
+  riskScore += frozenEvidencePenalty;
 
   /*
    * `agreement.agreement === "aligned"` is the agreement engine's own
