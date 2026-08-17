@@ -2,32 +2,56 @@
 
 /*
  * ============================================================================
- * TEMPORARY RISK COMPATIBILITY SHIM — NOT A PUBLIC METRIC
+ * FROZEN RISK-EVIDENCE COMPATIBILITY CONTRACT — PRIVATE, TEMPORARY, UNVALIDATED
  *
- * PR 3 replaced the Evidence Agreement percentage with an independence-aware
- * family count. `riskEngine.js` had been reading that percentage and bucketing
- * it into the risk score, so removing the field outright would have silently
- * moved every published risk level.
+ * WHAT THIS IS
+ *   A frozen arithmetic reproduction of a figure that no longer exists anywhere
+ *   else in the system, kept for one reason: to hold published risk output
+ *   exactly where it was while the Evidence Agreement model changed. It selects
+ *   a risk-score bucket and does nothing else.
  *
- * This module reproduces the *legacy* percentage, byte-for-byte, from the nine
- * legacy indicator readings, for the sole purpose of holding risk output
- * unchanged while the evidence contract changes. It is a frozen copy of code
- * that no longer exists anywhere else.
+ * WHAT THIS IS NOT
+ *   Not a confidence measure. Not Evidence Agreement. Not an accuracy measure.
+ *   Not a probability. Not evidence strength. Not an empirically validated risk
+ *   measurement. It is frozen compatibility behaviour and must never be
+ *   described, named, serialized or rendered as any of those things.
+ *
+ * WHY IT CANNOT AGREE WITH THE FAMILY CONTRACT
+ *   It ignores OBV entirely, credits directionless readings at 0.35 each, counts
+ *   RVOL and Volume Spike as two observations when they derive from one, and
+ *   multiplies in a coverage ratio. Deeper directional deadlock therefore raises
+ *   its value. These are known incoherences, preserved deliberately, not defects
+ *   to be repaired here — repairing them would move published risk levels.
  *
  * HARD CONSTRAINTS
- *   - Consumed only by the legacy risk bucket inside analyzeRisk().
- *   - Never serialized, never placed on `data.agreement` or `data.risk`.
+ *   - Exactly one production consumer: the evidence bucket inside analyzeRisk().
+ *   - Never serialized; never placed on `data.agreement`, `data.risk`,
+ *     `guidance` or `explanation`.
  *   - Never exposed in frontend types and never rendered.
- *   - Never described to a user as confidence, agreement, or a score.
+ *   - Never allowed to grade user-visible wording (see PR 18a).
  *   - Never allowed to influence the family-count contract.
  *
- * REMOVAL CONDITION
- *   This shim exists only to preserve risk behaviour while Evidence Agreement
- *   changes. It may remain only until a dedicated risk-evidence contract is
- *   approved with documented semantics, pinned scenarios and differential
- *   analysis. That follow-up must replace the shim or explicitly authorise its
- *   continued use. No further evidence-model expansion may proceed while this
- *   compatibility debt remains unresolved. Recorded in WHAT_TO_DO_NEXT.md.
+ * OWNERSHIP
+ *   This module is the single owner of BOTH the frozen formula and the frozen
+ *   threshold/penalty schedule. `riskEngine.js` consumes the schedule through
+ *   `selectFrozenRiskEvidencePenalty` and does not restate 75/60 or 0/5/15.
+ *
+ * STATUS: approved 2026-08-17 as governed compatibility behaviour, with zero
+ *   runtime-output change. Approval governs the debt; it does not validate the
+ *   numbers. Every threshold and penalty below remains explicitly unvalidated:
+ *   this repository holds no representative historical dataset and no outcome
+ *   ledger against which any of them could be calibrated.
+ *
+ * MANDATORY REVIEW — at the earliest of:
+ *   1. an outcome ledger reaching an approved usable sample,
+ *   2. the Evidence Agreement model changing,
+ *   3. any change to consumer, formula, threshold or penalty,
+ *   4. any change to serialization, public API exposure or frontend use -
+ *      recorded as three distinct triggers, not one combined condition,
+ *   5. 2027-02-17.
+ *   Empirical replacement remains open. See FROZEN_RISK_EVIDENCE_COMPAT_CONTRACT
+ *   below, which is machine-readable and asserted by
+ *   backend/tests/testRiskEvidenceCompatContract.js.
  * ============================================================================
  */
 
@@ -109,12 +133,15 @@ function classifyLegacy(indicators) {
 }
 
 /*
- * The legacy published figure:
+ * The frozen figure. Arithmetic preserved exactly:
  *   raw      = round((dominant + 0.35 x neutral) / total x 100), clamped 0..100
  *   coverage = round(total / 9 x 100)
  *   result   = round(raw x coverage / 100)
+ *
+ * Deliberately NOT named for confidence, agreement, accuracy, probability or
+ * strength: it measures none of them. It is a compatibility value.
  */
-function computeLegacyAgreementConfidenceForRisk(rawIndicators) {
+function computeFrozenRiskEvidenceCompatValue(rawIndicators) {
   const indicators =
     rawIndicators && typeof rawIndicators === "object" ? rawIndicators : {};
 
@@ -122,23 +149,103 @@ function computeLegacyAgreementConfidenceForRisk(rawIndicators) {
   const totalIndicators = bullish + bearish + neutral;
   const dominantCount = Math.max(bullish, bearish);
 
-  let rawAgreementPercent = 0;
+  let rawShare = 0;
 
   if (totalIndicators > 0) {
-    rawAgreementPercent = Math.round(
+    rawShare = Math.round(
       (dominantCount + neutral * 0.35) / totalIndicators * 100
     );
   }
 
-  rawAgreementPercent = Math.min(100, Math.max(0, rawAgreementPercent));
+  rawShare = Math.min(100, Math.max(0, rawShare));
 
   const coveragePercent = Math.round(
     totalIndicators / LEGACY_EXPECTED_INDICATOR_COUNT * 100
   );
 
-  return Math.round(rawAgreementPercent * coveragePercent / 100);
+  return Math.round(rawShare * coveragePercent / 100);
 }
 
+/*
+ * The frozen threshold/penalty schedule, owned here and nowhere else.
+ *
+ * riskEngine.js consumes this function rather than restating the boundaries, so
+ * there is exactly one place in production where 75, 60, 0, 5 and 15 appear.
+ * The boundaries are inclusive-at-or-above, exactly as before.
+ */
+const FROZEN_UPPER_BOUNDARY = 75;
+const FROZEN_LOWER_BOUNDARY = 60;
+const FROZEN_PENALTY_NONE = 0;
+const FROZEN_PENALTY_PARTIAL = 5;
+const FROZEN_PENALTY_FULL = 15;
+
+function selectFrozenRiskEvidencePenalty(rawIndicators) {
+  const value = computeFrozenRiskEvidenceCompatValue(rawIndicators);
+
+  if (value >= FROZEN_UPPER_BOUNDARY) return FROZEN_PENALTY_NONE;
+  if (value >= FROZEN_LOWER_BOUNDARY) return FROZEN_PENALTY_PARTIAL;
+
+  return FROZEN_PENALTY_FULL;
+}
+
+/*
+ * Machine-readable governance record. Deeply frozen so a later edit cannot
+ * quietly relax the review date or drop a trigger: the contract test asserts
+ * both the values and their immutability.
+ *
+ * This object is internal governance material. It is never serialized, never
+ * placed on a response, and never read by any consumer other than the tests.
+ */
+const FROZEN_RISK_EVIDENCE_COMPAT_CONTRACT = Object.freeze({
+  status: "frozen-compatibility",
+  visibility: "private-internal",
+  empiricallyValidated: false,
+  approvedOn: "2026-08-17",
+  mandatoryReviewBy: "2027-02-17",
+  formulaOwner: "backend/analysis/risk/legacyAgreementCompat.js",
+  scheduleOwner: "backend/analysis/risk/legacyAgreementCompat.js",
+  permittedConsumers: Object.freeze([
+    "backend/analysis/risk/riskEngine.js:analyzeRisk:evidence-bucket"
+  ]),
+  boundaries: Object.freeze({
+    upper: FROZEN_UPPER_BOUNDARY,
+    lower: FROZEN_LOWER_BOUNDARY
+  }),
+  penalties: Object.freeze({
+    none: FROZEN_PENALTY_NONE,
+    partial: FROZEN_PENALTY_PARTIAL,
+    full: FROZEN_PENALTY_FULL
+  }),
+  prohibited: Object.freeze([
+    "serialization",
+    "public-api-exposure",
+    "frontend-use",
+    "guidance-use",
+    "explanation-use",
+    "user-visible-wording"
+  ]),
+  /*
+   * The ten approved review triggers, each recorded separately so no approved
+   * condition is hidden inside a combined string. Guidance and explanation use
+   * are covered by `consumer-change` and remain separately prohibited above.
+   */
+  reviewTriggers: Object.freeze([
+    "outcome-ledger-approved-usable-sample",
+    "evidence-agreement-model-change",
+    "consumer-change",
+    "formula-change",
+    "threshold-change",
+    "penalty-change",
+    "serialization-change",
+    "public-api-exposure-change",
+    "frontend-use-change",
+    "review-date-2027-02-17"
+  ]),
+  replacementRemainsOpen: true
+});
+
 module.exports = {
-  computeLegacyAgreementConfidenceForRisk
+  computeFrozenRiskEvidenceCompatValue,
+  selectFrozenRiskEvidencePenalty,
+  FROZEN_RISK_EVIDENCE_COMPAT_CONTRACT
 };
