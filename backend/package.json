@@ -39,6 +39,7 @@
     "test:evidence-agreement": "node tests/testEvidenceAgreementContract.js",
     "test:explanation-contract": "node tests/testExplanationContract.js",
     "test:guidance-contract": "node tests/testGuidanceContract.js",
+    "test:landing-demo-contract": "node tests/testLandingDemoContract.js",
     "test:risk-boundary": "node tests/testRiskBoundary.js",
     "test:risk-invariance": "node tests/testRiskInvariance.js",
     "test:trend-reliability": "node tests/testTrendReliability.js",

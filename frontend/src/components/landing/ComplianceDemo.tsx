@@ -1,11 +1,8 @@
 import VerdictCard from "../analysis/VerdictCard";
 import IslamicCompliance from "../analysis/IslamicCompliance";
 import VerdictWithheld from "../analysis/VerdictWithheld";
-import {
-  confirmedDemoAnalysis,
-  confirmedDemoEvidence,
-  withheldDemoAnalysis,
-} from "../../data/landingDemo";
+import { confirmedDemoCard, withheldDemoCard } from "../../data/landingDemo";
+import { horizonLabel } from "../../lib/guidanceLabels";
 import { Badge } from "../ui";
 
 function DemoLabel({ children }: { children: string }) {
@@ -22,22 +19,26 @@ export default function ComplianceDemo() {
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-4" data-testid="landing-demo-withheld">
           <DemoLabel>Demonstration — compliance not yet confirmed</DemoLabel>
-          <VerdictWithheld
-            message={withheldDemoAnalysis.complianceGate?.message}
-          />
-          <IslamicCompliance data={withheldDemoAnalysis.shariah} />
+          <VerdictWithheld message={withheldDemoCard.withheldMessage} />
+          <IslamicCompliance data={withheldDemoCard.shariah} />
         </div>
 
         <div className="space-y-4" data-testid="landing-demo-confirmed">
           <DemoLabel>Demonstration — compliance confirmed</DemoLabel>
+          {/*
+            The headline carries the canonical public verdict label and the badge
+            carries the canonical horizon, exactly as the analysis workspace does.
+            Neither slot may carry the internal agreement direction ("Bullish"):
+            that is an engine-internal lean, not wording this product publishes.
+          */}
           <VerdictCard
-            direction={confirmedDemoAnalysis.agreement.direction}
-            trend={confirmedDemoAnalysis.trend.trend}
-            evidence={confirmedDemoEvidence}
-            summary={confirmedDemoAnalysis.agreement.agreementSummary}
-            invalidation={confirmedDemoAnalysis.thesisInvalidation}
+            direction={confirmedDemoCard.publicLabel}
+            trend={horizonLabel(confirmedDemoCard.horizonToken)}
+            evidence={confirmedDemoCard.evidence}
+            summary={confirmedDemoCard.summary}
+            invalidation={confirmedDemoCard.invalidation}
           />
-          <IslamicCompliance data={confirmedDemoAnalysis.shariah} />
+          <IslamicCompliance data={confirmedDemoCard.shariah} />
         </div>
       </div>
 

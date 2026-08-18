@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import ComplianceDemo from "./ComplianceDemo";
 import {
-  confirmedDemoAnalysis,
-  withheldDemoAnalysis,
+  confirmedDemoCard,
+  landingDemoContract,
+  withheldDemoCard,
 } from "../../data/landingDemo";
+import { horizonLabel } from "../../lib/guidanceLabels";
 
 // A "standalone" verdict command is an element whose entire text is just
 // the word BUY, SELL or HOLD — the shape of the old mockup's `<p>BUY</p>`.
@@ -14,10 +16,9 @@ import {
 // is not the full text of any single element.
 const STANDALONE_VERDICT_COMMAND = /^(buy|sell|hold)$/i;
 
-// Rule 4 requires a directional lean plus a confidence percentage — the
-// 67% figure is legitimate, contract-shaped output, not a fabrication. What
-// must never appear is an unsupported claim that the product predicts
-// outcomes (accuracy / win rate / success rate / probability of profit).
+// The product publishes no confidence percentage. What must never appear is an
+// unsupported claim that it predicts outcomes (accuracy / win rate / success
+// rate / probability of profit).
 const UNSUPPORTED_PERFORMANCE_CLAIMS = [
   /%\s*accurate/i,
   /accura(te|cy)/i,
@@ -27,10 +28,14 @@ const UNSUPPORTED_PERFORMANCE_CLAIMS = [
   /probability of profit/i,
 ];
 
-// Every percentage figure the demo renders must come from one of the
-// fixtures' documented, explained values — never an unexplained number
-// dropped in beside a performance-sounding label.
-const ALLOWED_PERCENTAGES = new Set(["67%", "100%", "18%", "0.6%", "0.4%"]);
+// Every percentage the demo renders must come from the Shariah panel's
+// documented screening ratios. The retired 67% and 100% agreement figures are
+// deliberately absent: leaving them allowed would silently permit their return.
+const ALLOWED_PERCENTAGES = new Set(["18%", "0.6%", "0.4%"]);
+
+// The agreement engine's internal lean. It is not wording this product
+// publishes, and must reach neither the verdict headline nor the horizon badge.
+const INTERNAL_DIRECTION = /bullish/i;
 
 function renderedPercentages(text: string): string[] {
   return text.match(/\d+(?:\.\d+)?%/g) ?? [];
@@ -60,15 +65,57 @@ describe("ComplianceDemo honesty regression", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows a reasoned directional lean (not a bare command) once compliance is confirmed", () => {
+  /*
+   * Item 2.15. The value asserted is read from the landing contract rather than
+   * written here: backend/tests/testLandingDemoContract.js proves that value is
+   * what the real guidance engine derives. This test owns "the card renders the
+   * contract"; the backend owns "the contract is correct". Neither restates the
+   * other's vocabulary.
+   */
+  it("renders the canonical public verdict label as the headline", () => {
     render(<ComplianceDemo />);
 
     const confirmedCard = screen.getByTestId("landing-demo-confirmed");
 
     expect(within(confirmedCard).getByText("AzaLens Verdict")).toBeInTheDocument();
     expect(
-      within(confirmedCard).getByText("BULLISH"),
+      within(confirmedCard).getByRole("heading", {
+        name: confirmedDemoCard.publicLabel.toUpperCase(),
+      }),
     ).toBeInTheDocument();
+  });
+
+  it("renders the canonical horizon as the badge", () => {
+    render(<ComplianceDemo />);
+
+    const confirmedCard = screen.getByTestId("landing-demo-confirmed");
+
+    expect(
+      within(confirmedCard).getByText(
+        horizonLabel(confirmedDemoCard.horizonToken),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("never lets the internal agreement direction become the headline or the badge", () => {
+    render(<ComplianceDemo />);
+
+    const confirmedCard = screen.getByTestId("landing-demo-confirmed");
+
+    // Scoped to the verdict row — the headline and the horizon badge sit in the
+    // same flex container. "Bullish" elsewhere in the card is legitimate: the
+    // Evidence Agreement strip reports family votes, which are evidence, not a
+    // published verdict. Only these two slots are forbidden.
+    const heading = within(confirmedCard).getByRole("heading", {
+      name: confirmedDemoCard.publicLabel.toUpperCase(),
+    });
+    const verdictRow = heading.parentElement;
+
+    expect(verdictRow).not.toBeNull();
+    expect(verdictRow?.textContent ?? "").not.toMatch(INTERNAL_DIRECTION);
+    expect(verdictRow?.textContent ?? "").toContain(
+      horizonLabel(confirmedDemoCard.horizonToken),
+    );
   });
 
   it("shows the canonical four-family Evidence Agreement, never a percentage", () => {
@@ -149,8 +196,8 @@ describe("ComplianceDemo honesty regression", () => {
   });
 
   it("does not name the screening provider in the demo fixtures", () => {
-    expect(withheldDemoAnalysis.shariah.provider).toBeUndefined();
-    expect(confirmedDemoAnalysis.shariah.provider).toBeUndefined();
+    expect(withheldDemoCard.shariah.provider).toBeUndefined();
+    expect(confirmedDemoCard.shariah.provider).toBeUndefined();
   });
 
   it("stacks the two demo cards in a single column below the lg breakpoint", () => {
@@ -160,5 +207,60 @@ describe("ComplianceDemo honesty regression", () => {
     expect(grid).not.toBeNull();
     expect(grid?.className).toContain("lg:grid-cols-2");
     expect(grid?.className).not.toMatch(/(?<!lg:)grid-cols-2/);
+  });
+});
+
+/*
+ * Item 2.16. The landing projection is not `AnalysisData`, so `risk` is absent
+ * rather than emptied: `risk: {}` type-checks only because every field inside it
+ * is optional, and it would assert an assessment that was never made. The real
+ * engine cannot derive one from these inputs — it rejects them for want of a
+ * current price and an ATR.
+ */
+describe("landing demo contract shape", () => {
+  it("carries no risk member on either card", () => {
+    expect("risk" in confirmedDemoCard).toBe(false);
+    expect("risk" in withheldDemoCard).toBe(false);
+  });
+
+  it("carries no risk value anywhere in the static contract", () => {
+    const serialized = JSON.stringify(landingDemoContract);
+
+    for (const forbidden of ["riskLevel", "riskScore", "riskSummary"]) {
+      expect(serialized).not.toContain(forbidden);
+    }
+    expect(serialized).not.toMatch(/"(Medium|MEDIUM)"/);
+  });
+
+  it("presents the withheld card as withheld rather than as a failed analysis", () => {
+    // The honest withheld shape is a gate message plus an unresolved screening
+    // status — not a fabricated "Unavailable" risk level, which was a display
+    // default the contract never produced.
+    expect(withheldDemoCard.withheldMessage).toMatch(/withholds its trade analysis/i);
+    expect(withheldDemoCard.shariah.summary?.status).toBe("UNKNOWN");
+    expect(JSON.stringify(withheldDemoCard)).not.toContain("Unavailable");
+  });
+
+  /*
+   * Closes the evidence loop. The backend suite proves the JSON's evidence block
+   * is exactly what the guidance engine derives; this proves the object the card
+   * actually renders is that block. Rendered evidence is therefore engine-derived
+   * transitively, without a cast anywhere in the chain.
+   */
+  it("renders the evidence the backend derivation was pinned against", () => {
+    expect(confirmedDemoCard.evidence).toEqual(
+      landingDemoContract.confirmed.presentation.evidence,
+    );
+  });
+
+  it("renders the same Shariah status the backend derivation was run against", () => {
+    // Closes the loop between the engine input recorded in the JSON and the
+    // panel the visitor actually sees.
+    expect(confirmedDemoCard.shariah.summary?.status).toBe(
+      landingDemoContract.confirmed.derivation.shariah.summary.status,
+    );
+    expect(withheldDemoCard.shariah.summary?.status).toBe(
+      landingDemoContract.withheld.derivation.shariah.summary.status,
+    );
   });
 });
