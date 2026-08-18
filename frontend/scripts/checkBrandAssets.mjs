@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -118,6 +119,165 @@ for (const reference of [
     failures.push(`index.html does not reference ${reference}.`);
   }
   readPublicAsset(reference);
+}
+
+/*
+ * Social card integrity pin.
+ *
+ * The card this replaced carried "AI-powered stock intelligence" in rendered
+ * pixels, where no text search in this repository could see it, while og:image
+ * and twitter:image published it on every shared link.
+ *
+ * A checksum cannot read pixels, and this check does not claim to. What it
+ * guarantees is narrower and still worth having: the reviewed asset is the
+ * shipped asset. The old card cannot return silently, and any replacement is a
+ * deliberate, visible diff that forces a human to look at the image before it
+ * ships. Changing the artwork means changing this hash in the same commit.
+ *
+ * Deliberately not OCR-in-CI: a false negative there would be worse than no
+ * check, because it would manufacture confidence in exactly the place that has
+ * already failed once. Reading the pixels stays a manual review step.
+ */
+const SOCIAL_PREVIEW = {
+  path: "/azalens-social-preview.png",
+  width: 1200,
+  height: 630,
+  sha256: "c84b6e9ec436290381b720fe883facd4507be5b7d1bdbdeab0da5d23e9e65e6b",
+};
+
+const socialPreview = readPublicAsset(SOCIAL_PREVIEW.path);
+if (socialPreview) {
+  const actualHash = createHash("sha256").update(socialPreview).digest("hex");
+  if (actualHash !== SOCIAL_PREVIEW.sha256) {
+    failures.push(
+      `${SOCIAL_PREVIEW.path} is not the reviewed asset (sha256 ${actualHash}). ` +
+        "If this change is intentional, review the rendered image and update the pin.",
+    );
+  }
+
+  const size = pngDimensions(SOCIAL_PREVIEW.path);
+  if (
+    size &&
+    (size.width !== SOCIAL_PREVIEW.width || size.height !== SOCIAL_PREVIEW.height)
+  ) {
+    failures.push(
+      `${SOCIAL_PREVIEW.path} is ${size.width}x${size.height}; social cards ` +
+        `require ${SOCIAL_PREVIEW.width}x${SOCIAL_PREVIEW.height}.`,
+    );
+  }
+}
+
+for (const attribute of ['property="og:image:alt"']) {
+  if (!html.includes(attribute)) {
+    failures.push(`index.html does not declare ${attribute}.`);
+  }
+}
+
+/*
+ * Public model-driven-claim check (roadmap item 2.17).
+ *
+ * AzaLens v1 contains no model, no SDK and no model key: the analysis is
+ * deterministic arithmetic and string templates (docs/LLM_DECISION_V1.md §8
+ * item 4). The rendered DOM is guarded by src/pages/LandingPage.test.tsx; this
+ * guards the other half a visitor receives — the parsed metadata and the web-app
+ * manifest — which no component test can see.
+ *
+ * Scoped to *published* values, never to repository source. The repository must
+ * stay free to document the defect it removed, to state explicit negations, and
+ * to keep unmounted code that still carries the old wording. The scope control
+ * at the end of this block fails if that freedom is ever traded away for a
+ * repo-wide grep.
+ *
+ * `\bAI\b` is case-sensitive so it does not fire on the "ai" inside ordinary
+ * words such as "Explained". "AAOIFI" contains no "AI" substring.
+ */
+const MODEL_DRIVEN_CLAIMS = [
+  /\bAI\b/,
+  /AI[-\s]powered/i,
+  /artificial intelligence/i,
+  /machine learning/i,
+  /\bML\b/,
+  /\bLLM\b/,
+  /large language model/i,
+  /model[-\s]driven/i,
+  /neural/i,
+];
+
+function metaContent(source, key) {
+  const pattern = new RegExp(
+    `<meta[^>]*\\b(?:name|property)=["']${key}["'][^>]*>`,
+    "is",
+  );
+  const tag = source.match(pattern)?.[0];
+  if (!tag) return null;
+  return tag.match(/content=["']([^"']*)["']/is)?.[1] ?? null;
+}
+
+const publishedText = {
+  "<title>": html.match(/<title>(.*?)<\/title>/is)?.[1] ?? null,
+  "meta description": metaContent(html, "description"),
+  "og:title": metaContent(html, "og:title"),
+  "og:description": metaContent(html, "og:description"),
+  "og:site_name": metaContent(html, "og:site_name"),
+  "og:image:alt": metaContent(html, "og:image:alt"),
+  "application-name": metaContent(html, "application-name"),
+  "apple-mobile-web-app-title": metaContent(html, "apple-mobile-web-app-title"),
+  "twitter:card": metaContent(html, "twitter:card"),
+  "twitter:image": metaContent(html, "twitter:image"),
+};
+
+if (manifestSource) {
+  const manifest = JSON.parse(manifestSource);
+  publishedText["manifest name"] = manifest.name ?? null;
+  publishedText["manifest short_name"] = manifest.short_name ?? null;
+  publishedText["manifest description"] = manifest.description ?? null;
+}
+
+for (const [label, value] of Object.entries(publishedText)) {
+  if (typeof value !== "string") continue;
+  for (const pattern of MODEL_DRIVEN_CLAIMS) {
+    if (pattern.test(value)) {
+      failures.push(
+        `${label} publishes a model-driven claim matching ${pattern}: "${value}".`,
+      );
+    }
+  }
+}
+
+const APPROVED_TITLE = "AzaLens — Explainable Stock Analysis";
+for (const [label, expected] of [
+  ["<title>", APPROVED_TITLE],
+  ["og:title", APPROVED_TITLE],
+]) {
+  if (publishedText[label] !== expected) {
+    failures.push(
+      `${label} must be "${expected}" so mounted copy and metadata state the ` +
+        `same positioning; found "${publishedText[label]}".`,
+    );
+  }
+}
+
+if (!publishedText["og:image:alt"]) {
+  failures.push("index.html does not declare og:image:alt for the social card.");
+}
+
+/*
+ * Scope control. If these stopped containing "AI" the checks above would have
+ * been widened from published output into repository source, which is exactly
+ * what they must never become.
+ */
+for (const permitted of [
+  "../docs/LLM_DECISION_V1.md",
+  "../WHAT_TO_DO_NEXT.md",
+  "src/components/analysis/TradePlan.tsx",
+]) {
+  const source = readFileSync(join(frontendRoot, permitted), "utf8");
+  if (!/\bAI\b/.test(source)) {
+    failures.push(
+      `${permitted} no longer records the wording this project removed; the ` +
+        "model-driven-claim check must stay scoped to published output.",
+    );
+  }
 }
 
 for (const sourcePath of [

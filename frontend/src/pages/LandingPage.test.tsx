@@ -11,11 +11,9 @@ import LandingPage from "./LandingPage";
 // sentence is not the full text of any single element.
 const STANDALONE_VERDICT_COMMAND = /^(buy|sell|hold)$/i;
 
-// Rule 4 requires a directional lean plus a confidence percentage — the
-// representative 67% figure follows the real Evidence Agreement contract.
-// What must never appear is an unsupported claim that the product
-// predicts outcomes (accuracy / win rate / success rate / probability
-// of profit).
+// The product publishes no confidence percentage. What must never appear is an
+// unsupported claim that it predicts outcomes (accuracy / win rate / success
+// rate / probability of profit).
 const UNSUPPORTED_PERFORMANCE_CLAIMS = [
   /%\s*accurate/i,
   /accura(te|cy)/i,
@@ -23,6 +21,28 @@ const UNSUPPORTED_PERFORMANCE_CLAIMS = [
   /%\s*success/i,
   /success[\s-]?rate/i,
   /probability of profit/i,
+];
+
+/*
+ * Roadmap item 2.17. AzaLens v1 contains no model, no SDK and no model key: the
+ * analysis is deterministic arithmetic and string templates
+ * (docs/LLM_DECISION_V1.md §8 item 4). Claiming otherwise in public copy is a
+ * truthfulness defect, not a style preference.
+ *
+ * `\bAI\b` is deliberately case-sensitive so it does not fire on the "ai" inside
+ * ordinary words such as "Explained". "AAOIFI" contains no "AI" substring.
+ */
+const MODEL_DRIVEN_CLAIMS = [
+  /\bAI\b/,
+  /\bAIs\b/,
+  /AI[-\s]powered/i,
+  /artificial intelligence/i,
+  /machine learning/i,
+  /\bML\b/,
+  /\bLLM\b/,
+  /large language model/i,
+  /model[-\s]driven/i,
+  /neural/i,
 ];
 
 function renderLanding() {
@@ -50,7 +70,7 @@ describe("LandingPage honesty regression (audit V8 / Phase 0 item 1.1)", () => {
     }
   });
 
-  it("never renders the fabricated AI confidence figure from the old mockup", () => {
+  it("never renders the fabricated confidence figure from the old mockup", () => {
     renderLanding();
 
     expect(screen.queryByText("92%")).not.toBeInTheDocument();
@@ -120,5 +140,121 @@ describe("LandingPage honesty regression (audit V8 / Phase 0 item 1.1)", () => {
 
     expect(screen.queryByText(/AzaLens AI/)).not.toBeInTheDocument();
     expect(screen.getByText("AzaLens · Analysis Workspace")).toBeInTheDocument();
+  });
+});
+
+/*
+ * Item 2.17. These assert *behaviour* — what a visitor's browser receives —
+ * rather than repository source text, which is why they can be strict without
+ * flagging the repository's own honest record of the defect (see the scope test
+ * at the end of this block).
+ */
+describe("LandingPage carries no model-driven claim", () => {
+  it("renders no AI, ML, LLM or model-driven claim anywhere in the mounted DOM", () => {
+    const { container } = renderLanding();
+    const rendered = container.textContent ?? "";
+
+    for (const pattern of MODEL_DRIVEN_CLAIMS) {
+      expect(rendered).not.toMatch(pattern);
+    }
+  });
+
+  it("renders the approved positioning copy", () => {
+    renderLanding();
+
+    expect(
+      screen.getByRole("heading", { name: /Listed Stocks\.\s*Clearly Explained\./ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("EXPLAINABLE STOCK ANALYSIS")).toBeInTheDocument();
+    expect(screen.getByText("Explainable Stock Analysis")).toBeInTheDocument();
+    expect(screen.getByText("HOW THE VERDICT IS REACHED")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Analysis of listed-company shares worldwide/),
+    ).toBeInTheDocument();
+  });
+
+  /*
+   * File-level assertions — page metadata, manifest branding, the social-card
+   * pin, and the scope control proving historical docs and unmounted code stay
+   * permitted — live in scripts/checkBrandAssets.mjs, which runs in `npm test`.
+   * jsdom tests in src/ have no Node types by design (tsconfig.app.json exposes
+   * only vite/client), and the repository already keeps file-level checks in
+   * scripts/ for exactly this reason — see the note in designTokens.test.tsx.
+   */
+});
+
+/*
+ * Dead public controls (report §12). These are behavioural: any future anchor
+ * without a mounted target, or any header button without an action, fails
+ * automatically without naming today's offenders.
+ */
+describe("LandingPage exposes no dead navigation or call to action", () => {
+  it("resolves every in-page anchor to a mounted target", () => {
+    const { container } = renderLanding();
+
+    const anchors = Array.from(
+      container.querySelectorAll<HTMLAnchorElement>('a[href^="#"]'),
+    );
+
+    expect(anchors.length).toBeGreaterThan(0);
+
+    for (const anchor of anchors) {
+      const id = anchor.getAttribute("href")?.slice(1) ?? "";
+      expect(id).not.toBe("");
+      expect(
+        container.querySelector(`#${CSS.escape(id)}`),
+        `#${id} has no mounted target`,
+      ).not.toBeNull();
+    }
+  });
+
+  it("keeps the Product anchor and drops the three that pointed at nothing", () => {
+    const { container } = renderLanding();
+
+    expect(container.querySelector('a[href="#product"]')).not.toBeNull();
+    expect(container.querySelector("#product")).not.toBeNull();
+
+    for (const dead of ["#features", "#pricing", "#about"]) {
+      expect(container.querySelector(`a[href="${dead}"]`)).toBeNull();
+    }
+  });
+
+  it("exposes no signup call to action while the product is gated", () => {
+    renderLanding();
+
+    expect(screen.queryByRole("button", { name: /start free/i })).toBeNull();
+    expect(screen.queryByText(/start free/i)).toBeNull();
+  });
+
+  it("leaves no focusable header control that does nothing", () => {
+    const { container } = renderLanding();
+
+    const header = container.querySelector("header");
+    expect(header).not.toBeNull();
+
+    for (const button of Array.from(
+      header?.querySelectorAll<HTMLButtonElement>("button") ?? [],
+    )) {
+      const actionable =
+        button.disabled ||
+        button.getAttribute("type") === "submit" ||
+        button.closest("form") !== null ||
+        button.closest("a") !== null;
+
+      expect(
+        actionable,
+        `header button "${button.textContent?.trim()}" is focusable but has no action`,
+      ).toBe(true);
+    }
+  });
+
+  it("keeps the navigation collapsed below the md breakpoint so no menu is implied", () => {
+    const { container } = renderLanding();
+
+    const nav = container.querySelector("header nav");
+
+    expect(nav).not.toBeNull();
+    expect(nav?.className).toContain("hidden");
+    expect(nav?.className).toContain("md:flex");
   });
 });

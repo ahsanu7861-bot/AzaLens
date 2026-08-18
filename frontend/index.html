@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Explainable stock intelligence with AAOIFI Shariah screening."
+      content="Explainable analysis of listed-company shares, with evidence, risk context and AAOIFI-based Shariah screening."
     />
     <meta name="application-name" content="AzaLens" />
     <meta name="apple-mobile-web-app-title" content="AzaLens" />
@@ -14,13 +14,14 @@
     <meta name="theme-color" content="#050807" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="AzaLens" />
-    <meta property="og:title" content="AzaLens — Explainable Stock Intelligence" />
+    <meta property="og:title" content="AzaLens — Explainable Stock Analysis" />
     <meta
       property="og:description"
-      content="Explainable stock intelligence with AAOIFI Shariah screening."
+      content="Explainable analysis of listed-company shares, with evidence, risk context and AAOIFI-based Shariah screening."
     />
     <meta property="og:url" content="https://azalens.com/" />
     <meta property="og:image" content="https://azalens.com/azalens-social-preview.png" />
+    <meta property="og:image:alt" content="AzaLens — explainable stock analysis, listed-company shares." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://azalens.com/azalens-social-preview.png" />
     <link rel="canonical" href="https://azalens.com/" />
@@ -31,13 +32,8 @@
       as="style"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap"
     />
-    <!--
-      Deferred font loading, without an inline onload handler. A Content
-      Security Policy blocks inline event handlers, and allowing them needs
-      'unsafe-hashes', which weakens script-src for the whole site. The flip
-      from media="print" to media="all" happens in src/lib/fonts.ts instead.
-      Keep the data-deferred-font attribute in sync with that module.
-    -->
+    <!-- Deferred fonts: no inline onload (CSP would need 'unsafe-hashes').
+         src/lib/fonts.ts flips media print->all; keep data-deferred-font in sync. -->
     <link
       data-deferred-font
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap"
@@ -56,7 +52,7 @@
     <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>AzaLens — Explainable Stock Intelligence</title>
+    <title>AzaLens — Explainable Stock Analysis</title>
     <script>
       (() => {
         try {

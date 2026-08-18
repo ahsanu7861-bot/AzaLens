@@ -1,7 +1,7 @@
 {
   "name": "AzaLens",
   "short_name": "AzaLens",
-  "description": "Explainable stock intelligence with AAOIFI Shariah screening.",
+  "description": "Explainable analysis of listed-company shares, with evidence, risk context and AAOIFI-based Shariah screening.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
