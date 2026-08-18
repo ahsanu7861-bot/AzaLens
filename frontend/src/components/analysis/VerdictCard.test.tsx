@@ -238,3 +238,101 @@ describe("VerdictCard Evidence Agreement presentation", () => {
     expect(container.textContent ?? "").not.toMatch(/\b(?:buy|sell|hold)\b/i);
   });
 });
+
+/*
+ * Headline presentation contract.
+ *
+ * The canonical public labels are long — "Constructive — Upside Evidence
+ * Established" is 42 characters — and the landing demonstration renders this card
+ * in a column roughly 240px wide. At the standard size `break-words` engaged
+ * inside words there and split the label as CONSTRU/CTIVE and ESTABLIS/HED.
+ *
+ * These tests hold the two properties that matter: the default is unchanged, and
+ * the compact variant cannot fix wrapping by damaging the label instead.
+ */
+const CANONICAL_LABEL = "Constructive — Upside Evidence Established";
+
+// The exact className the headline carried before `headlineScale` existed.
+const STANDARD_HEADLINE_CLASSES =
+  "break-words font-display text-4xl font-bold tracking-tight sm:text-5xl";
+
+function headlineOf(container: HTMLElement) {
+  const heading = container.querySelector("h2");
+  if (!heading) throw new Error("VerdictCard rendered no headline");
+  return heading;
+}
+
+describe("VerdictCard headline scale", () => {
+  it("renders the established standard classes when the prop is omitted", () => {
+    const { container } = render(<VerdictCard direction={CANONICAL_LABEL} />);
+
+    for (const className of STANDARD_HEADLINE_CLASSES.split(" ")) {
+      expect(headlineOf(container).className).toContain(className);
+    }
+  });
+
+  it("renders an identical headline whether the default is omitted or explicit", () => {
+    const omitted = render(<VerdictCard direction={CANONICAL_LABEL} />);
+    const explicit = render(
+      <VerdictCard direction={CANONICAL_LABEL} headlineScale="standard" />,
+    );
+
+    expect(headlineOf(omitted.container).outerHTML).toBe(
+      headlineOf(explicit.container).outerHTML,
+    );
+  });
+
+  it("drops a type size and stops breaking inside words when compact", () => {
+    const { container } = render(
+      <VerdictCard direction={CANONICAL_LABEL} headlineScale="compact" />,
+    );
+    const headline = headlineOf(container);
+
+    expect(headline.className).toContain("text-2xl");
+    expect(headline.className).toContain("sm:text-3xl");
+
+    // The cause of the mid-word split. Its absence is the whole correction.
+    expect(headline.className).not.toContain("break-words");
+    expect(headline.className).not.toContain("break-all");
+  });
+
+  it("never breaks inside a word in either variant", () => {
+    for (const scale of ["standard", "compact"] as const) {
+      const { container } = render(
+        <VerdictCard direction={CANONICAL_LABEL} headlineScale={scale} />,
+      );
+      // `break-all` splits at any character; `break-words` only as a last resort.
+      // Neither variant may use the former, and compact may use neither.
+      expect(headlineOf(container).className).not.toMatch(/\bbreak-all\b/);
+    }
+  });
+
+  it("renders the whole canonical label, never truncated or ellipsized", () => {
+    for (const scale of ["standard", "compact"] as const) {
+      const { container } = render(
+        <VerdictCard direction={CANONICAL_LABEL} headlineScale={scale} />,
+      );
+      const headline = headlineOf(container);
+
+      expect(headline.textContent).toBe(CANONICAL_LABEL.toUpperCase());
+      expect(headline.className).not.toMatch(/truncate|text-ellipsis|line-clamp/);
+      expect(headline.textContent).not.toContain("…");
+      expect(headline.textContent).not.toContain("...");
+    }
+  });
+
+  it("changes nothing outside the headline", () => {
+    const standard = render(<VerdictCard direction={CANONICAL_LABEL} />);
+    const compact = render(
+      <VerdictCard direction={CANONICAL_LABEL} headlineScale="compact" />,
+    );
+
+    const strip = (root: HTMLElement) => {
+      const clone = root.cloneNode(true) as HTMLElement;
+      clone.querySelector("h2")?.remove();
+      return clone.innerHTML;
+    };
+
+    expect(strip(compact.container)).toBe(strip(standard.container));
+  });
+});

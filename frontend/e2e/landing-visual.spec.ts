@@ -88,6 +88,48 @@ async function assertLandingIsCapturable(page: Page, theme: string) {
   await expect(verdict).toBeVisible();
   await expect(confirmed.getByText(HORIZON_LABEL, { exact: true })).toBeVisible();
 
+  /*
+   * The canonical label must wrap only between words.
+   *
+   * Asserted by measurement, not by class name: each word is measured with a
+   * Range, and a word split across lines yields more than one client rect. That
+   * is what caught CONSTRU/CTIVE and ESTABLIS/HED, and a class assertion alone
+   * would not have.
+   */
+  const fragmented = await verdict.evaluate((heading) => {
+    const node = heading.firstChild;
+    if (!node) return ["<no text node>"];
+    const text = heading.textContent ?? "";
+    const broken: string[] = [];
+    let index = 0;
+    for (const token of text.split(/(\s+)/)) {
+      if (token.trim()) {
+        const range = document.createRange();
+        range.setStart(node, index);
+        range.setEnd(node, index + token.length);
+        if (range.getClientRects().length > 1) broken.push(token);
+      }
+      index += token.length;
+    }
+    return broken;
+  });
+  expect(
+    fragmented,
+    "the canonical verdict must wrap only at word boundaries",
+  ).toEqual([]);
+
+  // The headline must also stay inside the card it is rendered in.
+  const headlineOverflows = await confirmed.evaluate((card) => {
+    const heading = card.querySelector("h2");
+    if (!heading) return true;
+    const a = heading.getBoundingClientRect();
+    const b = card.getBoundingClientRect();
+    return a.right > b.right + 1 || a.left < b.left - 1;
+  });
+  expect(headlineOverflows, "the verdict headline must not overflow its card").toBe(
+    false,
+  );
+
   // The internal agreement direction must reach neither slot. Scoped to the
   // verdict row: "Bullish" in the Evidence Agreement strip is a family vote,
   // which is evidence, not a published verdict.
@@ -222,14 +264,47 @@ test.describe("@visual landing page", () => {
        * large-area change the full-page captures already catch.
        */
       if (theme === "night") {
-        await expect
-          .soft(page.getByTestId("landing-demo-confirmed"))
-          .toHaveScreenshot("landing-verdict.png", {
-            animations: "disabled",
-            caret: "hide",
-            maxDiffPixelRatio: 0.005,
-            threshold: 0.2,
-          });
+        const verdictCard = page.getByTestId("landing-demo-confirmed");
+        await expect(verdictCard).toBeVisible();
+
+        /*
+         * Hide the sticky header for this capture only.
+         *
+         * Same mechanism as the analysis spec (addStyleTag, removed in a
+         * `finally` so it cannot leak into a later capture), with one deliberate
+         * difference: that spec hides `position: fixed` chrome with
+         * `display: none`, which is safe because fixed elements are out of flow.
+         * The landing header is `position: sticky`, which *is* in flow, so
+         * `display: none` would reflow the page. `visibility: hidden` removes it
+         * from paint while preserving every layout dimension, which is what an
+         * element screenshot needs.
+         *
+         * Without this the header stays pinned to the viewport while Playwright
+         * stitches a card taller than the viewport, and composites itself into
+         * the middle of the image as a dark band across the card.
+         */
+        const stickyChromeStyle = await page.addStyleTag({
+          content: [
+            "header.sticky {",
+            "  visibility: hidden !important;",
+            "}",
+          ].join("\n"),
+        });
+
+        try {
+          await expect
+            .soft(verdictCard)
+            .toHaveScreenshot("landing-verdict.png", {
+              animations: "disabled",
+              caret: "hide",
+              maxDiffPixelRatio: 0.005,
+              threshold: 0.2,
+            });
+        } finally {
+          await stickyChromeStyle.evaluate((node) =>
+            node.parentNode?.removeChild(node),
+          );
+        }
       }
     });
   }

@@ -156,12 +156,36 @@ async function capture(browser, spec) {
       ? page.getByTestId("landing-demo-confirmed")
       : page;
 
-  await target.screenshot({
-    path: file,
-    animations: "disabled",
-    caret: "hide",
-    ...(spec.scope === "page" ? { fullPage: true } : {}),
-  });
+  /*
+   * Scoped captures only: hide the sticky header while the shutter is open.
+   *
+   * The card is taller than the viewport, so Playwright stitches it — and a
+   * `position: sticky` header stays pinned to the viewport throughout, painting
+   * itself into the middle of the image as a dark band across the card.
+   * `visibility: hidden` (not `display: none`) removes it from paint while
+   * preserving layout, because unlike fixed chrome a sticky header is in flow.
+   *
+   * The four full-page captures deliberately keep the real navbar: it renders at
+   * the top of the document, which is exactly where the page reserves space for
+   * it, and it is part of what a reviewer needs to see.
+   */
+  const stickyChromeStyle =
+    spec.scope === "verdict"
+      ? await page.addStyleTag({
+          content: "header.sticky { visibility: hidden !important; }",
+        })
+      : null;
+
+  try {
+    await target.screenshot({
+      path: file,
+      animations: "disabled",
+      caret: "hide",
+      ...(spec.scope === "page" ? { fullPage: true } : {}),
+    });
+  } finally {
+    await stickyChromeStyle?.evaluate((node) => node.parentNode?.removeChild(node));
+  }
 
   await context.close();
 

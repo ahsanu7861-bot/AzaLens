@@ -32,6 +32,7 @@ export default function ComplianceDemo() {
             that is an engine-internal lean, not wording this product publishes.
           */}
           <VerdictCard
+            headlineScale="compact"
             direction={confirmedDemoCard.publicLabel}
             trend={horizonLabel(confirmedDemoCard.horizonToken)}
             evidence={confirmedDemoCard.evidence}

@@ -118,6 +118,41 @@ describe("ComplianceDemo honesty regression", () => {
     );
   });
 
+  /*
+   * Human review of the first Linux candidates found the 42-character canonical
+   * label splitting mid-word — CONSTRU/CTIVE, ESTABLIS/HED — in this card's
+   * ~240px column. The landing demo is the only consumer that passes the compact
+   * headline scale; the analysis workspace stays on the default.
+   */
+  it("renders the long canonical label at the compact headline scale", () => {
+    render(<ComplianceDemo />);
+
+    const confirmedCard = screen.getByTestId("landing-demo-confirmed");
+    const heading = within(confirmedCard).getByRole("heading", {
+      name: confirmedDemoCard.publicLabel.toUpperCase(),
+    });
+
+    expect(heading.className).toContain("text-2xl");
+    expect(heading.className).toContain("sm:text-3xl");
+    // `break-words` is what fragmented the label inside words. Its absence here
+    // is the correction; wrapping now happens only between words.
+    expect(heading.className).not.toContain("break-words");
+    expect(heading.className).not.toContain("break-all");
+  });
+
+  it("keeps the whole canonical label, never truncated or ellipsized", () => {
+    render(<ComplianceDemo />);
+
+    const confirmedCard = screen.getByTestId("landing-demo-confirmed");
+    const heading = within(confirmedCard).getByRole("heading", {
+      name: confirmedDemoCard.publicLabel.toUpperCase(),
+    });
+
+    expect(heading.textContent).toBe(confirmedDemoCard.publicLabel.toUpperCase());
+    expect(heading.className).not.toMatch(/truncate|text-ellipsis|line-clamp/);
+    expect(heading.textContent).not.toContain("…");
+  });
+
   it("shows the canonical four-family Evidence Agreement, never a percentage", () => {
     render(<ComplianceDemo />);
 
