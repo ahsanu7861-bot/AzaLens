@@ -282,10 +282,18 @@ test.describe("@visual landing page", () => {
          * Without this the header stays pinned to the viewport while Playwright
          * stitches a card taller than the viewport, and composites itself into
          * the middle of the image as a dark band across the card.
+         *
+         * `.az-skip-link` is hidden for the same reason. It is `position: fixed`
+         * at top-left, parked off-screen by a transform until focused — but a
+         * fixed element sits at the same viewport position in every stitch
+         * slice, so at mobile, where the card spans nearly the full width, it
+         * printed into the middle of the card. Desktop never showed it because
+         * the card starts to the right of x=10px.
          */
         const stickyChromeStyle = await page.addStyleTag({
           content: [
-            "header.sticky {",
+            "header.sticky,",
+            ".az-skip-link {",
             "  visibility: hidden !important;",
             "}",
           ].join("\n"),

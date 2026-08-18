@@ -165,6 +165,10 @@ async function capture(browser, spec) {
    * `visibility: hidden` (not `display: none`) removes it from paint while
    * preserving layout, because unlike fixed chrome a sticky header is in flow.
    *
+   * The fixed skip link is hidden for the same reason: it sits at the same
+   * viewport position in every stitch slice, and at mobile — where the card
+   * spans nearly the full width — it printed into the middle of the card.
+   *
    * The four full-page captures deliberately keep the real navbar: it renders at
    * the top of the document, which is exactly where the page reserves space for
    * it, and it is part of what a reviewer needs to see.
@@ -172,7 +176,8 @@ async function capture(browser, spec) {
   const stickyChromeStyle =
     spec.scope === "verdict"
       ? await page.addStyleTag({
-          content: "header.sticky { visibility: hidden !important; }",
+          content:
+            "header.sticky, .az-skip-link { visibility: hidden !important; }",
         })
       : null;
 
