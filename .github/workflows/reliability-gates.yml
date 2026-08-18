@@ -275,3 +275,51 @@ jobs:
             frontend/playwright-report
           if-no-files-found: warn
           retention-days: 14
+
+      # The landing baselines do not exist yet, so `npm run test:visual` above is
+      # expected to fail on exactly those six comparisons. The steps below still
+      # run, because the review candidates a human needs are produced by that
+      # failure, not by its absence.
+      #
+      # `updateSnapshots: "none"` (playwright.config.ts, under CI) makes a
+      # missing baseline a hard failure that writes nothing. This step proves
+      # that held: if any snapshot file appeared, or any Darwin baseline exists,
+      # the run fails here rather than quietly banking an unreviewed baseline.
+      - name: Prove the visual run wrote no baseline
+        if: always()
+        working-directory: .
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain -- frontend/e2e)" ]; then
+            echo "::error::A visual run modified a committed snapshot directory."
+            git status --porcelain -- frontend/e2e
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::A visual run left the worktree dirty."
+            git status --porcelain
+            exit 1
+          fi
+          darwin="$(find frontend -name '*-darwin.png' -not -path '*/node_modules/*')"
+          if [ -n "$darwin" ]; then
+            echo "::error::Darwin baselines are never valid for Linux CI."
+            echo "$darwin"
+            exit 1
+          fi
+          echo "No baseline written; worktree clean; no Darwin baseline."
+
+      # Review-only candidates. This path never calls toHaveScreenshot, so it
+      # cannot write a baseline; it writes six prefixed PNGs plus a manifest into
+      # a gitignored directory.
+      - name: Capture landing review candidates
+        if: always()
+        run: npm run visual:candidates
+
+      - name: Upload landing review candidates
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: landing-visual-candidates
+          path: frontend/candidate-artifacts
+          if-no-files-found: error
+          retention-days: 14

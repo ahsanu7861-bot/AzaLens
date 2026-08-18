@@ -7,6 +7,23 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
   timeout: 45_000,
+  /*
+   * Baselines are accepted deliberately, never as a side effect of a run.
+   *
+   * Playwright's default is "missing", which — verified in the installed 1.62
+   * source, matchers/expect.js `handleMissing` — writes the baseline file and
+   * only *then* reports the failure. On a developer machine that silently
+   * deposits `-darwin.png` files that can never satisfy Linux CI; in CI it
+   * makes "the run wrote a baseline" indistinguishable from "the run compared
+   * against one".
+   *
+   * Under "none" the same missing baseline is a hard failure that writes
+   * nothing, while the candidate is still emitted to the gitignored output
+   * directory for review. Nothing else changes: the mismatch path never
+   * consults this setting, and `npm run test:visual:update` still overrides it
+   * from the command line for authorised local rebaselining.
+   */
+  updateSnapshots: process.env.CI ? "none" : "missing",
   expect: {
     timeout: 15_000,
     toHaveScreenshot: {

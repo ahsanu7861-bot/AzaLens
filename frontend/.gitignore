@@ -18,6 +18,11 @@ dist-ssr
 test-results
 playwright-report
 
+# Landing visual candidate artifacts. Review evidence produced by
+# scripts/captureLandingCandidates.mjs and uploaded from CI; never committed,
+# and never an accepted baseline.
+candidate-artifacts
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

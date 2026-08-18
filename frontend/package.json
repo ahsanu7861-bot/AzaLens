@@ -18,7 +18,8 @@
     "test": "vitest run && node scripts/checkBrandAssets.mjs",
     "test:brand": "node scripts/checkBrandAssets.mjs",
     "preview": "vite preview",
-    "test:privilege": "node scripts/checkPrivilegeContainment.mjs"
+    "test:privilege": "node scripts/checkPrivilegeContainment.mjs",
+    "visual:candidates": "node scripts/captureLandingCandidates.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
