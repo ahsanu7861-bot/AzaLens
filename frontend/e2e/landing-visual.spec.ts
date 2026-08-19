@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { MODEL_DRIVEN_CLAIM_PATTERNS } from "../scripts/modelClaimPatterns.mjs";
+
 const themes = ["night", "day"] as const;
 
 /*
@@ -143,9 +145,24 @@ async function assertLandingIsCapturable(page: Page, theme: string) {
   await expect(page.locator('a[href="#product"]')).toHaveCount(1);
   await expect(page.getByRole("button", { name: /start free/i })).toHaveCount(0);
 
-  // No model-driven claim anywhere in what the visitor actually receives.
-  await expect(page.locator("body")).not.toContainText(/\bAI\b/);
-  await expect(page.locator("body")).not.toContainText(/AI[-\s]powered/i);
+  /*
+   * No model-driven claim anywhere in what the visitor actually receives.
+   *
+   * The patterns come from scripts/modelClaimPatterns.mjs, the single owner
+   * shared with the rendered-DOM test and the published-metadata check, so this
+   * pre-shutter guard cannot drift behind them. They are case-insensitive:
+   * independent review found that case-sensitive `\bAI\b` let a public
+   * lowercase "ai analysis" through every guard, while word boundaries — not
+   * letter case — are what keep them out of "Explained".
+   */
+  const bodyText = (await page.locator("body").innerText()) ?? "";
+  const publicClaims = MODEL_DRIVEN_CLAIM_PATTERNS.filter((pattern) =>
+    pattern.test(bodyText),
+  ).map(String);
+  expect(
+    publicClaims,
+    "the rendered landing page must publish no model-driven claim",
+  ).toEqual([]);
 
   /*
    * Every Shariah metric badge must sit wholly inside its own card.

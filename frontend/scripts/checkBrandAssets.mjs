@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { MODEL_DRIVEN_CLAIM_PATTERNS } from "./modelClaimPatterns.mjs";
+
 const frontendRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const publicRoot = join(frontendRoot, "public");
 const failures = [];
@@ -188,20 +190,11 @@ for (const attribute of ['property="og:image:alt"']) {
  * at the end of this block fails if that freedom is ever traded away for a
  * repo-wide grep.
  *
- * `\bAI\b` is case-sensitive so it does not fire on the "ai" inside ordinary
- * words such as "Explained". "AAOIFI" contains no "AI" substring.
+ * The patterns live in scripts/modelClaimPatterns.mjs so the rendered-DOM test,
+ * this metadata check and the visual spec cannot drift apart again. They are
+ * case-insensitive: word boundaries, not letter case, are what keep them out of
+ * ordinary words like "Explained".
  */
-const MODEL_DRIVEN_CLAIMS = [
-  /\bAI\b/,
-  /AI[-\s]powered/i,
-  /artificial intelligence/i,
-  /machine learning/i,
-  /\bML\b/,
-  /\bLLM\b/,
-  /large language model/i,
-  /model[-\s]driven/i,
-  /neural/i,
-];
 
 function metaContent(source, key) {
   const pattern = new RegExp(
@@ -235,7 +228,7 @@ if (manifestSource) {
 
 for (const [label, value] of Object.entries(publishedText)) {
   if (typeof value !== "string") continue;
-  for (const pattern of MODEL_DRIVEN_CLAIMS) {
+  for (const pattern of MODEL_DRIVEN_CLAIM_PATTERNS) {
     if (pattern.test(value)) {
       failures.push(
         `${label} publishes a model-driven claim matching ${pattern}: "${value}".`,
@@ -262,9 +255,17 @@ if (!publishedText["og:image:alt"]) {
 }
 
 /*
- * Scope control. If these stopped containing "AI" the checks above would have
- * been widened from published output into repository source, which is exactly
- * what they must never become.
+ * Scope control.
+ *
+ * These three files would all fail the patterns above if the checks were ever
+ * pointed at repository source: historical documentation of the wording this
+ * project removed, the roadmap's record of the defect, and unmounted code that
+ * still carries the old label. They must stay permitted — the guards apply to
+ * *published output* only, never to source.
+ *
+ * Asserting they still match is what makes that boundary observable. If one of
+ * them stopped matching, the likely reason is that someone widened the checks
+ * into a repository-wide grep and then "fixed" the fallout by editing history.
  */
 for (const permitted of [
   "../docs/LLM_DECISION_V1.md",
@@ -272,10 +273,29 @@ for (const permitted of [
   "src/components/analysis/TradePlan.tsx",
 ]) {
   const source = readFileSync(join(frontendRoot, permitted), "utf8");
-  if (!/\bAI\b/.test(source)) {
+  const matched = MODEL_DRIVEN_CLAIM_PATTERNS.some((pattern) => pattern.test(source));
+  if (!matched) {
     failures.push(
       `${permitted} no longer records the wording this project removed; the ` +
         "model-driven-claim check must stay scoped to published output.",
+    );
+  }
+}
+
+/*
+ * And the converse: TradePlan.tsx may keep "AI Trade Plan" only because no route
+ * reaches it. If it ever became reachable, the rendered-DOM guard would catch
+ * it — but this records the reason it is exempt here.
+ */
+{
+  const barrel = readFileSync(
+    join(frontendRoot, "src/components/analysis/index.ts"),
+    "utf8",
+  );
+  if (!barrel.includes("TradePlan")) {
+    failures.push(
+      "TradePlan is no longer exported from the analysis barrel; re-check " +
+        "whether it is now mounted before leaving it exempt from the claim guard.",
     );
   }
 }

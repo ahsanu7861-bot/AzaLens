@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import LandingPage from "./LandingPage";
+import { MODEL_DRIVEN_CLAIM_PATTERNS } from "../../scripts/modelClaimPatterns.mjs";
 
 // A "standalone" verdict command is an element whose entire text is just
 // the word BUY, SELL or HOLD — the shape of the old mockup's `<p>BUY</p>`.
@@ -29,21 +30,12 @@ const UNSUPPORTED_PERFORMANCE_CLAIMS = [
  * (docs/LLM_DECISION_V1.md §8 item 4). Claiming otherwise in public copy is a
  * truthfulness defect, not a style preference.
  *
- * `\bAI\b` is deliberately case-sensitive so it does not fire on the "ai" inside
- * ordinary words such as "Explained". "AAOIFI" contains no "AI" substring.
+ * The patterns are owned by scripts/modelClaimPatterns.mjs, shared with the
+ * published-metadata check and the visual spec. They are case-insensitive:
+ * `\b` word boundaries, not letter case, are what keep them out of ordinary
+ * words such as "Explained" and "Explainable".
  */
-const MODEL_DRIVEN_CLAIMS = [
-  /\bAI\b/,
-  /\bAIs\b/,
-  /AI[-\s]powered/i,
-  /artificial intelligence/i,
-  /machine learning/i,
-  /\bML\b/,
-  /\bLLM\b/,
-  /large language model/i,
-  /model[-\s]driven/i,
-  /neural/i,
-];
+const MODEL_DRIVEN_CLAIMS = MODEL_DRIVEN_CLAIM_PATTERNS;
 
 function renderLanding() {
   return render(
@@ -156,6 +148,53 @@ describe("LandingPage carries no model-driven claim", () => {
 
     for (const pattern of MODEL_DRIVEN_CLAIMS) {
       expect(rendered).not.toMatch(pattern);
+    }
+  });
+
+  /*
+   * Independent review found this gap: the guards matched `\bAI\b`
+   * case-sensitively, so a public *lowercase* claim escaped them entirely. The
+   * rationale recorded alongside them — that case sensitivity was needed to
+   * avoid matching the "ai" inside "Explained" — was wrong. Word boundaries
+   * already do that job.
+   *
+   * These controls pin both halves: standalone lowercase tokens must be caught,
+   * and ordinary words containing the same letters must not be.
+   */
+  it("catches a standalone lowercase ai, ml or llm claim", () => {
+    for (const claim of [
+      "ai analysis",
+      "built with ml",
+      "powered by an llm",
+      "Ai Stock Intelligence",
+      "our AIs decide",
+      "an llms-based engine",
+      "gpt powered",
+      "ai-driven insight",
+    ]) {
+      expect(
+        MODEL_DRIVEN_CLAIMS.some((pattern) => pattern.test(claim)),
+        `"${claim}" must be caught as a public model-driven claim`,
+      ).toBe(true);
+    }
+  });
+
+  it("does not fire on ordinary words that merely contain those letters", () => {
+    for (const permitted of [
+      "Listed Stocks. Clearly Explained.",
+      "Explainable Stock Analysis",
+      "EXPLAINABLE STOCK ANALYSIS",
+      "Analysis of listed-company shares worldwide",
+      "AAOIFI-based Shariah screening",
+      "detail",
+      "email",
+      "html",
+      "Compliance comes before the verdict",
+    ]) {
+      expect(
+        MODEL_DRIVEN_CLAIMS.filter((pattern) => pattern.test(permitted)).map(String),
+        `"${permitted}" must remain permitted`,
+      ).toEqual([]);
     }
   });
 
