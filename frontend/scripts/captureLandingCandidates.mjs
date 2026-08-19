@@ -31,6 +31,11 @@ import { fileURLToPath } from "node:url";
 
 import { chromium, devices } from "playwright";
 
+import {
+  assertCssScaleGeometry,
+  assertManifestContract,
+} from "./candidateContract.mjs";
+
 const frontendRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outputDir = join(frontendRoot, "candidate-artifacts");
 const HOST = "127.0.0.1";
@@ -181,11 +186,52 @@ async function capture(browser, spec) {
         })
       : null;
 
+  /*
+   * Measure the CSS-pixel geometry the screenshot is contracted to produce,
+   * while the same chrome is hidden that the shutter will see.
+   *
+   * Full page  -> viewport width x document scrollHeight, in CSS pixels.
+   * Scoped     -> the element's own CSS-pixel bounding box.
+   *
+   * Playwright rounds screenshot output to whole pixels, so a 1px tolerance is
+   * allowed on each axis and nothing more. This is what ties the assertion to
+   * measured geometry rather than to today's numbers.
+   */
+  const expected =
+    spec.scope === "page"
+      ? await page.evaluate(() => ({
+          width: Math.round(document.documentElement.clientWidth),
+          height: Math.round(document.documentElement.scrollHeight),
+        }))
+      : await target.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return { width: Math.round(r.width), height: Math.round(r.height) };
+        });
+
+  const dpr = await page.evaluate(() => window.devicePixelRatio);
+
   try {
+    /*
+     * `scale: "css"` is explicit and must stay explicit.
+     *
+     * Playwright visual regression compares with `toHaveScreenshot()`, whose
+     * default is `scale: "css"` — CSS pixels, device pixel ratio ignored. Plain
+     * `page.screenshot()` defaults to `scale: "device"` instead, which silently
+     * multiplies by the DPR. On Desktop Chrome (DPR 1) the two agree, so the
+     * difference is invisible; on iPhone 13 (DPR 3) it produced candidates 3x
+     * too large in both axes.
+     *
+     * Those candidates looked perfectly correct in any image viewer, and were
+     * even byte-stable across runs — but they could never match what the visual
+     * spec receives. Candidate evidence must be captured on the same contract as
+     * the consumer that will compare it, so the scale is pinned here rather than
+     * inherited from a default.
+     */
     await target.screenshot({
       path: file,
       animations: "disabled",
       caret: "hide",
+      scale: "css",
       ...(spec.scope === "page" ? { fullPage: true } : {}),
     });
   } finally {
@@ -198,6 +244,18 @@ async function capture(browser, spec) {
   const { width, height } = pngSize(bytes);
   const viewport = PROJECTS[spec.project].viewport;
 
+  /*
+   * Dimension contract. A candidate that is not the size the visual spec will
+   * receive is not evidence, however good it looks, so this fails the capture
+   * rather than emitting a plausible but incompatible PNG.
+   */
+  assertCssScaleGeometry({
+    name: spec.name,
+    actual: { width, height },
+    expected,
+    devicePixelRatio: dpr,
+  });
+
   return {
     filename: `candidate--${spec.name}.png`,
     candidateFor: baselineFor(spec),
@@ -206,6 +264,9 @@ async function capture(browser, spec) {
     project: spec.project,
     viewport: `${viewport.width}x${viewport.height}`,
     dimensions: `${width}x${height}`,
+    expectedCssDimensions: `${expected.width}x${expected.height}`,
+    devicePixelRatio: dpr,
+    screenshotScale: "css",
     bytes: bytes.length,
     sha256: sha256(bytes),
     blockedRequests: providerRequests,
@@ -248,6 +309,16 @@ try {
       branch: git("rev-parse", "--abbrev-ref", "HEAD"),
     },
     platform: `${process.platform}-${process.arch}`,
+    /*
+     * Recorded so a later verification can prove the candidates were captured on
+     * the same contract the visual spec compares with, without re-running them.
+     */
+    screenshotScale: "css",
+    scaleContract:
+      "Captured with scale:'css' to match toHaveScreenshot(), which compares in " +
+      "CSS pixels. Each candidate records expectedCssDimensions and the device " +
+      "pixel ratio it was captured under; actual PNG dimensions must equal the " +
+      "expected CSS dimensions within 1px of integer rounding.",
     expectedCandidateCount: CAPTURES.length,
     candidateCount: captures.length,
     candidates: captures,
@@ -258,6 +329,8 @@ try {
       sha256: sha256(socialBytes),
     },
   };
+
+  assertManifestContract(manifest);
 
   writeFileSync(
     join(outputDir, "candidate-manifest.json"),
