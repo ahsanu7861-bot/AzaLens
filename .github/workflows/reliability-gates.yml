@@ -276,15 +276,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      # The landing baselines do not exist yet, so `npm run test:visual` above is
-      # expected to fail on exactly those six comparisons. The steps below still
-      # run, because the review candidates a human needs are produced by that
-      # failure, not by its absence.
+      # Six reviewed Linux landing baselines are committed, and ordinary visual
+      # CI above compares against them with snapshot writing disabled:
+      # playwright.config.ts sets `updateSnapshots: "none"` under CI, so a
+      # missing or mismatched baseline fails without ever being written.
       #
-      # `updateSnapshots: "none"` (playwright.config.ts, under CI) makes a
-      # missing baseline a hard failure that writes nothing. This step proves
-      # that held: if any snapshot file appeared, or any Darwin baseline exists,
-      # the run fails here rather than quietly banking an unreviewed baseline.
+      # This step runs either way and proves that held — that the run modified
+      # no committed snapshot path, left the worktree clean, and created no
+      # Darwin baseline. It is as useful when the comparison passes as when it
+      # fails: a green run that quietly banked a snapshot would still be a
+      # failure of this contract.
+      #
+      # Candidate capture below is review and provenance evidence only. It never
+      # accepts or updates a baseline; changing accepted baselines stays a
+      # separately reviewed and authorised step.
       - name: Prove the visual run wrote no baseline
         if: always()
         working-directory: .

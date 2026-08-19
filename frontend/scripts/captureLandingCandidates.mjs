@@ -2,9 +2,14 @@
  * Landing-page candidate capture (roadmap item 1.11).
  *
  * This is NOT the visual regression suite and it produces NOTHING that may be
- * committed. It exists because the first Linux run of e2e/landing-visual.spec.ts
- * has no baselines to compare against, and a human has to look at six images
- * before any baseline is accepted.
+ * committed. It renders the same six views the visual spec compares, on the same
+ * CSS-pixel contract, so a human can look at what a baseline would contain
+ * before anyone commits to it.
+ *
+ * That serves three moments in a baseline's life: initial acceptance, a later
+ * intentional replacement, and verifying afterwards which artifact a committed
+ * baseline came from. It never creates or updates an accepted baseline — that
+ * remains a separately reviewed and explicitly authorised step.
  *
  * Deliberate properties:
  *

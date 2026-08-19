@@ -50,9 +50,14 @@ const HORIZON_LABEL = "Swing · 2–10 sessions";
  *                 wraps differently inside a 390px single-column card, which is
  *                 where truncation would first appear.
  *
- * Baselines for these are Linux-only and are accepted in a separate, explicitly
- * authorised step. A run that finds them missing must fail without writing them;
- * playwright.config.ts sets `updateSnapshots: "none"` under CI to guarantee that.
+ * The baselines these compare against are Linux-only: a macOS run emits
+ * `-darwin.png`, which can never satisfy Linux CI and must not be committed.
+ *
+ * Comparison is separate from acceptance. This spec only ever compares. Under CI
+ * playwright.config.ts sets `updateSnapshots: "none"`, so a missing or
+ * mismatched baseline fails the run without being written. Replacing a baseline
+ * intentionally requires separately reviewed candidate bytes and explicit
+ * authorisation, never a passing or failing run of this file.
  */
 
 /*
