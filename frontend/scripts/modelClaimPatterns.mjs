@@ -18,11 +18,20 @@
  * letters on both sides, so `/\bai\b/i` cannot match it. Case sensitivity was
  * buying nothing and costing coverage.
  *
- * Scope matters as much as the patterns. These are applied to *published
- * output* only — the rendered landing DOM and the parsed page metadata. They
- * are never run over repository source, because the repository must stay free
- * to document the wording it removed, to state explicit negations, and to keep
- * unmounted code that still carries the old vocabulary.
+ * Scope matters as much as the patterns, and it is set by the caller.
+ *
+ * This module describes wording the product must not **publish**. It says
+ * nothing about where such wording may exist in the repository. What is scanned
+ * is decided entirely by the values callers pass in: the rendered landing DOM,
+ * the parsed page metadata and the manifest branding. Nothing here reads
+ * repository source.
+ *
+ * Historical documentation, explicit negations and unmounted dead code are
+ * therefore simply outside the input domain — not exceptions that need granting.
+ * Their continued existence, and their wording, is **not required** by anything
+ * here. A guard that demanded they keep saying "AI" would convert temporary debt
+ * into a permanent dependency and block the planned dead-code cleanup; that is a
+ * mistake this file made once and must not repeat.
  */
 export const MODEL_DRIVEN_CLAIM_PATTERNS = [
   /* Standalone tokens, case-insensitive. `\b` keeps them out of ordinary words. */

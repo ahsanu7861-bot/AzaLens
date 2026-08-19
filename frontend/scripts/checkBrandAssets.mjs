@@ -255,50 +255,30 @@ if (!publishedText["og:image:alt"]) {
 }
 
 /*
- * Scope control.
+ * Scope, stated as a boundary rather than enforced as a dependency.
  *
- * These three files would all fail the patterns above if the checks were ever
- * pointed at repository source: historical documentation of the wording this
- * project removed, the roadmap's record of the defect, and unmounted code that
- * still carries the old label. They must stay permitted — the guards apply to
- * *published output* only, never to source.
+ * `MODEL_DRIVEN_CLAIM_PATTERNS` describes wording this product must not publish.
+ * It says nothing about where that wording may exist in the repository. The
+ * scope is decided entirely by which values a caller passes in — above, the
+ * parsed page metadata and manifest branding; in LandingPage.test.tsx, the
+ * rendered DOM. Nothing here reads repository source, and nothing should.
  *
- * Asserting they still match is what makes that boundary observable. If one of
- * them stopped matching, the likely reason is that someone widened the checks
- * into a repository-wide grep and then "fixed" the fallout by editing history.
+ * So historical documentation, explicit negations and unmounted dead code are
+ * simply outside the input domain. They are not exceptions that need granting,
+ * and their continued existence — or their wording — is **not required**. An
+ * earlier revision of this file asserted that docs/LLM_DECISION_V1.md,
+ * WHAT_TO_DO_NEXT.md and TradePlan.tsx must still *contain* a model-driven
+ * claim, and that TradePlan must stay exported from the analysis barrel. That
+ * inverted the contract: it turned "permitted" into "required" and made the
+ * brand check fail the moment the planned dead-code cleanup deleted TradePlan
+ * or dropped its export, converting temporary debt into a test-enforced
+ * dependency. Those assertions are removed.
+ *
+ * The boundary is proved by controlled mutation instead: injecting a claim into
+ * mounted copy or published metadata must fail these guards, while injecting one
+ * into documentation or unmounted code must not. That evidence belongs in a test
+ * run, not in a permanent requirement that the debt survive.
  */
-for (const permitted of [
-  "../docs/LLM_DECISION_V1.md",
-  "../WHAT_TO_DO_NEXT.md",
-  "src/components/analysis/TradePlan.tsx",
-]) {
-  const source = readFileSync(join(frontendRoot, permitted), "utf8");
-  const matched = MODEL_DRIVEN_CLAIM_PATTERNS.some((pattern) => pattern.test(source));
-  if (!matched) {
-    failures.push(
-      `${permitted} no longer records the wording this project removed; the ` +
-        "model-driven-claim check must stay scoped to published output.",
-    );
-  }
-}
-
-/*
- * And the converse: TradePlan.tsx may keep "AI Trade Plan" only because no route
- * reaches it. If it ever became reachable, the rendered-DOM guard would catch
- * it — but this records the reason it is exempt here.
- */
-{
-  const barrel = readFileSync(
-    join(frontendRoot, "src/components/analysis/index.ts"),
-    "utf8",
-  );
-  if (!barrel.includes("TradePlan")) {
-    failures.push(
-      "TradePlan is no longer exported from the analysis barrel; re-check " +
-        "whether it is now mounted before leaving it exempt from the claim guard.",
-    );
-  }
-}
 
 for (const sourcePath of [
   "src/components/landing/Navbar.tsx",
