@@ -235,13 +235,52 @@ describe("ComplianceDemo honesty regression", () => {
     expect(confirmedDemoCard.shariah.provider).toBeUndefined();
   });
 
-  it("stacks the two demo cards in a single column below the lg breakpoint", () => {
+  /*
+   * The scenarios stack at every width, and must keep doing so.
+   *
+   * `IslamicCompliance` sizes its metric grid from viewport breakpoints, so at
+   * viewport >= 1280 it becomes three columns while a side-by-side demo column
+   * is capped at 559px by the ProductPreview container — which pushed the
+   * "Unavailable" and "0.4% of dividends" badges 48px and 51px outside their
+   * cards. A safe side-by-side would need ~1474px of inner width against the
+   * ~1142px available, so no breakpoint can rescue it.
+   *
+   * Geometric containment is proved in a real browser by
+   * e2e/landing-visual.spec.ts; jsdom has no layout, so this asserts the
+   * structural rule that keeps that containment true.
+   */
+  it("stacks the two demonstration scenarios at every width", () => {
     const { container } = render(<ComplianceDemo />);
     const grid = container.querySelector(".grid");
 
     expect(grid).not.toBeNull();
-    expect(grid?.className).toContain("lg:grid-cols-2");
-    expect(grid?.className).not.toMatch(/(?<!lg:)grid-cols-2/);
+    expect(grid?.className).toMatch(/\bgrid\b/);
+    // No multi-column rule at any breakpoint — plain or prefixed.
+    expect(grid?.className).not.toMatch(/grid-cols-(?!1\b)\d/);
+  });
+
+  it("keeps both demonstration scenarios mounted", () => {
+    render(<ComplianceDemo />);
+
+    expect(screen.getByTestId("landing-demo-withheld")).toBeInTheDocument();
+    expect(screen.getByTestId("landing-demo-confirmed")).toBeInTheDocument();
+  });
+
+  it("renders the Shariah badge text in full, never abbreviated", () => {
+    render(<ComplianceDemo />);
+
+    const confirmedCard = screen.getByTestId("landing-demo-confirmed");
+
+    // The two badges that were clipped. Their full text must survive; the
+    // browser-level spec proves they also fit inside their cards.
+    expect(
+      within(confirmedCard).getByText("0.4% of dividends"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("landing-demo-withheld")).getAllByText(
+        "Unavailable",
+      ).length,
+    ).toBeGreaterThan(0);
   });
 });
 

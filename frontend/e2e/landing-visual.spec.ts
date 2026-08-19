@@ -147,6 +147,63 @@ async function assertLandingIsCapturable(page: Page, theme: string) {
   await expect(page.locator("body")).not.toContainText(/\bAI\b/);
   await expect(page.locator("body")).not.toContainText(/AI[-\s]powered/i);
 
+  /*
+   * Every Shariah metric badge must sit wholly inside its own card.
+   *
+   * Independent review of artifact 9345958947 refused baseline acceptance
+   * because two of them did not: "Unavailable" overhung its card by 48px and
+   * "0.4% of dividends" by 51px, at the very viewport the desktop baseline is
+   * captured from. `IslamicCompliance` sizes its metric grid from viewport
+   * breakpoints, so inside a nested, width-capped landing column it laid three
+   * cards into 159px each.
+   *
+   * Asserted geometrically rather than by class name, because a class assertion
+   * cannot see a box escaping its parent. The 1px tolerance absorbs sub-pixel
+   * rounding in getBoundingClientRect only; a real overhang is tens of pixels.
+   */
+  const badgeEscapes = await confirmed.evaluate((card) => {
+    const TOLERANCE = 1;
+    const escapes: Array<Record<string, unknown>> = [];
+
+    for (const metric of card.querySelectorAll(".az-subcard")) {
+      const row = metric.querySelector(".flex.items-start.justify-between");
+      const badge = row?.children?.[1] as HTMLElement | undefined;
+      if (!badge) continue;
+
+      const b = badge.getBoundingClientRect();
+      const c = metric.getBoundingClientRect();
+      const label = metric.querySelector("p")?.textContent?.trim() ?? "?";
+
+      const outside =
+        b.left < c.left - TOLERANCE ||
+        b.right > c.right + TOLERANCE ||
+        b.top < c.top - TOLERANCE ||
+        b.bottom > c.bottom + TOLERANCE;
+      // A badge whose content is wider than its own box is clipped text.
+      const clipped = badge.scrollWidth > badge.clientWidth + TOLERANCE;
+
+      if (outside || clipped) {
+        escapes.push({
+          label,
+          text: badge.textContent?.trim(),
+          overflowRight: Math.round(b.right - c.right),
+          overflowLeft: Math.round(c.left - b.left),
+          overflowBottom: Math.round(b.bottom - c.bottom),
+          clipped,
+        });
+      }
+    }
+    return escapes;
+  });
+  expect(
+    badgeEscapes,
+    "every Shariah badge must sit wholly inside its metric card, unclipped",
+  ).toEqual([]);
+
+  // The two badges that were clipped must still read in full — containment must
+  // never be bought by shortening the evidence.
+  await expect(confirmed.getByText("0.4% of dividends")).toBeVisible();
+
   const overflows = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth,
   );
