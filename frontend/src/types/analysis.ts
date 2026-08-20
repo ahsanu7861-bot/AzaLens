@@ -258,6 +258,23 @@ export interface GuidanceRisk {
   notes: string[]
 }
 
+export interface HistoricalBar {
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
+export interface HistoryResponse {
+  success: boolean
+  symbol: string
+  interval: string
+  bars?: HistoricalBar[]
+  error?: string
+}
+
 export interface AnalysisResponse {
   success?: boolean
   error?: string

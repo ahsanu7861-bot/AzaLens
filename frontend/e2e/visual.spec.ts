@@ -1,4 +1,18 @@
-import { expect, test } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+} from "@playwright/test";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
 
 import {
   FIXTURE_NOW,
@@ -6,12 +20,154 @@ import {
 } from "./fixtures/analysis";
 
 const themes = ["night", "day"] as const;
+const technicalCandidateDir = join(
+  process.cwd(),
+  "technical-candidate-artifacts",
+);
+const expectedTechnicalCandidates = [
+  "candidate--analysis-technical-day-desktop.png",
+  "candidate--analysis-technical-day-mobile.png",
+  "candidate--analysis-technical-night-desktop.png",
+  "candidate--analysis-technical-night-mobile.png",
+];
+
+function sha256(bytes: Buffer) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function pngSize(bytes: Buffer) {
+  if (bytes.subarray(1, 4).toString("ascii") !== "PNG") {
+    throw new Error("Technical candidate is not a PNG");
+  }
+  return {
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20),
+  };
+}
+
+function git(...args: string[]) {
+  return execFileSync("git", args, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  }).trim();
+}
+
+function finishTechnicalManifest() {
+  const sidecars = readdirSync(technicalCandidateDir)
+    .filter((name) => /^candidate--analysis-technical-.*\.json$/.test(name))
+    .sort();
+
+  if (sidecars.length !== expectedTechnicalCandidates.length) return;
+
+  const candidates = sidecars.map((name) =>
+    JSON.parse(readFileSync(join(technicalCandidateDir, name), "utf8")),
+  );
+  const names = candidates.map((candidate) => candidate.filename).sort();
+  expect(names).toEqual(expectedTechnicalCandidates);
+
+  const source = candidates[0].source;
+  for (const candidate of candidates) {
+    expect(candidate.source).toEqual(source);
+    expect(candidate.screenshotScale).toBe("css");
+    expect(
+      Math.abs(candidate.dimensions.width - candidate.expectedCssDimensions.width),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(candidate.dimensions.height - candidate.expectedCssDimensions.height),
+    ).toBeLessThanOrEqual(1);
+  }
+
+  writeFileSync(
+    join(technicalCandidateDir, "candidate-manifest.json"),
+    `${JSON.stringify(
+      {
+        kind: "analysis-technical-visual-candidates",
+        note:
+          "Review evidence only. These are not accepted baselines. " +
+          "Baseline acceptance requires separate authorization.",
+        generatedAt: new Date().toISOString(),
+        source,
+        screenshotScale: "css",
+        expectedCandidateCount: expectedTechnicalCandidates.length,
+        candidateCount: candidates.length,
+        candidates,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+async function captureTechnicalCandidate({
+  technical,
+  page,
+  theme,
+  projectName,
+}: {
+  technical: Locator;
+  page: Page;
+  theme: (typeof themes)[number];
+  projectName: string;
+}) {
+  const project = projectName.startsWith("mobile") ? "mobile" : "desktop";
+  const filename = `candidate--analysis-technical-${theme}-${project}.png`;
+  const baseline = `analysis-technical-${theme}-${projectName}-linux.png`;
+  const box = await technical.boundingBox();
+  if (!box) throw new Error("Technical candidate target has no bounding box");
+
+  const expectedCssDimensions = {
+    width: Math.round(box.width),
+    height: Math.round(box.height),
+  };
+  const devicePixelRatio = await page.evaluate(() => window.devicePixelRatio);
+  const bytes = await technical.screenshot({
+    animations: "disabled",
+    caret: "hide",
+    scale: "css",
+  });
+  const dimensions = pngSize(bytes);
+
+  expect(Math.abs(dimensions.width - expectedCssDimensions.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(dimensions.height - expectedCssDimensions.height)).toBeLessThanOrEqual(1);
+  if (devicePixelRatio !== 1) {
+    expect(dimensions.width).not.toBe(expectedCssDimensions.width * devicePixelRatio);
+    expect(dimensions.height).not.toBe(expectedCssDimensions.height * devicePixelRatio);
+  }
+
+  mkdirSync(technicalCandidateDir, { recursive: true });
+  writeFileSync(join(technicalCandidateDir, filename), bytes);
+  writeFileSync(
+    join(technicalCandidateDir, filename.replace(/\.png$/, ".json")),
+    `${JSON.stringify(
+      {
+        filename,
+        candidateFor: baseline,
+        theme,
+        project,
+        dimensions,
+        expectedCssDimensions,
+        devicePixelRatio,
+        screenshotScale: "css",
+        bytes: bytes.length,
+        sha256: sha256(bytes),
+        source: {
+          reviewHead: process.env.REVIEW_HEAD_SHA || null,
+          checkoutCommit: git("rev-parse", "HEAD"),
+          checkoutTree: git("rev-parse", "HEAD^{tree}"),
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  finishTechnicalManifest();
+}
 
 test.describe("@visual analysis workspace", () => {
   for (const theme of themes) {
     test(`${theme} theme remains visually stable`, async ({
       page,
-    }) => {
+    }, testInfo) => {
       await page.addInitScript(
         ({ fixedNow, selectedTheme }) => {
           Date.now = () => fixedNow;
@@ -176,6 +332,102 @@ test.describe("@visual analysis workspace", () => {
         // capture below always runs against the unmodified page.
         await fixedChromeStyle.evaluate((node) => node.parentNode?.removeChild(node));
       }
+
+      /*
+       * The Technical workspace is the only mounted surface that can prove the
+       * indicator readings behind the Evidence Agreement are present and agree
+       * with the fixture's declared members. Keep this as an element capture:
+       * application chrome is irrelevant to that contract, and a scoped image
+       * remains stable if unrelated page sections grow.
+       */
+      await page.getByRole("tab", { name: "Technical" }).click();
+      const technical = page.getByRole("tabpanel");
+      await expect(technical.getByText("58", { exact: true })).toBeVisible();
+      await expect(
+        technical.getByText("No decisive pattern", { exact: true }),
+      ).toBeVisible();
+      await settle();
+
+      /*
+       * Element screenshots scroll their target through the viewport. Fixed and
+       * sticky application chrome then stays pinned while Playwright stitches a
+       * target taller than that viewport, compositing the chrome into the panel.
+       * The first review candidates exposed the full shell header, mobile bottom
+       * navigation, analysis header/tabs and even the off-screen skip link inside
+       * the Technical evidence. Hide only those chrome layers while both the
+       * review candidate and comparator actual are captured.
+       *
+       * Fixed elements are out of flow and can use display:none. The analysis
+       * header is sticky and remains in flow, so visibility:hidden prevents paint
+       * without changing the panel's geometry. The style node is removed in a
+       * finally block and the assertions below prove the default UI is restored.
+       */
+      const shellHeader = page.locator(".app-shell > header");
+      const shellRail = page.locator(".app-shell > aside");
+      const mobileNavigation = page.locator(
+        'nav[aria-label="Mobile navigation"]',
+      );
+      const skipLink = page.locator(".az-skip-link");
+      const analysisHeader = page.locator(
+        "div:has(> main#main-content) > .sticky",
+      );
+
+      await expect(shellHeader).toHaveCSS("display", "flex");
+      await expect(analysisHeader).toHaveCSS("visibility", "visible");
+
+      const technicalChromeStyle = await page.addStyleTag({
+        content: [
+          ".app-shell > aside,",
+          ".app-shell > header,",
+          'nav[aria-label="Mobile navigation"],',
+          ".az-skip-link {",
+          "  display: none !important;",
+          "}",
+          "div:has(> main#main-content) > .sticky {",
+          "  visibility: hidden !important;",
+          "}",
+        ].join("\n"),
+      });
+
+      try {
+        for (const fixedChrome of [
+          shellHeader,
+          shellRail,
+          mobileNavigation,
+          skipLink,
+        ]) {
+          await expect(fixedChrome).toHaveCSS("display", "none");
+        }
+        await expect(analysisHeader).toHaveCSS("visibility", "hidden");
+
+        if (process.env.CI) {
+          await captureTechnicalCandidate({
+            technical,
+            page,
+            theme,
+            projectName: testInfo.project.name,
+          });
+        }
+        await expect.soft(technical).toHaveScreenshot(
+          `analysis-technical-${theme}.png`,
+          {
+            animations: "disabled",
+            caret: "hide",
+            maxDiffPixelRatio: 0.005,
+            threshold: 0.2,
+          },
+        );
+      } finally {
+        await technicalChromeStyle.evaluate((node) =>
+          node.parentNode?.removeChild(node),
+        );
+      }
+
+      await expect(shellHeader).toHaveCSS("display", "flex");
+      await expect(analysisHeader).toHaveCSS("visibility", "visible");
+
+      await page.getByRole("tab", { name: "Overview" }).click();
+      await expect(guidance).toBeVisible();
 
       /*
        * The scoped guidance capture keeps the viewport-growing approach added in

@@ -12,27 +12,14 @@ import {
   type Time,
 } from 'lightweight-charts';
 import { useTheme } from '../app/providers/theme';
+import type {
+  HistoricalBar,
+  HistoryResponse,
+} from '../types/analysis';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   'https://api.azalens.com';
-
-type HistoricalBar = {
-  date: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-};
-
-type HistoryResponse = {
-  success: boolean;
-  symbol: string;
-  interval: string;
-  bars?: HistoricalBar[];
-  error?: string;
-};
 
 type StockChartProps = {
   symbol: string;

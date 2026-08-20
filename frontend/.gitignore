@@ -22,6 +22,7 @@ playwright-report
 # scripts/captureLandingCandidates.mjs and uploaded from CI; never committed,
 # and never an accepted baseline.
 candidate-artifacts
+technical-candidate-artifacts
 
 # Editor directories and files
 .vscode/*

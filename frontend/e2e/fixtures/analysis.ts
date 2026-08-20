@@ -1,10 +1,49 @@
 import type { Page } from "@playwright/test";
 
-import type { EvidenceAgreement } from "../../src/types/analysis";
+import type {
+  AnalysisData,
+  EvidenceAgreement,
+  EvidenceFamily,
+  HistoryResponse,
+} from "../../src/types/analysis";
 
 export const FIXTURE_NOW = Date.parse(
   "2026-07-26T09:00:00.000Z",
 );
+
+export const evidenceFamilies = [
+  {
+    id: "trendPosition",
+    label: "Trend position",
+    vote: "BULLISH",
+    members: [
+      { name: "EMA", vote: "BULLISH" },
+      { name: "SMA", vote: "BULLISH" },
+      { name: "Bollinger Bands", vote: "BEARISH" },
+    ],
+  },
+  {
+    id: "momentum",
+    label: "Momentum",
+    vote: "BULLISH",
+    members: [
+      { name: "RSI", vote: "NEUTRAL" },
+      { name: "MACD", vote: "BULLISH" },
+    ],
+  },
+  {
+    id: "priceAction",
+    label: "Price action",
+    vote: "NEUTRAL",
+    members: [{ name: "Candlestick", vote: "NEUTRAL" }],
+  },
+  {
+    id: "volumeFlow",
+    label: "Volume flow",
+    vote: "BULLISH",
+    members: [{ name: "OBV", vote: "BULLISH" }],
+  },
+] satisfies EvidenceFamily[];
 
 export const analysisData = {
   market: {
@@ -31,8 +70,105 @@ export const analysisData = {
   },
   indicators: {
     rsi: {
-      value: 58,
+      success: true,
+      symbol: "AAPL",
+      rsi: 58,
       signal: "NEUTRAL",
+      provider: "Test fixture",
+    },
+    ema: {
+      success: true,
+      symbol: "AAPL",
+      ema20: 212.4,
+      currentPrice: 215.5,
+      signal: "BULLISH",
+      provider: "Test fixture",
+    },
+    sma: {
+      success: true,
+      symbol: "AAPL",
+      sma50: 207.8,
+      currentPrice: 215.5,
+      signal: "BULLISH",
+      provider: "Test fixture",
+    },
+    macd: {
+      success: true,
+      symbol: "AAPL",
+      macd: 1.48,
+      signalLine: 1.12,
+      histogram: 0.36,
+      signal: "BULLISH",
+      provider: "Test fixture",
+    },
+    bollinger: {
+      success: true,
+      symbol: "AAPL",
+      upperBand: 218.2,
+      middleBand: 211.6,
+      lowerBand: 205,
+      currentPrice: 215.5,
+      signal: "BEARISH",
+      provider: "Test fixture",
+    },
+    adx: {
+      success: true,
+      symbol: "AAPL",
+      adx: 24.2,
+      plusDI: 27.8,
+      minusDI: 19.1,
+      signal: "NEUTRAL",
+      provider: "Test fixture",
+    },
+    atr: {
+      success: true,
+      symbol: "AAPL",
+      atr: 5.17,
+      signal: "NEUTRAL",
+      provider: "Test fixture",
+    },
+    obv: {
+      success: true,
+      symbol: "AAPL",
+      obv: 12_450_000,
+      signal: "BULLISH",
+      explanation: "On-balance volume supports the upside scenario.",
+      provider: "Test fixture",
+    },
+    rvol: {
+      success: true,
+      symbol: "AAPL",
+      todayVolume: 1_230_000,
+      averageVolume30: 1_100_000,
+      rvol: 1.12,
+      signal: "NEUTRAL",
+      explanation: "Relative volume is near its recent average.",
+      provider: "Test fixture",
+    },
+    volumeSpike: {
+      success: true,
+      symbol: "AAPL",
+      todayVolume: 1_230_000,
+      averageVolume30: 1_100_000,
+      rvol: 1.12,
+      volumeSpikeDetected: false,
+      level: "NORMAL",
+      signal: "NEUTRAL",
+      explanation: "No unusual volume spike is present.",
+      provider: "Test fixture",
+    },
+    candlestick: {
+      success: true,
+      symbol: "AAPL",
+      pattern: "No decisive pattern",
+      bias: "NEUTRAL",
+      strength: 0,
+      lastCandle: {
+        open: 213.4,
+        high: 216.5,
+        low: 212.8,
+        close: 215.5,
+      },
       provider: "Test fixture",
     },
   },
@@ -57,7 +193,7 @@ export const analysisData = {
       usableFamilies: 4,
       expectedFamilies: 4,
       unavailableFamilies: 0,
-      families: [],
+      families: evidenceFamilies,
     },
     summary: "3 of 4 evidence families support a bullish lean.",
     bullishSignals: 4,
@@ -149,39 +285,7 @@ export const analysisData = {
         usableFamilies: 4,
         expectedFamilies: 4,
         unavailableFamilies: 0,
-        families: [
-          {
-            id: "trendPosition",
-            label: "Trend position",
-            vote: "BULLISH",
-            members: [
-              { name: "EMA", vote: "BULLISH" },
-              { name: "SMA", vote: "BULLISH" },
-              { name: "Bollinger Bands", vote: "BEARISH" },
-            ],
-          },
-          {
-            id: "momentum",
-            label: "Momentum",
-            vote: "BULLISH",
-            members: [
-              { name: "RSI", vote: "NEUTRAL" },
-              { name: "MACD", vote: "BULLISH" },
-            ],
-          },
-          {
-            id: "priceAction",
-            label: "Price action",
-            vote: "NEUTRAL",
-            members: [{ name: "Candlestick", vote: "NEUTRAL" }],
-          },
-          {
-            id: "volumeFlow",
-            label: "Volume flow",
-            vote: "BULLISH",
-            members: [{ name: "OBV", vote: "BULLISH" }],
-          },
-        ],
+        families: evidenceFamilies,
       },
       summary: "3 of 4 evidence families support a bullish lean.",
     } satisfies EvidenceAgreement,
@@ -225,8 +329,6 @@ export const analysisData = {
     ],
     invalidation: {
       status: "intact",
-      summary:
-        "A daily close below $208.50 would invalidate the current interpretation.",
       technical:
         "A daily close below $208.50 would break the support structure governing this scenario.",
       fundamental:
@@ -267,11 +369,7 @@ export const analysisData = {
     overallAssessment:
       "The fixture explains evidence without promising an outcome.",
   },
-  thesisInvalidation: {
-    summary:
-      "The thesis requires review if the evidence weakens.",
-  },
-};
+} satisfies AnalysisData;
 
 export const historicalBars = Array.from(
   { length: 24 },
@@ -290,6 +388,13 @@ export const historicalBars = Array.from(
     };
   },
 );
+
+export const historyResponse = {
+  success: true,
+  symbol: "AAPL",
+  interval: "1day",
+  bars: historicalBars,
+} satisfies HistoryResponse;
 
 export async function mockHealthyAnalysis(page: Page) {
   // Browser journeys exercise the UI in an isolated Vite test server.
@@ -328,10 +433,7 @@ export async function mockHealthyAnalysis(page: Page) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          success: true,
-          bars: historicalBars,
-        }),
+        body: JSON.stringify(historyResponse),
       });
     },
   );
