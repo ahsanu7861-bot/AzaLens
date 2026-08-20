@@ -263,6 +263,8 @@ jobs:
         run: npm run test:e2e
 
       - name: Run visual regression tests
+        env:
+          REVIEW_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: npm run test:visual
 
       - name: Upload browser failure evidence
@@ -326,5 +328,14 @@ jobs:
         with:
           name: landing-visual-candidates
           path: frontend/candidate-artifacts
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Technical review candidates
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-technical-visual-candidates
+          path: frontend/technical-candidate-artifacts
           if-no-files-found: error
           retention-days: 14

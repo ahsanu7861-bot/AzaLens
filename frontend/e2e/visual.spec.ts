@@ -1,4 +1,18 @@
-import { expect, test } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+} from "@playwright/test";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
 
 import {
   FIXTURE_NOW,
@@ -6,12 +20,154 @@ import {
 } from "./fixtures/analysis";
 
 const themes = ["night", "day"] as const;
+const technicalCandidateDir = join(
+  process.cwd(),
+  "technical-candidate-artifacts",
+);
+const expectedTechnicalCandidates = [
+  "candidate--analysis-technical-day-desktop.png",
+  "candidate--analysis-technical-day-mobile.png",
+  "candidate--analysis-technical-night-desktop.png",
+  "candidate--analysis-technical-night-mobile.png",
+];
+
+function sha256(bytes: Buffer) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function pngSize(bytes: Buffer) {
+  if (bytes.subarray(1, 4).toString("ascii") !== "PNG") {
+    throw new Error("Technical candidate is not a PNG");
+  }
+  return {
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20),
+  };
+}
+
+function git(...args: string[]) {
+  return execFileSync("git", args, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  }).trim();
+}
+
+function finishTechnicalManifest() {
+  const sidecars = readdirSync(technicalCandidateDir)
+    .filter((name) => /^candidate--analysis-technical-.*\.json$/.test(name))
+    .sort();
+
+  if (sidecars.length !== expectedTechnicalCandidates.length) return;
+
+  const candidates = sidecars.map((name) =>
+    JSON.parse(readFileSync(join(technicalCandidateDir, name), "utf8")),
+  );
+  const names = candidates.map((candidate) => candidate.filename).sort();
+  expect(names).toEqual(expectedTechnicalCandidates);
+
+  const source = candidates[0].source;
+  for (const candidate of candidates) {
+    expect(candidate.source).toEqual(source);
+    expect(candidate.screenshotScale).toBe("css");
+    expect(
+      Math.abs(candidate.dimensions.width - candidate.expectedCssDimensions.width),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(candidate.dimensions.height - candidate.expectedCssDimensions.height),
+    ).toBeLessThanOrEqual(1);
+  }
+
+  writeFileSync(
+    join(technicalCandidateDir, "candidate-manifest.json"),
+    `${JSON.stringify(
+      {
+        kind: "analysis-technical-visual-candidates",
+        note:
+          "Review evidence only. These are not accepted baselines. " +
+          "Baseline acceptance requires separate authorization.",
+        generatedAt: new Date().toISOString(),
+        source,
+        screenshotScale: "css",
+        expectedCandidateCount: expectedTechnicalCandidates.length,
+        candidateCount: candidates.length,
+        candidates,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+async function captureTechnicalCandidate({
+  technical,
+  page,
+  theme,
+  projectName,
+}: {
+  technical: Locator;
+  page: Page;
+  theme: (typeof themes)[number];
+  projectName: string;
+}) {
+  const project = projectName.startsWith("mobile") ? "mobile" : "desktop";
+  const filename = `candidate--analysis-technical-${theme}-${project}.png`;
+  const baseline = `analysis-technical-${theme}-${projectName}-linux.png`;
+  const box = await technical.boundingBox();
+  if (!box) throw new Error("Technical candidate target has no bounding box");
+
+  const expectedCssDimensions = {
+    width: Math.round(box.width),
+    height: Math.round(box.height),
+  };
+  const devicePixelRatio = await page.evaluate(() => window.devicePixelRatio);
+  const bytes = await technical.screenshot({
+    animations: "disabled",
+    caret: "hide",
+    scale: "css",
+  });
+  const dimensions = pngSize(bytes);
+
+  expect(Math.abs(dimensions.width - expectedCssDimensions.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(dimensions.height - expectedCssDimensions.height)).toBeLessThanOrEqual(1);
+  if (devicePixelRatio !== 1) {
+    expect(dimensions.width).not.toBe(expectedCssDimensions.width * devicePixelRatio);
+    expect(dimensions.height).not.toBe(expectedCssDimensions.height * devicePixelRatio);
+  }
+
+  mkdirSync(technicalCandidateDir, { recursive: true });
+  writeFileSync(join(technicalCandidateDir, filename), bytes);
+  writeFileSync(
+    join(technicalCandidateDir, filename.replace(/\.png$/, ".json")),
+    `${JSON.stringify(
+      {
+        filename,
+        candidateFor: baseline,
+        theme,
+        project,
+        dimensions,
+        expectedCssDimensions,
+        devicePixelRatio,
+        screenshotScale: "css",
+        bytes: bytes.length,
+        sha256: sha256(bytes),
+        source: {
+          reviewHead: process.env.REVIEW_HEAD_SHA || null,
+          checkoutCommit: git("rev-parse", "HEAD"),
+          checkoutTree: git("rev-parse", "HEAD^{tree}"),
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  finishTechnicalManifest();
+}
 
 test.describe("@visual analysis workspace", () => {
   for (const theme of themes) {
     test(`${theme} theme remains visually stable`, async ({
       page,
-    }) => {
+    }, testInfo) => {
       await page.addInitScript(
         ({ fixedNow, selectedTheme }) => {
           Date.now = () => fixedNow;
@@ -191,6 +347,14 @@ test.describe("@visual analysis workspace", () => {
         technical.getByText("No decisive pattern", { exact: true }),
       ).toBeVisible();
       await settle();
+      if (process.env.CI) {
+        await captureTechnicalCandidate({
+          technical,
+          page,
+          theme,
+          projectName: testInfo.project.name,
+        });
+      }
       await expect.soft(technical).toHaveScreenshot(
         `analysis-technical-${theme}.png`,
         {
