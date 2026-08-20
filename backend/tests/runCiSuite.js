@@ -22,6 +22,7 @@ const deterministicSuites = [
   "testFinnhubQuoteRejectionSafety.js",
   "testFundamentalsCoverage.js",
   "testGuidanceContract.js",
+  "testLandingDemoContract.js",
   "testLoadResilience.js",
   "testMultiSymbolConsistency.js",
   "testObservability.js",

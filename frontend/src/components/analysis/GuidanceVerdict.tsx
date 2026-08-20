@@ -1,6 +1,7 @@
 import { AlertTriangle, Compass, Eye, Gauge, Scale, ShieldCheck } from "lucide-react";
 
 import type { AnalysisData } from "../../types/analysis";
+import { horizonLabel } from "../../lib/guidanceLabels";
 import VerdictCard from "./VerdictCard";
 
 type Guidance = NonNullable<AnalysisData["guidance"]>;
@@ -20,12 +21,6 @@ const ANALYSIS_LIMITED_LABEL = "Analysis Limited — Evidence Incomplete";
 
 function verdictLabel(guidance?: Guidance) {
   return guidance?.publicLabel?.trim() || ANALYSIS_LIMITED_LABEL;
-}
-
-function horizonLabel(horizon?: string) {
-  return horizon === "SWING_2_TO_10_SESSIONS"
-    ? "Swing · 2–10 sessions"
-    : horizon?.replaceAll("_", " ") || "Horizon unavailable";
 }
 
 function freshnessLabel(freshness: unknown, asOf?: string) {

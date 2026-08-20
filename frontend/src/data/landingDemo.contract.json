@@ -1,0 +1,183 @@
+{
+  "$comment": [
+    "Landing-page demonstration contract. Consumed by src/data/landingDemo.ts and",
+    "pinned by backend/tests/testLandingDemoContract.js.",
+    "",
+    "This file is NOT a complete backend AnalysisData payload and must not be typed",
+    "as one. It carries exactly two things per scenario:",
+    "",
+    "  derivation   - the inputs handed to the real backend guidance contract engine.",
+    "  presentation - the canonical values the engine derives from those inputs, which",
+    "                 mounted landing components then render verbatim.",
+    "",
+    "The backend test feeds `derivation` to the real buildGuidanceContract and asserts",
+    "it produces `presentation.publicLabel`, `presentation.horizonToken` and",
+    "`presentation.evidence`. No public verdict wording, horizon vocabulary or risk",
+    "threshold is authored here independently of the backend; every canonical value",
+    "below is a checked copy of engine output, not a second source of truth.",
+    "",
+    "Purely presentational objects with strict union types (the full Shariah panel and",
+    "the thesis-invalidation block) live in landingDemo.ts instead, so TypeScript checks",
+    "them against the canonical contract types without a cast. `derivation.shariah`",
+    "here is only the two fields the compliance gate reads; a frontend test asserts it",
+    "agrees with the rendered panel.",
+    "",
+    "HONEST LIMITATION: `derivation.agreement` is hand-authored. The real agreement",
+    "engine derives agreement from nine live indicator services, which a static fixture",
+    "cannot run. What is engine-derived is the published verdict - the public label, the",
+    "horizon and the evidence presentation - never the starting evidence state. Do not",
+    "describe the landing analysis as engine-derived end to end.",
+    "",
+    "There is deliberately no `risk` key anywhere in this file. ComplianceDemo renders",
+    "no risk, the real risk engine cannot derive a result from these inputs (no price,",
+    "no ATR), and an empty risk object would assert an assessment that was never made."
+  ],
+  "confirmed": {
+    "symbol": "DEMO2",
+    "derivation": {
+      "shariah": {
+        "success": true,
+        "summary": { "status": "COMPLIANT" },
+        "verification": {
+          "lastCheckedAt": "2026-07-01T00:00:00.000Z",
+          "isStale": false
+        }
+      },
+      "metadata": {
+        "asOf": "2026-07-01T00:00:00.000Z",
+        "reviewRequired": false,
+        "evidenceCompleteness": { "status": "complete" },
+        "knownLimitations": []
+      },
+      "agreement": {
+        "success": true,
+        "direction": "Bullish",
+        "agreement": "aligned",
+        "evidenceState": "Moderate agreement",
+        "support": {
+          "direction": "BULLISH",
+          "supportingFamilies": 3,
+          "opposingFamilies": 0,
+          "neutralFamilies": 1
+        },
+        "coverage": {
+          "usableFamilies": 4,
+          "expectedFamilies": 4,
+          "unavailableFamilies": 0,
+          "families": [
+            {
+              "id": "trendPosition",
+              "label": "Trend position",
+              "vote": "BULLISH",
+              "members": [
+                { "name": "EMA", "vote": "BULLISH" },
+                { "name": "SMA", "vote": "BULLISH" },
+                { "name": "Bollinger Bands", "vote": "BEARISH" }
+              ]
+            },
+            {
+              "id": "momentum",
+              "label": "Momentum",
+              "vote": "BULLISH",
+              "members": [
+                { "name": "RSI", "vote": "BULLISH" },
+                { "name": "MACD", "vote": "BULLISH" }
+              ]
+            },
+            {
+              "id": "priceAction",
+              "label": "Price action",
+              "vote": "NEUTRAL",
+              "members": [{ "name": "Candlestick", "vote": "NEUTRAL" }]
+            },
+            {
+              "id": "volumeFlow",
+              "label": "Volume flow",
+              "vote": "BULLISH",
+              "members": [{ "name": "OBV", "vote": "BULLISH" }]
+            }
+          ]
+        },
+        "summary": "3 of 4 evidence families support a bullish lean.",
+        "agreementSummary": "Current technical evidence has a bullish lean—not a guarantee of future performance.",
+        "bullishSignals": 5,
+        "bearishSignals": 1,
+        "neutralSignals": 1,
+        "availableIndicators": 9,
+        "expectedIndicators": 9
+      }
+    },
+    "presentation": {
+      "publicLabel": "Constructive — Upside Evidence Established",
+      "horizonToken": "SWING_2_TO_10_SESSIONS",
+      "summary": "Current technical evidence has a bullish lean—not a guarantee of future performance.",
+      "evidence": {
+        "state": "Moderate agreement",
+        "support": {
+          "direction": "BULLISH",
+          "supportingFamilies": 3,
+          "opposingFamilies": 0,
+          "neutralFamilies": 1
+        },
+        "coverage": {
+          "usableFamilies": 4,
+          "expectedFamilies": 4,
+          "unavailableFamilies": 0,
+          "families": [
+            {
+              "id": "trendPosition",
+              "label": "Trend position",
+              "vote": "BULLISH",
+              "members": [
+                { "name": "EMA", "vote": "BULLISH" },
+                { "name": "SMA", "vote": "BULLISH" },
+                { "name": "Bollinger Bands", "vote": "BEARISH" }
+              ]
+            },
+            {
+              "id": "momentum",
+              "label": "Momentum",
+              "vote": "BULLISH",
+              "members": [
+                { "name": "RSI", "vote": "BULLISH" },
+                { "name": "MACD", "vote": "BULLISH" }
+              ]
+            },
+            {
+              "id": "priceAction",
+              "label": "Price action",
+              "vote": "NEUTRAL",
+              "members": [{ "name": "Candlestick", "vote": "NEUTRAL" }]
+            },
+            {
+              "id": "volumeFlow",
+              "label": "Volume flow",
+              "vote": "BULLISH",
+              "members": [{ "name": "OBV", "vote": "BULLISH" }]
+            }
+          ]
+        },
+        "summary": "3 of 4 evidence families support a bullish lean."
+      }
+    }
+  },
+  "withheld": {
+    "symbol": "DEMO1",
+    "derivation": {
+      "shariah": {
+        "success": true,
+        "summary": { "status": "UNKNOWN" },
+        "verification": { "lastCheckedAt": null, "isStale": false }
+      },
+      "agreement": {
+        "success": false,
+        "withheld": true,
+        "reason": "NOT_CONFIRMED"
+      }
+    },
+    "presentation": {
+      "publicLabel": "Verdict Withheld — Shariah Gate Not Cleared",
+      "withheldMessage": "AAOIFI Shariah compliance has not been confirmed for this stock, so AzaLens withholds its trade analysis. Details are in the Shariah Compliance workspace."
+    }
+  }
+}

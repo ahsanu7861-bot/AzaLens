@@ -188,3 +188,37 @@ describe("GuidanceVerdict Rule 6 presentation", () => {
     expect(container.textContent).not.toMatch(/\b(?:buy|sell|hold|wait|enter|exit)\b/i);
   });
 });
+
+/*
+ * The analysis workspace must stay on the default headline presentation.
+ *
+ * `headlineScale` was added for the landing demonstration, whose column is far
+ * narrower than this one. If the workspace ever adopted it, the eight committed
+ * Linux baselines under e2e/visual.spec.ts-snapshots would all move — so this is
+ * the guard that keeps a landing-only concern out of the product surface.
+ */
+describe("GuidanceVerdict headline presentation", () => {
+  it("renders the verdict at the standard scale, not the landing compact scale", () => {
+    const { container } = render(<GuidanceVerdict guidance={guidance()} />);
+    const headline = container.querySelector("h2");
+
+    expect(headline).not.toBeNull();
+    expect(headline?.textContent).toBe(
+      "CONSTRUCTIVE — UPSIDE EVIDENCE ESTABLISHED",
+    );
+
+    for (const className of [
+      "break-words",
+      "font-display",
+      "text-4xl",
+      "font-bold",
+      "tracking-tight",
+      "sm:text-5xl",
+    ]) {
+      expect(headline?.className).toContain(className);
+    }
+
+    expect(headline?.className).not.toContain("text-2xl");
+    expect(headline?.className).not.toContain("sm:text-3xl");
+  });
+});

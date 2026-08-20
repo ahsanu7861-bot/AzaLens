@@ -16,7 +16,37 @@ interface VerdictCardProps {
   summary?: string;
   invalidation?: ThesisInvalidation | null;
   isLoading?: boolean;
+  /*
+   * Headline typography only. A closed variant rather than a class string, so a
+   * consumer can pick a presentation but cannot invent one.
+   *
+   * "standard" is the established analysis-workspace headline and the default:
+   * omitting this prop renders exactly what it rendered before the prop existed.
+   *
+   * "compact" exists because the canonical public labels are long — "Constructive
+   * — Upside Evidence Established" is 42 characters — and the landing
+   * demonstration renders the card in a two-column grid roughly 240px wide. At
+   * the standard size `break-words` engaged inside words there and split the
+   * label as CONSTRU/CTIVE and ESTABLIS/HED. Compact drops a size and drops
+   * `break-words`, so the same full label wraps only between words.
+   */
+  headlineScale?: "standard" | "compact";
 }
+
+/*
+ * Both variants are spelled out in full rather than composed, so the standard
+ * string is verifiably byte-identical to the pre-correction className and a
+ * reviewer can diff the two presentations directly.
+ *
+ * `break-words` is retained on standard and absent from compact. On the wide
+ * analysis column it is a last-resort guard that never engages in practice; in a
+ * narrow column it is precisely what causes mid-word fragmentation.
+ */
+const HEADLINE_SCALE_CLASSES = {
+  standard:
+    "break-words font-display text-4xl font-bold tracking-tight sm:text-5xl",
+  compact: "font-display text-2xl font-bold tracking-tight sm:text-3xl",
+} as const;
 
 type VerdictTone = {
   accent: string;
@@ -175,6 +205,7 @@ export default function VerdictCard({
   summary,
   invalidation,
   isLoading = false,
+  headlineScale = "standard",
 }: VerdictCardProps) {
   const verdict = direction?.trim() || trend?.trim() || "Unavailable";
   const tone = getVerdictTone(verdict);
@@ -195,7 +226,7 @@ export default function VerdictCard({
           <p className="az-eyebrow text-intelligence">AzaLens Verdict</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <h2
-              className={`break-words font-display text-4xl font-bold tracking-tight sm:text-5xl ${tone.accent}`}
+              className={`${HEADLINE_SCALE_CLASSES[headlineScale]} ${tone.accent}`}
             >
               {isLoading ? "ANALYZING" : verdict.toUpperCase()}
             </h2>
