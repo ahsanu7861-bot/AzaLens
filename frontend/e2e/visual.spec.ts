@@ -347,23 +347,84 @@ test.describe("@visual analysis workspace", () => {
         technical.getByText("No decisive pattern", { exact: true }),
       ).toBeVisible();
       await settle();
-      if (process.env.CI) {
-        await captureTechnicalCandidate({
-          technical,
-          page,
-          theme,
-          projectName: testInfo.project.name,
-        });
-      }
-      await expect.soft(technical).toHaveScreenshot(
-        `analysis-technical-${theme}.png`,
-        {
-          animations: "disabled",
-          caret: "hide",
-          maxDiffPixelRatio: 0.005,
-          threshold: 0.2,
-        },
+
+      /*
+       * Element screenshots scroll their target through the viewport. Fixed and
+       * sticky application chrome then stays pinned while Playwright stitches a
+       * target taller than that viewport, compositing the chrome into the panel.
+       * The first review candidates exposed the full shell header, mobile bottom
+       * navigation, analysis header/tabs and even the off-screen skip link inside
+       * the Technical evidence. Hide only those chrome layers while both the
+       * review candidate and comparator actual are captured.
+       *
+       * Fixed elements are out of flow and can use display:none. The analysis
+       * header is sticky and remains in flow, so visibility:hidden prevents paint
+       * without changing the panel's geometry. The style node is removed in a
+       * finally block and the assertions below prove the default UI is restored.
+       */
+      const shellHeader = page.locator(".app-shell > header");
+      const shellRail = page.locator(".app-shell > aside");
+      const mobileNavigation = page.getByRole("navigation", {
+        name: "Mobile navigation",
+      });
+      const skipLink = page.locator(".az-skip-link");
+      const analysisHeader = page.locator(
+        "div:has(> main#main-content) > .sticky",
       );
+
+      await expect(shellHeader).toHaveCSS("display", "flex");
+      await expect(analysisHeader).toHaveCSS("visibility", "visible");
+
+      const technicalChromeStyle = await page.addStyleTag({
+        content: [
+          ".app-shell > aside,",
+          ".app-shell > header,",
+          'nav[aria-label="Mobile navigation"],',
+          ".az-skip-link {",
+          "  display: none !important;",
+          "}",
+          "div:has(> main#main-content) > .sticky {",
+          "  visibility: hidden !important;",
+          "}",
+        ].join("\n"),
+      });
+
+      try {
+        for (const fixedChrome of [
+          shellHeader,
+          shellRail,
+          mobileNavigation,
+          skipLink,
+        ]) {
+          await expect(fixedChrome).toHaveCSS("display", "none");
+        }
+        await expect(analysisHeader).toHaveCSS("visibility", "hidden");
+
+        if (process.env.CI) {
+          await captureTechnicalCandidate({
+            technical,
+            page,
+            theme,
+            projectName: testInfo.project.name,
+          });
+        }
+        await expect.soft(technical).toHaveScreenshot(
+          `analysis-technical-${theme}.png`,
+          {
+            animations: "disabled",
+            caret: "hide",
+            maxDiffPixelRatio: 0.005,
+            threshold: 0.2,
+          },
+        );
+      } finally {
+        await technicalChromeStyle.evaluate((node) =>
+          node.parentNode?.removeChild(node),
+        );
+      }
+
+      await expect(shellHeader).toHaveCSS("display", "flex");
+      await expect(analysisHeader).toHaveCSS("visibility", "visible");
 
       await page.getByRole("tab", { name: "Overview" }).click();
       await expect(guidance).toBeVisible();
