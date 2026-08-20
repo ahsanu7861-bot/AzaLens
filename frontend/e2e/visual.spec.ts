@@ -364,9 +364,9 @@ test.describe("@visual analysis workspace", () => {
        */
       const shellHeader = page.locator(".app-shell > header");
       const shellRail = page.locator(".app-shell > aside");
-      const mobileNavigation = page.getByRole("navigation", {
-        name: "Mobile navigation",
-      });
+      const mobileNavigation = page.locator(
+        'nav[aria-label="Mobile navigation"]',
+      );
       const skipLink = page.locator(".az-skip-link");
       const analysisHeader = page.locator(
         "div:has(> main#main-content) > .sticky",
