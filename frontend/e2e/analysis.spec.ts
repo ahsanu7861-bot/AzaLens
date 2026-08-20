@@ -40,6 +40,36 @@ test("moves through all six evidence workspaces", async ({
   }
 });
 
+test("renders the source readings that support the Evidence Agreement", async ({
+  page,
+}) => {
+  await page.goto("/analysis/AAPL");
+  await page.getByRole("tab", { name: "Technical" }).click();
+
+  const panel = page.getByRole("tabpanel");
+  await expect(panel.getByText("58", { exact: true })).toBeVisible();
+  await expect(panel.getByText("$212.40", { exact: true })).toBeVisible();
+  await expect(panel.getByText("$207.80", { exact: true })).toBeVisible();
+  await expect(panel.getByText("1.48", { exact: true })).toBeVisible();
+  await expect(panel.getByText("$211.60", { exact: true })).toBeVisible();
+  await expect(panel.getByText("12,450,000", { exact: true })).toBeVisible();
+  await expect(
+    panel.getByText("No decisive pattern", { exact: true }),
+  ).toBeVisible();
+
+  for (const label of [
+    "RSI",
+    "EMA 20",
+    "SMA 50",
+    "MACD",
+    "Bollinger Bands",
+    "On-Balance Volume",
+    "Candlestick",
+  ]) {
+    await expect(panel).toContainText(label);
+  }
+});
+
 test("reports an API failure and supports recovery", async ({
   page,
 }) => {

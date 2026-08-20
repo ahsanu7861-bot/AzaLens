@@ -178,6 +178,33 @@ test.describe("@visual analysis workspace", () => {
       }
 
       /*
+       * The Technical workspace is the only mounted surface that can prove the
+       * indicator readings behind the Evidence Agreement are present and agree
+       * with the fixture's declared members. Keep this as an element capture:
+       * application chrome is irrelevant to that contract, and a scoped image
+       * remains stable if unrelated page sections grow.
+       */
+      await page.getByRole("tab", { name: "Technical" }).click();
+      const technical = page.getByRole("tabpanel");
+      await expect(technical.getByText("58", { exact: true })).toBeVisible();
+      await expect(
+        technical.getByText("No decisive pattern", { exact: true }),
+      ).toBeVisible();
+      await settle();
+      await expect.soft(technical).toHaveScreenshot(
+        `analysis-technical-${theme}.png`,
+        {
+          animations: "disabled",
+          caret: "hide",
+          maxDiffPixelRatio: 0.005,
+          threshold: 0.2,
+        },
+      );
+
+      await page.getByRole("tab", { name: "Overview" }).click();
+      await expect(guidance).toBeVisible();
+
+      /*
        * The scoped guidance capture keeps the viewport-growing approach added in
        * 580e6e6 and its already-approved baselines. The 100dvh feedback above
        * only changes trailing page height, which an element screenshot does not

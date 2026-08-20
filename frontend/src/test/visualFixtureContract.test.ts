@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { analysisData } from "../../e2e/fixtures/analysis";
+import {
+  analysisData,
+  historyResponse,
+} from "../../e2e/fixtures/analysis";
 import {
   EVIDENCE_FAMILY_IDS,
   EXPECTED_EVIDENCE_FAMILIES,
@@ -70,13 +73,8 @@ const fixture = analysisData;
  * fixture governs are bound to the very interfaces production consumers are
  * compiled against, so `tsc -b` fails if either side moves.
  *
- * The binding is deliberately scoped to those surfaces rather than to the whole
- * `AnalysisResponse["data"]` payload. The fixture currently carries unrelated,
- * pre-existing shape drift elsewhere — `indicators.rsi` is an object where the
- * contract declares a number, and the invalidation blocks omit the required
- * `status` — and widening this binding to the full payload would fail on those
- * instead of on evidence drift. Closing that gap is tracked separately as
- * fixture-contract governance; see WHAT_TO_DO_NEXT.md.
+ * `analysisData` itself is bound to `AnalysisData` at its declaration. These
+ * focused bindings retain readable failures for the public evidence surface.
  */
 const evidenceAgreement: EvidenceAgreement | null | undefined =
   fixture.guidance.evidenceAgreement;
@@ -115,6 +113,71 @@ describe("visual fixture — accepted by the public evidence contract", () => {
       expect(typeof item.statement).toBe("string");
       expect(item.statement.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("visual fixture — mounted source readings agree with evidence members", () => {
+  const indicatorVotes = new Map([
+    ["EMA", analysisData.indicators.ema.signal],
+    ["SMA", analysisData.indicators.sma.signal],
+    ["Bollinger Bands", analysisData.indicators.bollinger?.signal],
+    ["RSI", analysisData.indicators.rsi.signal],
+    ["MACD", analysisData.indicators.macd.signal],
+    ["Candlestick", analysisData.indicators.candlestick?.bias],
+    ["OBV", analysisData.indicators.obv.signal],
+  ]);
+
+  it("provides every indicator that the production service always returns", () => {
+    expect(Object.keys(analysisData.indicators).sort()).toEqual([
+      "adx",
+      "atr",
+      "bollinger",
+      "candlestick",
+      "ema",
+      "macd",
+      "obv",
+      "rsi",
+      "rvol",
+      "sma",
+      "volumeSpike",
+    ]);
+  });
+
+  it("uses the public RSI field consumed by Technical Evidence", () => {
+    expect(analysisData.indicators.rsi.rsi).toBe(58);
+    expect(analysisData.indicators.rsi).not.toHaveProperty("value");
+  });
+
+  it("gives each declared family member the same vote as its mounted reading", () => {
+    for (const member of allMembers) {
+      expect(
+        indicatorVotes.get(member.name),
+        `${member.name} source reading must agree with its family vote`,
+      ).toBe(member.vote);
+    }
+  });
+
+  it("publishes the same complete family coverage on analysis and guidance", () => {
+    expect(analysisData.agreement.coverage?.families).toEqual(families);
+    expect(analysisData.agreement.coverage?.usableFamilies).toBe(
+      EXPECTED_EVIDENCE_FAMILIES,
+    );
+    expect(analysisData.agreement.coverage?.unavailableFamilies).toBe(0);
+  });
+});
+
+describe("visual fixture — invalidation and history contracts", () => {
+  it("publishes only the mounted canonical invalidation object", () => {
+    expect(analysisData).not.toHaveProperty("thesisInvalidation");
+    expect(analysisData.guidance.invalidation?.status).toBe("intact");
+    expect(analysisData.guidance.invalidation).not.toHaveProperty("summary");
+  });
+
+  it("mocks the identity fields returned by the real history endpoint", () => {
+    expect(historyResponse.success).toBe(true);
+    expect(historyResponse.symbol).toBe("AAPL");
+    expect(historyResponse.interval).toBe("1day");
+    expect(historyResponse.bars).toHaveLength(24);
   });
 });
 
