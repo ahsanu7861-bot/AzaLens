@@ -2,7 +2,7 @@
  * Landing-page candidate capture (roadmap item 1.11).
  *
  * This is NOT the visual regression suite and it produces NOTHING that may be
- * committed. It renders the same six views the visual spec compares, on the same
+ * committed. It renders the same ten views the visual specs compare, on the same
  * CSS-pixel contract, so a human can look at what a baseline would contain
  * before anyone commits to it.
  *
@@ -48,16 +48,20 @@ const PORT = Number(process.env.CANDIDATE_PORT ?? 5177);
 const BASE_URL = `http://${HOST}:${PORT}`;
 
 /*
- * The six captures, and the baseline each one is a candidate *for*. The mapping
+ * The ten captures, and the baseline each one is a candidate *for*. The mapping
  * is recorded rather than implied so the acceptance step never has to guess.
  */
 const CAPTURES = [
-  { name: "landing-page-day-desktop", theme: "day", project: "desktop", scope: "page" },
-  { name: "landing-page-night-desktop", theme: "night", project: "desktop", scope: "page" },
-  { name: "landing-page-day-mobile", theme: "day", project: "mobile", scope: "page" },
-  { name: "landing-page-night-mobile", theme: "night", project: "mobile", scope: "page" },
-  { name: "landing-verdict-desktop", theme: "night", project: "desktop", scope: "verdict" },
-  { name: "landing-verdict-mobile", theme: "night", project: "mobile", scope: "verdict" },
+  { name: "landing-page-day-desktop", route: "/", theme: "day", project: "desktop", scope: "page" },
+  { name: "landing-page-night-desktop", route: "/", theme: "night", project: "desktop", scope: "page" },
+  { name: "landing-page-day-mobile", route: "/", theme: "day", project: "mobile", scope: "page" },
+  { name: "landing-page-night-mobile", route: "/", theme: "night", project: "mobile", scope: "page" },
+  { name: "landing-verdict-desktop", route: "/", theme: "night", project: "desktop", scope: "verdict" },
+  { name: "landing-verdict-mobile", route: "/", theme: "night", project: "mobile", scope: "verdict" },
+  { name: "methodology-page-day-desktop", route: "/methodology", theme: "day", project: "desktop", scope: "page" },
+  { name: "methodology-page-night-desktop", route: "/methodology", theme: "night", project: "desktop", scope: "page" },
+  { name: "methodology-page-day-mobile", route: "/methodology", theme: "day", project: "mobile", scope: "page" },
+  { name: "methodology-page-night-mobile", route: "/methodology", theme: "night", project: "mobile", scope: "page" },
 ];
 
 const FONT_HOSTS = ["https://fonts.googleapis.com/", "https://fonts.gstatic.com/"];
@@ -68,10 +72,9 @@ const PROJECTS = {
   mobile: devices["iPhone 13"],
 };
 
-function baselineFor({ scope, theme, project }) {
+function baselineFor({ name, scope, project }) {
   // Mirrors Playwright's `<name>-<project>-<platform>.png` on Linux CI.
-  const stem =
-    scope === "page" ? `landing-page-${theme}` : "landing-verdict";
+  const stem = scope === "verdict" ? "landing-verdict" : name.replace(`-${project}`, "");
   return `${stem}-${project}-chromium-linux.png`;
 }
 
@@ -151,9 +154,15 @@ async function capture(browser, spec) {
     await route.continue();
   });
 
-  await page.goto("/", { waitUntil: "load" });
-  await page.locator("#product").waitFor({ state: "visible" });
-  await page.getByTestId("landing-demo-confirmed").waitFor({ state: "visible" });
+  await page.goto(spec.route, { waitUntil: "load" });
+  if (spec.route === "/") {
+    await page.locator("#product").waitFor({ state: "visible" });
+    await page.getByTestId("landing-demo-confirmed").waitFor({ state: "visible" });
+  } else {
+    await page
+      .getByRole("heading", { level: 1, name: "Methodology & limitations" })
+      .waitFor({ state: "visible" });
+  }
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
@@ -354,7 +363,7 @@ try {
     );
   }
 
-  console.log(`\n${captures.length} landing candidates written to candidate-artifacts/`);
+  console.log(`\n${captures.length} public-page candidates written to candidate-artifacts/`);
   for (const entry of captures) {
     console.log(
       `  ${entry.filename}  ${entry.dimensions}  ${entry.bytes} bytes  ${entry.sha256}`,
