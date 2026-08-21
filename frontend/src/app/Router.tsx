@@ -23,6 +23,7 @@ const ClosedDemoGate = lazy(
 const AnalysisPage = lazy(() => import("../pages/AnalysisPage"));
 const DashboardPage = lazy(() => import("../pages/DashboardPage"));
 const LandingPage = lazy(() => import("../pages/LandingPage"));
+const MethodologyPage = lazy(() => import("../pages/MethodologyPage"));
 const PortfolioPage = lazy(() => import("../pages/PortfolioPage"));
 const ScannerPage = lazy(() => import("../pages/ScannerPage"));
 const SettingsPage = lazy(() => import("../pages/SettingsPage"));
@@ -141,6 +142,7 @@ export default function Router() {
       <RouteFocusManager />
       <Routes>
         <Route path="/" element={loadPage(<LandingPage />)} />
+        <Route path="/methodology" element={loadPage(<MethodologyPage />)} />
         <Route
           element={loadPage(
             <ClosedDemoGate>

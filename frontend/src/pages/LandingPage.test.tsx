@@ -125,6 +125,9 @@ describe("LandingPage honesty regression (audit V8 / Phase 0 item 1.1)", () => {
     expect(
       screen.getByText(/broker-dealer/i),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /read the methodology and limitations/i }),
+    ).toHaveAttribute("href", "/methodology");
   });
 
   it("does not carry the stale 'AzaLens AI' workspace label", () => {

@@ -145,15 +145,15 @@ export default function AppShell() {
             <span className="az-rail-tooltip">Settings</span>
           </NavLink>
 
-          <button
-            type="button"
-            aria-label="Help"
-            title="Help"
+          <NavLink
+            to="/methodology"
+            aria-label="Methodology and limitations"
+            title="Methodology & limitations"
             className="az-rail-link group"
           >
             <CircleHelp size={20} strokeWidth={1.75} />
-            <span className="az-rail-tooltip">Help</span>
-          </button>
+            <span className="az-rail-tooltip">Methodology</span>
+          </NavLink>
         </div>
       </aside>
 
