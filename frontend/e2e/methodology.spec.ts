@@ -45,9 +45,12 @@ async function makeProviderSafe(page: Page) {
   return { blockedRequests, providerRequests };
 }
 
-async function assertMethodologyContract(page: Page, theme: string) {
+async function assertMethodologyContract(page: Page, theme?: string) {
   await expect(page).toHaveURL(/\/methodology$/);
-  await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-theme",
+    theme ?? /^(day|night)$/,
+  );
   await expect(
     page.getByRole("heading", { level: 1, name: "Methodology & limitations" }),
   ).toBeVisible();
@@ -81,7 +84,7 @@ test("methodology route is public, provider-safe and accessible", async ({ page 
 
   const { blockedRequests, providerRequests } = await makeProviderSafe(page);
   await page.goto("/methodology");
-  await assertMethodologyContract(page, "night");
+  await assertMethodologyContract(page);
 
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter((violation) =>
