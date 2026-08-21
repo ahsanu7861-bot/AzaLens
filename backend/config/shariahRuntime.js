@@ -15,6 +15,7 @@ const DATA_MODES = Object.freeze({
 
 const VALID_DATA_MODES = new Set(Object.values(DATA_MODES));
 const DEFAULT_ESTIMATED_TOKENS_PER_REQUEST = 10;
+const DEFAULT_SHARIAH_CACHE_MINUTES = 1440;
 
 function parseBoolean(value, fallback = false) {
   if (typeof value !== "string") {
@@ -105,6 +106,7 @@ function getShariahRuntimeConfig(env = process.env) {
 
 module.exports = {
   DATA_MODES,
+  DEFAULT_SHARIAH_CACHE_MINUTES,
   getShariahRuntimeConfig,
   parseBoolean,
   parseNonNegativeInteger,
