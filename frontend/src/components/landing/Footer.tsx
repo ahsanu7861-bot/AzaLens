@@ -1,5 +1,6 @@
 import AzaLensLogo from "../brand/AzaLensLogo";
 import { Container } from "../ui";
+import { Link } from "react-router-dom";
 
 export default function Footer() {
   return (
@@ -24,6 +25,11 @@ export default function Footer() {
             act as a broker-dealer. The Shariah screening shown is an
             automated research screen, not a fatwa or personal religious
             ruling.
+          </p>
+          <p>
+            <Link className="font-medium text-brand hover:underline" to="/methodology">
+              Methodology &amp; Limitations
+            </Link>
           </p>
           <p>&copy; {new Date().getFullYear()} AzaLens.</p>
         </div>

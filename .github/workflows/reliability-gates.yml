@@ -331,6 +331,15 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Upload methodology and purification review candidates
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: methodology-and-purification-visual-candidates
+          path: frontend/methodology-candidate-artifacts
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload Technical review candidates
         if: always()
         uses: actions/upload-artifact@v4

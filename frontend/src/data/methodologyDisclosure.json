@@ -1,0 +1,16 @@
+{
+  "internalShariahContractVersion": "0.5.0",
+  "externalMethodologyFamily": "AAOIFI",
+  "providerStatedStandardReference": "AAOIFI Shari’ah Standard No. 21",
+  "externalStandardEdition": null,
+  "providerAAOIFIAccredited": false,
+  "screeningSource": "A third-party screening provider supplies the company-level AAOIFI result and supporting ratios.",
+  "cacheHours": 24,
+  "staleAfterDays": 7,
+  "defaultMarketDelayMinutes": 15,
+  "guidanceHorizon": "2–10 trading sessions",
+  "researchBoundaries": {
+    "debtToAssetsPercent": 30,
+    "impermissibleIncomePercent": 5
+  }
+}

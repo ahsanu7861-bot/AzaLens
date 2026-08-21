@@ -23,6 +23,7 @@ playwright-report
 # and never an accepted baseline.
 candidate-artifacts
 technical-candidate-artifacts
+methodology-candidate-artifacts
 
 # Editor directories and files
 .vscode/*

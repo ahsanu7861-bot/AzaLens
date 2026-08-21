@@ -5,6 +5,8 @@ const AAOIFI_METHODOLOGY_VERSION = "0.5.0";
 const DEFAULT_MARKET_DELAY_MINUTES = 15;
 const SHARIAH_STALE_AFTER_HOURS = 24 * 7;
 const MINIMUM_RELIABLE_HISTORY_BARS = 50;
+const SHARIAH_DEBT_TO_ASSETS_BOUNDARY = 0.3;
+const SHARIAH_IMPERMISSIBLE_INCOME_BOUNDARY = 0.05;
 
 function toFiniteNumber(value, fallback = null) {
   if (value === null || value === undefined || value === "") {
@@ -460,8 +462,10 @@ function buildFundamentalInvalidation({ shariah, generatedAt }) {
     !shariahStale;
   const boundaryViolated =
     status === "NON_COMPLIANT" ||
-    (debtToAssets !== null && debtToAssets > 0.3) ||
-    (impermissibleIncome !== null && impermissibleIncome > 0.05);
+    (debtToAssets !== null &&
+      debtToAssets > SHARIAH_DEBT_TO_ASSETS_BOUNDARY) ||
+    (impermissibleIncome !== null &&
+      impermissibleIncome > SHARIAH_IMPERMISSIBLE_INCOME_BOUNDARY);
 
   return {
     status: !evidenceAvailable
@@ -519,6 +523,10 @@ module.exports = {
     TRUST_CONTRACT_VERSION,
     TECHNICAL_METHODOLOGY_VERSION,
     AAOIFI_METHODOLOGY_VERSION,
+    DEFAULT_MARKET_DELAY_MINUTES,
+    SHARIAH_STALE_AFTER_HOURS,
+    SHARIAH_DEBT_TO_ASSETS_BOUNDARY,
+    SHARIAH_IMPERMISSIBLE_INCOME_BOUNDARY,
     MINIMUM_RELIABLE_HISTORY_BARS,
   },
 };

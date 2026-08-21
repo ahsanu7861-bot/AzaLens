@@ -4,6 +4,7 @@ const path = require("path");
 const { getCache, setCache } = require("../utils/cache");
 const {
   DATA_MODES,
+  DEFAULT_SHARIAH_CACHE_MINUTES,
   getShariahRuntimeConfig,
 } = require("../config/shariahRuntime");
 const {
@@ -19,7 +20,7 @@ const PROVIDER_NAME = "Halal Terminal";
 const PROVIDER_ID = "halal_terminal";
 const DEFAULT_BASE_URL = "https://api.halalterminal.com";
 const DEFAULT_TIMEOUT_MS = 5000;
-const DEFAULT_CACHE_MINUTES = 1440;
+const DEFAULT_CACHE_MINUTES = DEFAULT_SHARIAH_CACHE_MINUTES;
 const DEFAULT_METHODOLOGY_IDS = Object.freeze([
   "AAOIFI",
   "DJIM",
