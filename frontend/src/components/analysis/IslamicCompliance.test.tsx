@@ -82,8 +82,25 @@ describe("IslamicCompliance truth states", () => {
     expect(screen.getAllByText("3.37%")).toHaveLength(3);
     expect(screen.getByText(/interest income divided by total revenue/i)).toBeInTheDocument();
     expect(screen.getByText(/combined impure-revenue ratio/i)).toBeInTheDocument();
-    expect(screen.getByText(/guidance for dividends/i)).toBeInTheDocument();
+    expect(screen.getByText(/treatment of the impure portion of dividend income/i)).toBeInTheDocument();
     expect(screen.getByText(/not debt divided by market capitalization/i)).toBeInTheDocument();
+  });
+
+  it("renders purification as a distinct, non-calculating disclosure", () => {
+    renderCompliance({ summary: { purificationRateFormatted: "0.42%" } });
+
+    const section = screen.getByRole("region", { name: "Provider-reported rate" });
+    expect(section).toHaveTextContent("0.42%");
+    expect(section).toHaveTextContent(/does not calculate your personal cash obligation/i);
+    expect(section).toHaveTextContent(/qualified Shariah scholar/i);
+  });
+
+  it("never presents an unavailable purification rate as zero", () => {
+    renderCompliance({ summary: { purificationRateFormatted: null } });
+    const section = screen.getByRole("region", { name: "Provider-reported rate" });
+    expect(section).toHaveTextContent("Unavailable");
+    expect(section).toHaveTextContent(/is not zero/i);
+    expect(section).not.toHaveTextContent("0%");
   });
 
   it("discloses stale evidence", () => {

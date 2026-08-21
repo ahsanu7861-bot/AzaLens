@@ -456,6 +456,48 @@ test.describe("@visual analysis workspace", () => {
           threshold: 0.2,
         },
       );
+
+      if (theme === "night") {
+        await page.setViewportSize(viewport);
+        await page.getByRole("tab", { name: "Shariah" }).click();
+        const shariahPanel = page.getByRole("tabpanel");
+        const purification = shariahPanel.getByRole("region", {
+          name: "Provider-reported rate",
+        });
+        await expect(purification).toBeVisible();
+        await expect(purification).toContainText("An unavailable rate is not zero");
+        await settle();
+
+        const purificationChromeStyle = await page.addStyleTag({
+          content: [
+            ".app-shell > aside,",
+            ".app-shell > header,",
+            'nav[aria-label="Mobile navigation"],',
+            ".az-skip-link {",
+            "  display: none !important;",
+            "}",
+            "div:has(> main#main-content) > .sticky {",
+            "  visibility: hidden !important;",
+            "}",
+          ].join("\n"),
+        });
+
+        try {
+          await expect.soft(purification).toHaveScreenshot(
+            "analysis-purification.png",
+            {
+              animations: "disabled",
+              caret: "hide",
+              maxDiffPixelRatio: 0.005,
+              threshold: 0.2,
+            },
+          );
+        } finally {
+          await purificationChromeStyle.evaluate((node) =>
+            node.parentNode?.removeChild(node),
+          );
+        }
+      }
     });
   }
 });

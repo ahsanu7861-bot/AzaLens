@@ -173,17 +173,6 @@ export default function IslamicCompliance({
       description:
         "Provider-reported combined impure-revenue ratio. It may include interest income and other impermissible revenue.",
     },
-    {
-      label: "Dividend purification",
-      value:
-        data?.summary?.purificationRateFormatted ||
-        "Unavailable",
-      badge: data?.summary?.purificationRateFormatted
-        ? "info"
-        : "neutral",
-      description:
-        "Provider-reported purification rate. It is guidance for dividends, not the investor’s calculated purification amount.",
-    },
   ] satisfies Array<{
     label: string;
     value: string;
@@ -232,6 +221,29 @@ export default function IslamicCompliance({
             </p>
           </div>
         </div>
+
+        <section
+          aria-labelledby="purification-heading"
+          className="az-subcard mt-6 rounded-2xl border border-shariah/20 bg-shariah/10 p-5 sm:p-6"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="max-w-2xl">
+              <p className="az-eyebrow" style={{ color: "var(--az-shariah)" }}>Dividend purification</p>
+              <h3 id="purification-heading" className="mt-2 font-display text-xl font-semibold text-ink">
+                Provider-reported rate
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-ink-soft">
+                Purification is the treatment of the impure portion of dividend income. AzaLens reports the provider’s rate when available; it does not calculate your personal cash obligation or decide how the rate applies to your holdings.
+              </p>
+            </div>
+            <Badge variant={data?.summary?.purificationRateFormatted ? "info" : "neutral"}>
+              {isLoading ? "Loading" : data?.summary?.purificationRateFormatted || "Unavailable"}
+            </Badge>
+          </div>
+          <p className="mt-4 text-xs leading-5 text-ink-muted">
+            An unavailable rate is not zero. Confirm personal application with a qualified Shariah scholar.
+          </p>
+        </section>
 
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {metrics.map((metric) => (
