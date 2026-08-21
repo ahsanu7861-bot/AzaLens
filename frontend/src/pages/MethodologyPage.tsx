@@ -1,17 +1,6 @@
-import {
-  AlertTriangle,
-  ArrowLeft,
-  BookOpenCheck,
-  Clock3,
-  ExternalLink,
-  Gauge,
-  Scale,
-  ShieldCheck,
-} from "lucide-react";
 import { Link } from "react-router-dom";
 
 import AzaLensLogo from "../components/brand/AzaLensLogo";
-import ThemeToggle from "../components/layout/ThemeToggle";
 import { Card, Container } from "../components/ui";
 
 const HALAL_TERMINAL_METHODOLOGY =
@@ -20,17 +9,19 @@ const AAOIFI_STANDARD_LIST =
   "https://aaoifi.com/shariah-standards-3/?lang=en";
 
 type PrincipleProps = {
-  icon: typeof ShieldCheck;
+  marker: string;
   title: string;
   children: React.ReactNode;
 };
 
-function Principle({ icon: Icon, title, children }: PrincipleProps) {
+function Principle({ marker, title, children }: PrincipleProps) {
   return (
     <Card>
       <div className="flex items-start gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-brand/20 bg-brand/10 text-brand">
-          <Icon size={18} strokeWidth={1.8} />
+          <span className="text-xs font-bold tracking-wider" aria-hidden="true">
+            {marker}
+          </span>
         </span>
         <div>
           <h2 className="font-display text-lg font-semibold text-ink">
@@ -54,7 +45,6 @@ function SourceLink({ href, children }: { href: string; children: React.ReactNod
       className="inline-flex items-center gap-1 font-semibold text-brand underline decoration-brand/30 underline-offset-4 hover:decoration-brand"
     >
       {children}
-      <ExternalLink size={13} aria-hidden="true" />
     </a>
   );
 }
@@ -67,15 +57,13 @@ export default function MethodologyPage() {
           <Link to="/" aria-label="AzaLens home">
             <AzaLensLogo className="h-8 w-36" />
           </Link>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto">
             <Link
               to="/"
               className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-ink-soft transition hover:bg-surface-soft hover:text-ink"
             >
-              <ArrowLeft size={16} />
-              Back to AzaLens
+              <span aria-hidden="true">←</span> Back to AzaLens
             </Link>
-            <ThemeToggle />
           </div>
         </Container>
       </header>
@@ -103,7 +91,7 @@ export default function MethodologyPage() {
           </header>
 
           <div className="mt-10 grid gap-5 lg:grid-cols-2">
-            <Principle icon={BookOpenCheck} title="What the product covers">
+            <Principle marker="01" title="What the product covers">
               <p>
                 AzaLens covers listed-company shares. It does not cover
                 cryptocurrency, foreign exchange, commodities, CFDs, options,
@@ -116,7 +104,7 @@ export default function MethodologyPage() {
               </p>
             </Principle>
 
-            <Principle icon={ShieldCheck} title="AAOIFI screening boundary">
+            <Principle marker="02" title="AAOIFI screening boundary">
               <p>
                 Halal Terminal supplies the company-level screening result.
                 AzaLens selects the provider&apos;s AAOIFI result as its sole
@@ -137,7 +125,7 @@ export default function MethodologyPage() {
               </p>
             </Principle>
 
-            <Principle icon={Scale} title="What unlocks a verdict">
+            <Principle marker="03" title="What unlocks a verdict">
               <p>
                 Directional guidance is released only when the provider result
                 is successful, the AAOIFI status is compliant, and the evidence
@@ -152,7 +140,7 @@ export default function MethodologyPage() {
               </p>
             </Principle>
 
-            <Principle icon={Clock3} title="Freshness and data timing">
+            <Principle marker="04" title="Freshness and data timing">
               <p>
                 The Shariah provider response is cached for up to 24 hours to
                 control cost and duplicate requests. AzaLens treats Shariah
@@ -167,7 +155,7 @@ export default function MethodologyPage() {
               </p>
             </Principle>
 
-            <Principle icon={Gauge} title="Risk and technical limitations">
+            <Principle marker="05" title="Risk and technical limitations">
               <p>
                 Indicators summarize historical price and volume. They can be
                 unavailable, delayed, contradictory or structurally incomplete.
@@ -182,7 +170,7 @@ export default function MethodologyPage() {
               </p>
             </Principle>
 
-            <Principle icon={AlertTriangle} title="Purification and personal decisions">
+            <Principle marker="06" title="Purification and personal decisions">
               <p>
                 When available, AzaLens reports the provider&apos;s dividend
                 purification rate. It does not calculate an investor&apos;s personal
