@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { captureMethodologyCandidate } from "./methodologyCandidates";
 
 const themes = ["night", "day"] as const;
 
 test.describe("@visual public methodology", () => {
   for (const theme of themes) {
-    test(`${theme} methodology remains visually stable`, async ({ page }) => {
+    test(`${theme} methodology remains visually stable`, async ({ page }, testInfo) => {
       const providerRequests: string[] = [];
       await page.addInitScript((selectedTheme) => {
         window.localStorage.setItem("azalens-theme", selectedTheme);
@@ -29,6 +30,16 @@ test.describe("@visual public methodology", () => {
       await page.evaluate(async () => document.fonts.ready);
 
       expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+      if (process.env.CI) {
+        await captureMethodologyCandidate({
+          page,
+          target: page,
+          name: `methodology-page-${theme}`,
+          baseline: `methodology-page-${theme}`,
+          projectName: testInfo.project.name,
+          fullPage: true,
+        });
+      }
       await expect(page).toHaveScreenshot(`methodology-page-${theme}.png`, {
         fullPage: true,
         animations: "disabled",

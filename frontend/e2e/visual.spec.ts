@@ -18,6 +18,7 @@ import {
   FIXTURE_NOW,
   mockHealthyAnalysis,
 } from "./fixtures/analysis";
+import { captureMethodologyCandidate } from "./methodologyCandidates";
 
 const themes = ["night", "day"] as const;
 const technicalCandidateDir = join(
@@ -483,6 +484,15 @@ test.describe("@visual analysis workspace", () => {
         });
 
         try {
+          if (process.env.CI) {
+            await captureMethodologyCandidate({
+              page,
+              target: purification,
+              name: "analysis-purification",
+              baseline: "analysis-purification",
+              projectName: testInfo.project.name,
+            });
+          }
           await expect.soft(purification).toHaveScreenshot(
             "analysis-purification.png",
             {
