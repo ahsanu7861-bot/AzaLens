@@ -316,7 +316,7 @@ jobs:
           echo "No baseline written; worktree clean; no Darwin baseline."
 
       # Review-only candidates. This path never calls toHaveScreenshot, so it
-      # cannot write a baseline; it writes six prefixed PNGs plus a manifest into
+      # cannot write a baseline; it writes ten prefixed PNGs plus a manifest into
       # a gitignored directory.
       - name: Capture landing review candidates
         if: always()

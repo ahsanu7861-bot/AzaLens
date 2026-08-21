@@ -57,7 +57,7 @@ describe("candidate capture pins the screenshot scale", () => {
     const code = captureCode();
 
     // One screenshot call serves desktop and mobile, full-page and scoped, so a
-    // single pinned scale covers all six candidates. If the call is ever split,
+    // single pinned scale covers all ten candidates. If the call is ever split,
     // this count changes and the assertion below forces the scale to be
     // re-pinned on each path.
     const screenshotCalls = code.match(/\.screenshot\(\{/g) ?? [];
@@ -158,18 +158,22 @@ describe("candidate manifest contract", () => {
       candidate("candidate--landing-page-night-mobile.png", "390x9590", 3),
       candidate("candidate--landing-verdict-desktop.png", "1142x1385"),
       candidate("candidate--landing-verdict-mobile.png", "300x3129", 3),
+      candidate("candidate--methodology-page-day-desktop.png", "1280x1800"),
+      candidate("candidate--methodology-page-night-desktop.png", "1280x1800"),
+      candidate("candidate--methodology-page-day-mobile.png", "390x3200", 3),
+      candidate("candidate--methodology-page-night-mobile.png", "390x3200", 3),
     ],
   });
 
-  it("accepts exactly the six expected candidates on the CSS contract", () => {
+  it("accepts exactly the ten expected candidates on the CSS contract", () => {
     expect(() => assertManifestContract(validManifest())).not.toThrow();
-    expect(EXPECTED_CANDIDATE_FILENAMES).toHaveLength(6);
+    expect(EXPECTED_CANDIDATE_FILENAMES).toHaveLength(10);
   });
 
-  it("rejects a seventh candidate or a missing one", () => {
+  it("rejects an eleventh candidate or a missing one", () => {
     const extra = validManifest();
     extra.candidates.push(candidate("candidate--landing-extra.png", "10x10"));
-    expect(() => assertManifestContract(extra)).toThrow(/expected 6 candidates, found 7/);
+    expect(() => assertManifestContract(extra)).toThrow(/expected 10 candidates, found 11/);
 
     const short = validManifest();
     short.candidates.pop();

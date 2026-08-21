@@ -34,6 +34,10 @@ export const EXPECTED_CANDIDATE_FILENAMES = [
   "candidate--landing-page-night-mobile.png",
   "candidate--landing-verdict-desktop.png",
   "candidate--landing-verdict-mobile.png",
+  "candidate--methodology-page-day-desktop.png",
+  "candidate--methodology-page-night-desktop.png",
+  "candidate--methodology-page-day-mobile.png",
+  "candidate--methodology-page-night-mobile.png",
 ];
 
 /**
@@ -74,7 +78,7 @@ export function assertCssScaleGeometry({
 }
 
 /**
- * Assert the finished manifest describes exactly the six expected candidates,
+ * Assert the finished manifest describes exactly the ten expected candidates,
  * all captured on the CSS-scale contract, none of them a baseline path.
  */
 export function assertManifestContract(manifest) {
