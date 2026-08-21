@@ -54,7 +54,9 @@ async function assertMethodologyContract(page: Page, theme?: string) {
   await expect(
     page.getByRole("heading", { level: 1, name: "Methodology & limitations" }),
   ).toBeVisible();
-  await expect(page.getByText(/listed-company shares/i)).toBeVisible();
+  await expect(
+    page.getByText(/^AzaLens covers listed-company shares\./i),
+  ).toBeVisible();
   await expect(page.getByText(/sole displayed Shariah methodology/i)).toBeVisible();
   await expect(page.getByText(/not empirically calibrated or validated/i)).toBeVisible();
   await expect(page.getByText(/not investment advice/i)).toBeVisible();
