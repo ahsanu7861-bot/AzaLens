@@ -1,10 +1,34 @@
 const axios = require("axios");
 
+const {
+  buildCacheKey
+} = require("../utils/cache");
+
 // ==================================================
 // Finnhub Configuration
 // ==================================================
 
 const FINNHUB_BASE_URL = "https://finnhub.io/api/v1";
+const PROVIDER_ID = "finnhub";
+
+/*
+  Cache and pending-request keys carry the provider id and the cache contract
+  version. The Maps below are module-private, so a Twelve Data record cannot
+  physically reach them today - but that is a property of the file layout, not
+  a declared guarantee. Qualifying the key makes it one, and keeps the two
+  providers' namespaces provably disjoint under
+  backend/tests/testProviderCacheNamespaces.js.
+
+  This is a namespacing change only. TTLs, values, coalescing behaviour and
+  every normalized response field are untouched.
+*/
+function finnhubCacheKey(capability, ...parts) {
+  return buildCacheKey({
+    provider: PROVIDER_ID,
+    capability,
+    parts
+  });
+}
 
 const DEFAULT_QUOTE_CACHE_TTL_MS = 20 * 1000;
 const DEFAULT_PROFILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -203,7 +227,10 @@ async function searchListedEquities(query, limit = 12) {
     return [];
   }
 
-  const cacheKey = normalizedQuery.toLowerCase();
+  const cacheKey = finnhubCacheKey(
+    "search",
+    normalizedQuery.toLowerCase()
+  );
   const cachedEntry = readFreshCache(symbolSearchCache, cacheKey);
 
   if (cachedEntry) {
@@ -267,17 +294,19 @@ async function searchListedEquities(query, limit = 12) {
 // ==================================================
 
 async function fetchCompanyProfile(symbol) {
+  const cacheKey = finnhubCacheKey("profile", symbol);
+
   const cachedEntry = readFreshCache(
     profileCache,
-    symbol
+    cacheKey
   );
 
   if (cachedEntry) {
     return cachedEntry.value;
   }
 
-  if (pendingProfileRequests.has(symbol)) {
-    return pendingProfileRequests.get(symbol);
+  if (pendingProfileRequests.has(cacheKey)) {
+    return pendingProfileRequests.get(cacheKey);
   }
 
   const requestPromise = (async () => {
@@ -302,7 +331,7 @@ async function fetchCompanyProfile(symbol) {
 
     writeCache(
       profileCache,
-      symbol,
+      cacheKey,
       profile,
       PROFILE_CACHE_TTL_MS
     );
@@ -311,14 +340,14 @@ async function fetchCompanyProfile(symbol) {
   })();
 
   pendingProfileRequests.set(
-    symbol,
+    cacheKey,
     requestPromise
   );
 
   try {
     return await requestPromise;
   } finally {
-    pendingProfileRequests.delete(symbol);
+    pendingProfileRequests.delete(cacheKey);
   }
 }
 
@@ -452,9 +481,14 @@ async function getFinnhubQuote(symbol) {
     };
   }
 
+  const cacheKey = finnhubCacheKey(
+    "quote",
+    normalizedSymbol
+  );
+
   const cachedEntry = readFreshCache(
     quoteCache,
-    normalizedSymbol
+    cacheKey
   );
 
   if (cachedEntry) {
@@ -477,19 +511,19 @@ async function getFinnhubQuote(symbol) {
   */
   if (
     pendingQuoteRequests.has(
-      normalizedSymbol
+      cacheKey
     )
   ) {
     try {
       const pendingResult =
         await pendingQuoteRequests.get(
-          normalizedSymbol
+          cacheKey
         );
 
       const newCacheEntry =
         readFreshCache(
           quoteCache,
-          normalizedSymbol
+          cacheKey
         );
 
       return {
@@ -538,7 +572,7 @@ async function getFinnhubQuote(symbol) {
 
     const cacheEntry = writeCache(
       quoteCache,
-      normalizedSymbol,
+      cacheKey,
       freshResult,
       QUOTE_CACHE_TTL_MS
     );
@@ -568,7 +602,7 @@ async function getFinnhubQuote(symbol) {
   derivedQuotePromise.catch(() => {});
 
   pendingQuoteRequests.set(
-    normalizedSymbol,
+    cacheKey,
     derivedQuotePromise
   );
 
@@ -610,7 +644,7 @@ async function getFinnhubQuote(symbol) {
     };
   } finally {
     pendingQuoteRequests.delete(
-      normalizedSymbol
+      cacheKey
     );
   }
 }
@@ -703,9 +737,14 @@ function clearFinnhubQuoteCache(symbol = null) {
     const normalizedSymbol =
       normalizeSymbol(symbol);
 
-    quoteCache.delete(normalizedSymbol);
-    pendingQuoteRequests.delete(
+    const cacheKey = finnhubCacheKey(
+      "quote",
       normalizedSymbol
+    );
+
+    quoteCache.delete(cacheKey);
+    pendingQuoteRequests.delete(
+      cacheKey
     );
 
     return {
@@ -733,12 +772,17 @@ function clearFinnhubProfileCache(
     const normalizedSymbol =
       normalizeSymbol(symbol);
 
-    profileCache.delete(
+    const cacheKey = finnhubCacheKey(
+      "profile",
       normalizedSymbol
     );
 
+    profileCache.delete(
+      cacheKey
+    );
+
     pendingProfileRequests.delete(
-      normalizedSymbol
+      cacheKey
     );
 
     return {
@@ -783,12 +827,31 @@ function getFinnhubCacheStats() {
   };
 }
 
+function clearFinnhubSearchCache() {
+  symbolSearchCache.clear();
+  pendingSymbolSearchRequests.clear();
+}
+
+function getFinnhubCacheKeysForTests() {
+  return {
+    quote: [...quoteCache.keys()],
+    profile: [...profileCache.keys()],
+    search: [...symbolSearchCache.keys()],
+    pendingQuote: [...pendingQuoteRequests.keys()],
+    pendingProfile: [...pendingProfileRequests.keys()],
+    pendingSearch: [...pendingSymbolSearchRequests.keys()]
+  };
+}
+
 module.exports = {
   getFinnhubQuote,
   getFinnhubCompanyProfile,
   getHistoricalCandles,
   clearFinnhubQuoteCache,
   clearFinnhubProfileCache,
+  clearFinnhubSearchCache,
+  getFinnhubCacheKeysForTests,
   getFinnhubCacheStats,
+  isListedEquitySearchResult,
   searchListedEquities
 };

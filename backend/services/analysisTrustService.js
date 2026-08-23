@@ -17,6 +17,98 @@ function toFiniteNumber(value, fallback = null) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+/*
+  ==========================================================================
+  Market-data delay, named for the capability rather than for one provider
+  ==========================================================================
+
+  This value drives a user-visible claim: whether a displayed quote is labelled
+  realtime or delayed. It was read from FINNHUB_DELAY_MINUTES, which becomes a
+  lie the moment the quote provider is not Finnhub.
+
+  The variable is now MARKET_DATA_DELAY_MINUTES. FINNHUB_DELAY_MINUTES is still
+  honoured as a deprecated alias so an existing deployment keeps working without
+  an environment change - PR A must not require one.
+
+  The 15-minute default is deliberately unchanged. Twelve Data's `/quote` is
+  documented as real-time, but AzaLens has not verified what its own plan and
+  feed actually deliver, and publishing "realtime" on an unverified assumption
+  would be a worse error than publishing a conservative delay. Choosing the
+  disclosed figure for a Twelve Data quote is a PR B decision that needs
+  observed provider evidence, not a guess made here.
+
+  `source` is returned alongside the value so the resolution path is
+  internally observable rather than inferred.
+*/
+const MARKET_DELAY_VARIABLE = "MARKET_DATA_DELAY_MINUTES";
+const LEGACY_MARKET_DELAY_VARIABLE = "FINNHUB_DELAY_MINUTES";
+
+/*
+  ==========================================================================
+  The delay domain is NARROWER than the provider-number domain
+  ==========================================================================
+
+  These are two different semantic domains and must not be collapsed into one
+  helper:
+
+    - a PROVIDER NUMERIC FIELD may legitimately be negative. A price change of
+      -3.94, a percent change of -1.76 and a negative Shariah ratio are all real
+      values, so toFiniteNumber above accepts the whole signed finite range.
+
+    - a MARKET DELAY may not. Minutes are a duration, and a negative duration
+      is meaningless. It is also actively dangerous here, because the resolved
+      count is what decides whether AzaLens publishes "delayed" or "realtime":
+      `delayMinutes > 0 ? "delayed" : "realtime"` treats any value <= 0 as
+      realtime, so a configured -5 would have made the product claim real-time
+      market data on the strength of a typo.
+
+  Zero is emphatically NOT rejected. An explicit 0 or "0" is the established
+  deliberate way to configure realtime, and it must keep working.
+
+    ACCEPTED  - a finite number >= 0
+              - a non-blank numeric string that parses to a finite number >= 0
+                (padding is allowed: " 12 ")
+
+    REJECTED  - negative numbers and negative numeric strings
+              - null, undefined, "", any whitespace-only string
+              - any non-numeric string, NaN, Infinity, -Infinity
+              - booleans, arrays, objects, every other type
+
+  Rejected input falls through to the next source, and finally to the disclosed
+  15-minute default - the conservative answer, because over-stating freshness is
+  the more damaging error.
+*/
+function resolveMarketDelay(env = process.env) {
+  const primary = toFiniteNumber(env[MARKET_DELAY_VARIABLE], null);
+
+  if (primary !== null) {
+    return {
+      minutes: primary,
+      source: MARKET_DELAY_VARIABLE,
+      deprecatedAliasInUse: false,
+    };
+  }
+
+  const legacy = toFiniteNumber(
+    env[LEGACY_MARKET_DELAY_VARIABLE],
+    null
+  );
+
+  if (legacy !== null) {
+    return {
+      minutes: legacy,
+      source: LEGACY_MARKET_DELAY_VARIABLE,
+      deprecatedAliasInUse: true,
+    };
+  }
+
+  return {
+    minutes: DEFAULT_MARKET_DELAY_MINUTES,
+    source: "DEFAULT",
+    deprecatedAliasInUse: false,
+  };
+}
+
 function toIsoTimestamp(value) {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -126,10 +218,7 @@ function resolveMarketState({ market, priceContext }) {
     return "cached";
   }
 
-  const delayMinutes = toFiniteNumber(
-    process.env.FINNHUB_DELAY_MINUTES,
-    DEFAULT_MARKET_DELAY_MINUTES
-  );
+  const delayMinutes = resolveMarketDelay().minutes;
 
   return delayMinutes > 0 ? "delayed" : "realtime";
 }
@@ -146,10 +235,7 @@ function buildAnalysisMetadata({
 }) {
   const delayMinutes = Math.max(
     0,
-    toFiniteNumber(
-      process.env.FINNHUB_DELAY_MINUTES,
-      DEFAULT_MARKET_DELAY_MINUTES
-    )
+    resolveMarketDelay().minutes
   );
   const marketState = resolveMarketState({ market, priceContext });
   const quoteTimestamp =
@@ -519,7 +605,10 @@ function buildThesisInvalidation(input) {
 module.exports = {
   buildAnalysisMetadata,
   buildThesisInvalidation,
+  resolveMarketDelay,
   constants: {
+    MARKET_DELAY_VARIABLE,
+    LEGACY_MARKET_DELAY_VARIABLE,
     TRUST_CONTRACT_VERSION,
     TECHNICAL_METHODOLOGY_VERSION,
     AAOIFI_METHODOLOGY_VERSION,

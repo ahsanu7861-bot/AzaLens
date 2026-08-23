@@ -1,10 +1,13 @@
 const {
+  getCapabilityProviders,
   getCompanyProfile,
   getHistoricalCandles,
+  getProviderLabel,
   getQuote
 } = require("../providers/marketDataProvider");
 
 const {
+  buildCacheKey,
   getCache,
   setCache
 } = require("../utils/cache");
@@ -22,6 +25,27 @@ const {
 function normalizeSymbol(symbol) {
   return String(symbol || "")
     .trim()
+    .toUpperCase();
+}
+
+/*
+  The provenance a response should carry when the provider itself did not get
+  far enough to say - an empty symbol, or a thrown error before any adapter
+  ran. Previously these paths hardcoded "Finnhub" and "FINNHUB", which was
+  correct only for as long as Finnhub was the quote provider.
+
+  Deriving the label from the ACTIVE capability selection keeps it correct
+  under any selection, and keeps it identical to the old literal under the
+  accepted defaults - which is what makes this change invariant today.
+*/
+function capabilityProviderLabel(capability) {
+  return getProviderLabel(
+    getCapabilityProviders()[capability]
+  );
+}
+
+function capabilityProviderSource(capability) {
+  return capabilityProviderLabel(capability)
     .toUpperCase();
 }
 
@@ -442,7 +466,7 @@ async function getMarketDataUnobserved(symbol) {
   if (!normalizedSymbol) {
     return {
       success: false,
-      provider: "Finnhub",
+      provider: capabilityProviderLabel("quote"),
       symbol: normalizedSymbol,
 
       error:
@@ -519,7 +543,7 @@ async function getMarketDataUnobserved(symbol) {
           source:
             cache.hit
               ? "CACHE"
-              : "FINNHUB"
+              : capabilityProviderSource("quote")
         }
       };
     }
@@ -529,7 +553,7 @@ async function getMarketDataUnobserved(symbol) {
 
       provider:
         result?.provider ||
-        "Finnhub",
+        capabilityProviderLabel("quote"),
 
       symbol:
         result?.symbol ||
@@ -552,7 +576,7 @@ async function getMarketDataUnobserved(symbol) {
         source:
           cache.hit
             ? "CACHE"
-            : "FINNHUB"
+            : capabilityProviderSource("quote")
       }
     };
   } catch (error) {
@@ -563,7 +587,7 @@ async function getMarketDataUnobserved(symbol) {
 
     return {
       success: false,
-      provider: "Finnhub",
+      provider: capabilityProviderLabel("quote"),
       symbol: normalizedSymbol,
 
       error:
@@ -586,7 +610,7 @@ async function getMarketDataUnobserved(symbol) {
           startedAt,
 
         cacheHit: false,
-        source: "FINNHUB"
+        source: capabilityProviderSource("quote")
       }
     };
   }
@@ -599,7 +623,8 @@ async function getMarketData(symbol) {
 
   recordProviderResult({
     provider:
-      result?.provider || "Finnhub",
+      result?.provider ||
+      capabilityProviderLabel("quote"),
     operation: "live_quote",
     result,
     durationMs:
@@ -628,7 +653,7 @@ async function getHistoryUnobserved(
   if (!normalizedSymbol) {
     return {
       success: false,
-      provider: "TwelveData",
+      provider: capabilityProviderLabel("history"),
       symbol: normalizedSymbol,
       interval,
 
@@ -651,7 +676,7 @@ async function getHistoryUnobserved(
   if (!normalizedInterval) {
     return {
       success: false,
-      provider: "TwelveData",
+      provider: capabilityProviderLabel("history"),
       symbol: normalizedSymbol,
       interval,
 
@@ -674,8 +699,29 @@ async function getHistoryUnobserved(
     };
   }
 
-  const cacheKey =
-    `history_${normalizedSymbol}_${normalizedInterval}`;
+  /*
+    The history cache lives in utils/cache.js - a single flat namespace shared
+    with halalTerminalProvider - and its key used to be
+    `history_${SYMBOL}_${INTERVAL}` with no provider identity at all.
+
+    HISTORY_PROVIDER is switchable between twelve_data and finnhub, so within
+    one process a flip in either direction served the other provider's bars.
+    It would not have looked broken: Finnhub returns `t` as Unix seconds and
+    Twelve Data returns date strings, and normalizeHistoricalBars accepts both.
+    Compatible shapes are exactly the condition that makes cross-provider reuse
+    invisible rather than safe.
+
+    The key now carries the cache contract version and the provider id, so a
+    Twelve Data record can never satisfy a Finnhub request or the reverse.
+  */
+  const historyProvider =
+    getCapabilityProviders().history;
+
+  const cacheKey = buildCacheKey({
+    provider: historyProvider,
+    capability: "history",
+    parts: [normalizedSymbol, normalizedInterval]
+  });
 
   try {
     // ==============================================
@@ -696,7 +742,7 @@ async function getHistoryUnobserved(
       if (bars.length === 0) {
         return {
           success: false,
-          provider: "TwelveData",
+          provider: capabilityProviderLabel("history"),
           symbol: normalizedSymbol,
           interval:
             normalizedInterval,
@@ -725,7 +771,7 @@ async function getHistoryUnobserved(
 
         provider:
           cachedResult.provider ||
-          "TwelveData",
+          capabilityProviderLabel("history"),
 
         symbol: normalizedSymbol,
 
@@ -787,7 +833,7 @@ async function getHistoryUnobserved(
 
         provider:
           result?.provider ||
-          "TwelveData",
+          capabilityProviderLabel("history"),
 
         symbol:
           normalizedSymbol,
@@ -830,7 +876,7 @@ async function getHistoryUnobserved(
 
         provider:
           result.provider ||
-          "TwelveData",
+          capabilityProviderLabel("history"),
 
         symbol:
           normalizedSymbol,
@@ -862,7 +908,7 @@ async function getHistoryUnobserved(
 
       provider:
         result.provider ||
-        "TwelveData",
+        capabilityProviderLabel("history"),
 
       symbol:
         normalizedSymbol,
@@ -925,7 +971,7 @@ async function getHistoryUnobserved(
 
     return {
       success: false,
-      provider: "TwelveData",
+      provider: capabilityProviderLabel("history"),
       symbol: normalizedSymbol,
 
       interval:
@@ -964,7 +1010,8 @@ async function getHistory(
 
   recordProviderResult({
     provider:
-      result?.provider || "TwelveData",
+      result?.provider ||
+      capabilityProviderLabel("history"),
     operation: "historical_ohlcv",
     result,
     durationMs:

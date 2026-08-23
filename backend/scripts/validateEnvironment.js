@@ -7,33 +7,95 @@ const {
 const {
   validateSupabaseEnvironment,
 } = require("../config/supabaseEnvironment");
+const {
+  getCapabilityProviders,
+  getProviderConfigurationProblems,
+  getRequiredProviderKeys,
+} = require("../providers/marketDataProvider");
 
+/*
+  Secrets required regardless of which market-data providers are selected.
+
+  Provider API keys are deliberately NOT listed here. They are derived from the
+  active capability selection instead - see getRequiredEnvironmentKeys - so the
+  service demands a provider's key when and only when some capability actually
+  selects that provider.
+
+  Before this change FINNHUB_API_KEY was unconditional in staging and
+  production. A deployment that had migrated every capability to Twelve Data
+  would still have refused to start without a Finnhub key it never intended to
+  use. That is technical boot parity only: it does not switch any default, and
+  under the accepted defaults the required set is byte-identical to the old
+  static list.
+*/
 const REQUIRED_BY_ENVIRONMENT = {
   development: [],
   test: [],
-  staging: [
-    "FINNHUB_API_KEY",
-    "TWELVE_DATA_API_KEY",
-    "OBSERVABILITY_METRICS_TOKEN",
-  ],
-  production: [
-    "FINNHUB_API_KEY",
-    "TWELVE_DATA_API_KEY",
-    "OBSERVABILITY_METRICS_TOKEN",
-  ],
+  staging: ["OBSERVABILITY_METRICS_TOKEN"],
+  production: ["OBSERVABILITY_METRICS_TOKEN"],
 };
+
+/*
+  The full required-secret list for an environment under a given provider
+  selection. Names only - no value is read, compared or returned.
+*/
+function getRequiredEnvironmentKeys(environment, env = process.env) {
+  const base = REQUIRED_BY_ENVIRONMENT[environment] || [];
+
+  if (base.length === 0) {
+    return [];
+  }
+
+  return [...new Set([...base, ...getRequiredProviderKeys(env)])].sort();
+}
 
 function validateEnvironment(env = process.env) {
   const config = getEnvironmentConfig(env);
-  const missing = REQUIRED_BY_ENVIRONMENT[
-    config.environment
-  ].filter((key) => !String(env[key] || "").trim());
+  const required = getRequiredEnvironmentKeys(
+    config.environment,
+    env
+  );
+  const missing = required.filter(
+    (key) => !String(env[key] || "").trim()
+  );
   const errors = [];
 
   if (missing.length > 0) {
+    /*
+      Name the capability selection that made each key required, so a missing
+      key is diagnosable in one restart rather than several. Provider ids and
+      variable names only - never a value.
+    */
+    const selection = getCapabilityProviders(env);
+    const selectionSummary = Object.entries(selection)
+      .map(([capability, provider]) => `${capability}=${provider}`)
+      .join(", ");
+
     errors.push(
-      `Missing required ${config.environment} secrets: ${missing.join(", ")}.`
+      `Missing required ${config.environment} secrets: ${missing.join(", ")}. ` +
+        `Required by the active provider selection (${selectionSummary}).`
     );
+  }
+
+  /*
+    A provider selection that cannot serve a request must refuse to boot.
+
+    Key derivation used to double as provider validation, so an unknown or
+    blank provider contributed no required key and the service started green -
+    then failed on the first real request, in front of a user. The same was true
+    of selecting Twelve Data for profile or fundamentals without
+    TWELVE_DATA_PROFILE_ENABLED: boot was happy and every request was not.
+
+    A refused boot is visible and recoverable in minutes. A green boot that
+    fails per-request is neither.
+
+    Only variable names, provider ids and capability names appear in these
+    messages. No key value is read or printed.
+  */
+  const providerProblems = getProviderConfigurationProblems(env);
+
+  for (const problem of providerProblems) {
+    errors.push(`${problem.code}: ${problem.message}`);
   }
 
   if (
@@ -145,6 +207,9 @@ function validateEnvironment(env = process.env) {
     environment: config.environment,
     releaseVersion: config.releaseVersion,
     featureFlags: config.featureFlags,
+    providerSelection: getCapabilityProviders(env),
+    requiredProviderKeys: getRequiredProviderKeys(env),
+    providerConfigurationProblems: providerProblems,
     missing,
     errors,
   };
@@ -191,5 +256,6 @@ if (require.main === module) {
 module.exports = {
   REQUIRED_BY_ENVIRONMENT,
   assertEnvironmentValid,
+  getRequiredEnvironmentKeys,
   validateEnvironment,
 };

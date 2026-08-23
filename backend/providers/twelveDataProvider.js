@@ -1,11 +1,66 @@
 const axios = require("axios");
 
+const {
+  buildCacheKey
+} = require("../utils/cache");
+
 const TWELVE_DATA_URL =
   "https://api.twelvedata.com/time_series";
 const TWELVE_DATA_BASE_URL = "https://api.twelvedata.com";
+const PROVIDER_ID = "twelve_data";
+const PROVIDER_LABEL = "TwelveData";
+
 const PROFILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const DEFAULT_QUOTE_CACHE_TTL_MS = 20 * 1000;
+const SYMBOL_SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 1000;
+
+const QUOTE_CACHE_TTL_MS =
+  Number(process.env.TWELVE_DATA_QUOTE_CACHE_TTL_MS) ||
+  DEFAULT_QUOTE_CACHE_TTL_MS;
+
+const REQUEST_TIMEOUT_MS =
+  Number(process.env.TWELVE_DATA_REQUEST_TIMEOUT_MS) ||
+  DEFAULT_REQUEST_TIMEOUT_MS;
+
 const profileCache = new Map();
 const pendingProfileRequests = new Map();
+const quoteCache = new Map();
+const pendingQuoteRequests = new Map();
+const symbolSearchCache = new Map();
+const pendingSymbolSearchRequests = new Map();
+
+/*
+  Every Twelve Data cache and pending-request key is namespaced by the provider
+  id and the cache contract version. The Maps are module-private today, so a
+  Finnhub record cannot physically reach them - but that is a property of the
+  current file layout, not a guarantee anyone declared. Qualifying the key makes
+  it a guarantee: a record written under `twelve_data` cannot be read back under
+  `finnhub`, whichever module ends up holding the Map.
+*/
+function twelveDataCacheKey(capability, ...parts) {
+  return buildCacheKey({
+    provider: PROVIDER_ID,
+    capability,
+    parts
+  });
+}
+
+/*
+  The listed-equity instrument types AzaLens supports.
+
+  This deliberately mirrors the set Finnhub search has always accepted
+  (`finnhubProvider.js` isListedEquitySearchResult). PR A is a parity exercise:
+  Twelve Data must not quietly widen or narrow the product's instrument scope,
+  because that is a user-visible product decision and not an adapter's to make.
+  `backend/tests/testTwelveDataSearchContract.js` pins the two sets together.
+*/
+const SUPPORTED_EQUITY_TYPES = Object.freeze([
+  "common stock",
+  "ordinary shares",
+  "preferred stock",
+  "preferred shares"
+]);
 
 const SUPPORTED_INTERVALS = new Set([
   "1min",
@@ -120,6 +175,17 @@ async function fetchTwelveDataProfile(symbol) {
     exchange: profile?.exchange || listing?.exchange || null,
     sector: profile?.sector || null,
     industry: profile?.industry || null,
+    /*
+      Twelve Data does not return a per-symbol historical IPO or first-listing
+      date from `/profile`, and `/ipo_calendar` is a date-ranged event feed
+      costing 100 credits that returns nothing for a company listed decades ago.
+
+      So this stays null, honestly. IPO date feeds no calculation, verdict,
+      risk value, guidance state, Shariah gate or scanner decision - it is one
+      presentation row - and neither a Finnhub enrichment request nor an IPO
+      calendar request may be made to populate it. "Unavailable" is the true
+      answer and the product says so.
+    */
     ipoDate: null,
     website: profile?.website || null,
     logo: logoResult?.url || null,
@@ -133,31 +199,32 @@ async function getTwelveDataCompanyProfile(symbol) {
   if (!normalizedSymbol) return { success: false, provider: "TwelveData",
     symbol: normalizedSymbol, data: null, error: "A valid ticker symbol is required." };
 
-  const cached = profileCache.get(normalizedSymbol);
+  const cacheKey = twelveDataCacheKey("profile", normalizedSymbol);
+  const cached = profileCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    return { success: true, provider: "TwelveData", symbol: normalizedSymbol,
+    return { success: true, provider: PROVIDER_LABEL, symbol: normalizedSymbol,
       data: cached.data, error: null, cache: { hit: true, status: "HIT" } };
   }
-  if (pendingProfileRequests.has(normalizedSymbol)) {
-    return pendingProfileRequests.get(normalizedSymbol);
+  if (pendingProfileRequests.has(cacheKey)) {
+    return pendingProfileRequests.get(cacheKey);
   }
 
   const promise = fetchTwelveDataProfile(normalizedSymbol)
     .then((data) => {
-      profileCache.set(normalizedSymbol, {
+      profileCache.set(cacheKey, {
         data,
         expiresAt: Date.now() + PROFILE_CACHE_TTL_MS
       });
-      return { success: true, provider: "TwelveData", symbol: normalizedSymbol,
+      return { success: true, provider: PROVIDER_LABEL, symbol: normalizedSymbol,
         data, error: null, cache: { hit: false, status: "MISS" } };
     })
-    .catch((error) => ({ success: false, provider: "TwelveData",
+    .catch((error) => ({ success: false, provider: PROVIDER_LABEL,
       symbol: normalizedSymbol, data: null, error: error.message }));
-  pendingProfileRequests.set(normalizedSymbol, promise);
+  pendingProfileRequests.set(cacheKey, promise);
   try {
     return await promise;
   } finally {
-    pendingProfileRequests.delete(normalizedSymbol);
+    pendingProfileRequests.delete(cacheKey);
   }
 }
 
@@ -417,11 +484,700 @@ async function getHistoricalData(
   }
 }
 
+// ==================================================
+// Shared normalization helpers
+// ==================================================
+
+function toFiniteNumber(value, fallback = null) {
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function roundNumber(value, decimals = 3) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+
+  const factor = 10 ** decimals;
+
+  return Math.round(number * factor) / factor;
+}
+
+function getApiKey() {
+  const apiKey = String(
+    process.env.TWELVE_DATA_API_KEY || ""
+  ).trim();
+
+  if (!apiKey) {
+    const error = new Error(
+      "Twelve Data API key is not configured."
+    );
+    error.code = "TWELVE_DATA_API_KEY_MISSING";
+    throw error;
+  }
+
+  return apiKey;
+}
+
+/*
+  Normalizes an axios/provider failure into a stable {message, code, httpStatus}
+  triple. Timeouts and 429s must be distinguishable by code rather than by
+  string matching, because `recordProviderResult` classifies on the code.
+*/
+function describeRequestFailure(error) {
+  const httpStatus = error?.response?.status || null;
+  const bodyMessage =
+    error?.response?.data?.message ||
+    error?.response?.data?.error ||
+    null;
+
+  /*
+    An error this adapter raised itself already carries a normalized code -
+    a missing key, an unusable payload, or a provider error body that arrived
+    with HTTP 200. Pass it through rather than re-deriving it, and never let a
+    transport-level code like ECONNABORTED overwrite it.
+  */
+  if (
+    typeof error?.code === "string" &&
+    error.code.startsWith("TWELVE_DATA_")
+  ) {
+    return {
+      message: error.message,
+      code: error.code,
+      httpStatus: error.httpStatus || httpStatus
+    };
+  }
+
+  if (error?.code === "ECONNABORTED") {
+    return {
+      message: "Twelve Data request timed out.",
+      code: "TWELVE_DATA_TIMEOUT",
+      httpStatus
+    };
+  }
+
+  if (httpStatus === 429) {
+    return {
+      message:
+        bodyMessage ||
+        "Twelve Data rate limit was reached.",
+      code: "TWELVE_DATA_RATE_LIMIT",
+      httpStatus
+    };
+  }
+
+  if (httpStatus === 401 || httpStatus === 403) {
+    return {
+      message:
+        bodyMessage ||
+        "Twelve Data rejected the API key.",
+      code: "TWELVE_DATA_UNAUTHORIZED",
+      httpStatus
+    };
+  }
+
+  return {
+    message:
+      bodyMessage ||
+      error?.message ||
+      "Twelve Data request failed.",
+    code: "TWELVE_DATA_REQUEST_FAILED",
+    httpStatus
+  };
+}
+
+/*
+  Twelve Data reports some failures with HTTP 200 and an error body, so a
+  successful transport does not mean a successful lookup. Codes are surfaced
+  the same way as transport failures.
+*/
+function describeBodyError(data) {
+  const message = getProviderError(data);
+
+  if (!message) {
+    return null;
+  }
+
+  const code = Number(data?.code);
+
+  if (code === 429) {
+    return {
+      message,
+      code: "TWELVE_DATA_RATE_LIMIT",
+      httpStatus: 429
+    };
+  }
+
+  if (code === 401 || code === 403) {
+    return {
+      message,
+      code: "TWELVE_DATA_UNAUTHORIZED",
+      httpStatus: code
+    };
+  }
+
+  return {
+    message,
+    code: "TWELVE_DATA_PROVIDER_ERROR",
+    httpStatus: Number.isFinite(code) ? code : null
+  };
+}
+
+function createCacheMetadata({
+  hit,
+  status,
+  storedAt,
+  expiresAt,
+  ttlMs
+}) {
+  const now = Date.now();
+
+  const ageMs = storedAt
+    ? Math.max(0, now - storedAt)
+    : 0;
+
+  const remainingMs = expiresAt
+    ? Math.max(0, expiresAt - now)
+    : ttlMs;
+
+  return {
+    status,
+    hit,
+    ttlSeconds: Math.round(ttlMs / 1000),
+    ageSeconds: roundNumber(ageMs / 1000, 3),
+    expiresInSeconds: roundNumber(remainingMs / 1000, 3)
+  };
+}
+
+function readFreshCache(cache, key) {
+  const cachedEntry = cache.get(key);
+
+  if (!cachedEntry) {
+    return null;
+  }
+
+  if (Date.now() >= cachedEntry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+
+  return cachedEntry;
+}
+
+function writeCache(cache, key, value, ttlMs) {
+  const storedAt = Date.now();
+
+  const entry = {
+    value,
+    storedAt,
+    expiresAt: storedAt + ttlMs
+  };
+
+  cache.set(key, entry);
+
+  return entry;
+}
+
+function bypassCacheMetadata(ttlMs) {
+  return {
+    status: "BYPASS",
+    hit: false,
+    ttlSeconds: Math.round(ttlMs / 1000),
+    ageSeconds: 0,
+    expiresInSeconds: 0
+  };
+}
+
+function missCacheMetadata(ttlMs) {
+  return {
+    status: "MISS",
+    hit: false,
+    ttlSeconds: Math.round(ttlMs / 1000),
+    ageSeconds: 0,
+    expiresInSeconds: 0
+  };
+}
+
+// ==================================================
+// Live Quote
+// ==================================================
+
+/*
+  A quote is only usable if it carries a finite, positive last price. Anything
+  else - a null close, a string that will not parse, an error body that reached
+  this far - is a failure, not a zero. Never let an unavailable price become 0.
+*/
+function isUsableQuote(quote) {
+  return (
+    quote &&
+    typeof quote === "object" &&
+    Number.isFinite(Number(quote.close)) &&
+    Number(quote.close) > 0
+  );
+}
+
+/*
+  Maps the documented `/quote` response onto the normalized AzaLens quote
+  contract. Only fields AzaLens actually consumes are normalized; provider-only
+  fields stay in `providerMetadata` rather than widening the mounted contract.
+
+  Two units are pinned here on purpose, because both are easy to get wrong and
+  neither is self-describing in the payload:
+
+    - `percent_change` is already a PERCENTAGE. A 1.5% move arrives as 1.5, and
+      it is passed through unchanged. It must never be divided by 100, and a
+      fractional 0.015 must never be accepted as equivalent.
+    - `timestamp` is a Unix SECOND count, the same unit the existing normalized
+      contract already carries, so it passes through unchanged too. Downstream
+      code (analysisTrustService, supportResistanceEngine) distinguishes seconds
+      from milliseconds by magnitude, so silently converting here would corrupt
+      every displayed quote time.
+*/
+function normalizeTwelveDataQuote(symbol, quote) {
+  return {
+    success: true,
+    provider: PROVIDER_LABEL,
+    symbol,
+
+    data: {
+      symbol,
+      company: quote.name || null,
+      exchange: quote.exchange || null,
+      currency: quote.currency || null,
+
+      price: toFiniteNumber(quote.close),
+      previousClose: toFiniteNumber(quote.previous_close),
+      open: toFiniteNumber(quote.open),
+      high: toFiniteNumber(quote.high),
+      low: toFiniteNumber(quote.low),
+      change: toFiniteNumber(quote.change),
+      changePercent: toFiniteNumber(quote.percent_change),
+      timestamp: toFiniteNumber(quote.timestamp)
+    },
+
+    /*
+      Session and venue context Twelve Data supplies and AzaLens does not yet
+      consume. It is reported rather than dropped so PR B can decide the
+      delayed/real-time disclosure from observed provider evidence instead of
+      an assumption. It is deliberately outside `data` so the mounted contract
+      is unchanged.
+    */
+    providerMetadata: {
+      isMarketOpen:
+        typeof quote.is_market_open === "boolean"
+          ? quote.is_market_open
+          : null,
+      micCode: quote.mic_code || null,
+      datetime: quote.datetime || null,
+      lastQuoteAt: toFiniteNumber(quote.last_quote_at)
+    },
+
+    companyProfile: null,
+    limitations: []
+  };
+}
+
+async function fetchFreshTwelveDataQuote(symbol) {
+  const apiKey = getApiKey();
+
+  const response = await axios.get(
+    `${TWELVE_DATA_BASE_URL}/quote`,
+    {
+      params: { symbol, apikey: apiKey },
+      timeout: REQUEST_TIMEOUT_MS
+    }
+  );
+
+  const quote = response?.data;
+  const bodyError = describeBodyError(quote);
+
+  if (bodyError) {
+    const error = new Error(bodyError.message);
+    error.code = bodyError.code;
+    error.httpStatus = bodyError.httpStatus;
+    throw error;
+  }
+
+  if (!isUsableQuote(quote)) {
+    const error = new Error(
+      `Twelve Data returned no valid live quote for ${symbol}.`
+    );
+    error.code = "TWELVE_DATA_INVALID_QUOTE";
+    throw error;
+  }
+
+  return normalizeTwelveDataQuote(symbol, quote);
+}
+
+function twelveDataQuoteFailure(symbol, error, cache) {
+  const described = describeRequestFailure(error);
+
+  return {
+    success: false,
+    provider: PROVIDER_LABEL,
+    symbol,
+    error: described.message,
+    code: described.code,
+    httpStatus: described.httpStatus,
+    cache
+  };
+}
+
+async function getTwelveDataQuote(symbol) {
+  const normalizedSymbol = normalizeSymbol(symbol);
+
+  if (!normalizedSymbol) {
+    return {
+      success: false,
+      provider: PROVIDER_LABEL,
+      symbol: normalizedSymbol,
+      error: "A valid ticker symbol is required.",
+      code: "INVALID_SYMBOL",
+      httpStatus: null,
+      cache: bypassCacheMetadata(QUOTE_CACHE_TTL_MS)
+    };
+  }
+
+  const cacheKey = twelveDataCacheKey("quote", normalizedSymbol);
+  const cachedEntry = readFreshCache(quoteCache, cacheKey);
+
+  if (cachedEntry) {
+    return {
+      ...cachedEntry.value,
+      cache: createCacheMetadata({
+        hit: true,
+        status: "HIT",
+        storedAt: cachedEntry.storedAt,
+        expiresAt: cachedEntry.expiresAt,
+        ttlMs: QUOTE_CACHE_TTL_MS
+      })
+    };
+  }
+
+  if (pendingQuoteRequests.has(cacheKey)) {
+    try {
+      const pendingResult =
+        await pendingQuoteRequests.get(cacheKey);
+      const settledEntry = readFreshCache(
+        quoteCache,
+        cacheKey
+      );
+
+      return {
+        ...pendingResult,
+        cache: createCacheMetadata({
+          hit: true,
+          status: "COALESCED",
+          storedAt:
+            settledEntry?.storedAt || Date.now(),
+          expiresAt:
+            settledEntry?.expiresAt ||
+            Date.now() + QUOTE_CACHE_TTL_MS,
+          ttlMs: QUOTE_CACHE_TTL_MS
+        })
+      };
+    } catch (error) {
+      return twelveDataQuoteFailure(
+        normalizedSymbol,
+        error,
+        missCacheMetadata(QUOTE_CACHE_TTL_MS)
+      );
+    }
+  }
+
+  const requestPromise = (async () => {
+    const freshResult =
+      await fetchFreshTwelveDataQuote(normalizedSymbol);
+
+    const cacheEntry = writeCache(
+      quoteCache,
+      cacheKey,
+      freshResult,
+      QUOTE_CACHE_TTL_MS
+    );
+
+    return { result: freshResult, cacheEntry };
+  })();
+
+  const derivedQuotePromise = requestPromise.then(
+    ({ result }) => result
+  );
+
+  /*
+    Same invariant the Finnhub adapter carries, for the same reason, because
+    this is the same coalescing shape.
+
+    The derived promise is only awaited by a concurrent caller that happens to
+    arrive while it is pending. If none does, nothing attaches a handler, and a
+    rejection here becomes an unhandled rejection that can terminate the
+    process. The no-op .catch marks it handled for Node's tracking without
+    swallowing the rejection for a real awaiter, because .catch() returns a NEW
+    promise rather than mutating this one.
+
+    backend/tests/testTwelveDataQuoteRejectionSafety.js proves it.
+  */
+  derivedQuotePromise.catch(() => {});
+
+  pendingQuoteRequests.set(cacheKey, derivedQuotePromise);
+
+  try {
+    const { result, cacheEntry } = await requestPromise;
+
+    return {
+      ...result,
+      cache: createCacheMetadata({
+        hit: false,
+        status: "MISS",
+        storedAt: cacheEntry.storedAt,
+        expiresAt: cacheEntry.expiresAt,
+        ttlMs: QUOTE_CACHE_TTL_MS
+      })
+    };
+  } catch (error) {
+    return twelveDataQuoteFailure(
+      normalizedSymbol,
+      error,
+      missCacheMetadata(QUOTE_CACHE_TTL_MS)
+    );
+  } finally {
+    pendingQuoteRequests.delete(cacheKey);
+  }
+}
+
+function clearTwelveDataQuoteCache() {
+  quoteCache.clear();
+  pendingQuoteRequests.clear();
+}
+
+// ==================================================
+// Equity-only symbol search
+// ==================================================
+
+function isSupportedEquityType(instrumentType) {
+  return SUPPORTED_EQUITY_TYPES.includes(
+    String(instrumentType || "").trim().toLowerCase()
+  );
+}
+
+/*
+  Twelve Data returns `exchange` and `mic_code` as first-class fields, so the
+  exchange is read directly. AzaLens must NOT reproduce the Finnhub adapter's
+  `displaySymbol.split(":")` heuristic here: it exists only because Finnhub has
+  no exchange field, and guessing a venue from a display string is exactly how
+  a foreign listing gets silently substituted for a US primary.
+
+  Duplicate tickers are deduplicated on symbol + venue rather than on symbol
+  alone, so two genuinely different listings of the same ticker both survive
+  and stay distinguishable. Collapsing them on symbol would silently pick one
+  venue and hide the ambiguity from the person searching.
+*/
+function normalizeSearchRow(row) {
+  const symbol = normalizeSymbol(row?.symbol);
+  const exchange = String(row?.exchange || "").trim() || null;
+  const micCode = String(row?.mic_code || "").trim() || null;
+
+  return {
+    symbol,
+    name:
+      String(row?.instrument_name || "").trim() ||
+      symbol,
+    exchange,
+    micCode,
+    country: String(row?.country || "").trim() || null,
+    currency: String(row?.currency || "").trim() || null,
+    securityType:
+      String(row?.instrument_type || "").trim() || null,
+    provider: PROVIDER_LABEL
+  };
+}
+
+function isUsableSearchSymbol(symbol) {
+  return (
+    symbol.length > 0 &&
+    symbol.length <= 15 &&
+    /^[A-Z0-9.\-]+$/.test(symbol)
+  );
+}
+
+function searchDedupeKey(result) {
+  return [
+    result.symbol,
+    result.micCode || result.exchange || ""
+  ].join("|");
+}
+
+async function searchTwelveDataEquities(query, limit = 12) {
+  const normalizedQuery = String(query || "").trim();
+
+  if (
+    normalizedQuery.length < 1 ||
+    normalizedQuery.length > 80
+  ) {
+    return [];
+  }
+
+  const cacheKey = twelveDataCacheKey(
+    "search",
+    normalizedQuery.toLowerCase()
+  );
+  const cachedEntry = readFreshCache(
+    symbolSearchCache,
+    cacheKey
+  );
+
+  if (cachedEntry) {
+    return cachedEntry.value.results.slice(0, limit);
+  }
+
+  if (pendingSymbolSearchRequests.has(cacheKey)) {
+    const pending = await pendingSymbolSearchRequests.get(
+      cacheKey
+    );
+
+    return pending.slice(0, limit);
+  }
+
+  const requestPromise = (async () => {
+    const apiKey = getApiKey();
+
+    const response = await axios.get(
+      `${TWELVE_DATA_BASE_URL}/symbol_search`,
+      {
+        params: {
+          symbol: normalizedQuery,
+          outputsize: 120,
+          apikey: apiKey
+        },
+        timeout: REQUEST_TIMEOUT_MS
+      }
+    );
+
+    const body = response?.data;
+    const bodyError = describeBodyError(body);
+
+    if (bodyError) {
+      const error = new Error(bodyError.message);
+      error.code = bodyError.code;
+      error.httpStatus = bodyError.httpStatus;
+      throw error;
+    }
+
+    /*
+      A search envelope must be a plain object. Anything else - a bare array, a
+      string, a null - is a protocol failure, and it must not be reported as
+      "no matches": telling someone their ticker does not exist when the
+      provider simply did not answer is the more damaging of the two lies.
+
+      A well-formed envelope carrying no rows is a different case and stays an
+      honest empty list below, because that is what Twelve Data returns for a
+      query that genuinely matched nothing.
+    */
+    if (
+      !body ||
+      typeof body !== "object" ||
+      Array.isArray(body)
+    ) {
+      const error = new Error(
+        "Twelve Data returned an invalid response."
+      );
+      error.code = "TWELVE_DATA_PROVIDER_ERROR";
+      throw error;
+    }
+
+    const rows = Array.isArray(body.data)
+      ? body.data
+      : [];
+
+    const seen = new Set();
+    const equities = [];
+
+    for (const row of rows) {
+      if (!isSupportedEquityType(row?.instrument_type)) {
+        continue;
+      }
+
+      const normalized = normalizeSearchRow(row);
+
+      if (!isUsableSearchSymbol(normalized.symbol)) {
+        continue;
+      }
+
+      const dedupeKey = searchDedupeKey(normalized);
+
+      if (seen.has(dedupeKey)) {
+        continue;
+      }
+
+      seen.add(dedupeKey);
+      equities.push(normalized);
+    }
+
+    /*
+      Provenance travels with the cached record, not just with the items, so a
+      cache entry can never be mistaken for another provider's work even if the
+      two stores were ever merged.
+    */
+    writeCache(
+      symbolSearchCache,
+      cacheKey,
+      { provider: PROVIDER_LABEL, results: equities },
+      SYMBOL_SEARCH_CACHE_TTL_MS
+    );
+
+    return equities;
+  })();
+
+  const derivedSearchPromise = requestPromise.then(
+    (results) => results
+  );
+
+  // Same unhandled-rejection invariant as the quote path.
+  derivedSearchPromise.catch(() => {});
+
+  pendingSymbolSearchRequests.set(
+    cacheKey,
+    derivedSearchPromise
+  );
+
+  try {
+    const results = await requestPromise;
+
+    return results.slice(0, limit);
+  } finally {
+    pendingSymbolSearchRequests.delete(cacheKey);
+  }
+}
+
+function clearTwelveDataSearchCache() {
+  symbolSearchCache.clear();
+  pendingSymbolSearchRequests.clear();
+}
+
+function getTwelveDataCacheKeysForTests() {
+  return {
+    quote: [...quoteCache.keys()],
+    profile: [...profileCache.keys()],
+    search: [...symbolSearchCache.keys()],
+    pendingQuote: [...pendingQuoteRequests.keys()],
+    pendingProfile: [...pendingProfileRequests.keys()],
+    pendingSearch: [...pendingSymbolSearchRequests.keys()]
+  };
+}
+
 module.exports = {
   clearTwelveDataProfileCache,
+  clearTwelveDataQuoteCache,
+  clearTwelveDataSearchCache,
   getHistoricalData,
+  getTwelveDataCacheKeysForTests,
   getTwelveDataCompanyProfile,
+  getTwelveDataQuote,
   normalizeInterval,
+  searchTwelveDataEquities,
   selectCanonicalListing,
+  SUPPORTED_EQUITY_TYPES,
   SUPPORTED_INTERVALS
 };
