@@ -5,7 +5,7 @@
 **This file replaces the 2026-07-28 version entirely** — that version was stale in both directions (it denied the compliance gate, INTACT/VIOLATED, rate limiting and CI, all of which exist; full reconciliation in `docs/AUDIT_2026-07-30.md`).
 
 Companion documents: `docs/AUDIT_2026-07-30.md` (verification evidence), `docs/CONSTITUTION_COMPLIANCE.md` (rule-by-rule), `docs/DESIGN_SYSTEM.md` (visual plan).
-**Cost note convention:** every item states its provider/infrastructure cost. Current budget reality: Halal Terminal free plan, ~177 tokens to 28 Aug 2026, ~5 tokens per screening (single data point); Render Free; Vercel free.
+**Cost note convention:** every item states its provider/infrastructure cost. Budget reality as recorded on 2026-07-30: Halal Terminal free plan, ~177 tokens to 28 Aug 2026, ~5 tokens per screening (single data point); Render Free; Vercel free. Superseded on 2026-08-24 by the promotional Starter entitlement recorded under the production environment audit — see Finding 3 there, which also records why the application's internal budget value was left unchanged.
 
 ---
 
@@ -128,25 +128,214 @@ PR C removes Finnhub only after stable production observation following PR B.
 Provider-backed requests made for this release and its verification: **zero**.
 Provider cost: **zero**.
 
-### Open follow-up — production environment audit (opened 2026-08-23)
+### Production environment audit — closed 2026-08-24
 
-`PROFILE_PROVIDER` became known only because PR A's strict boot validation
-rejected its contradictory production value. That is a narrow, accidental
-observation, not an audit.
+The follow-up opened by the PR A record on 2026-08-23 is closed by this entry.
 
-The remaining live Render provider variables were **not** observed:
-`QUOTE_PROVIDER`, `SEARCH_PROVIDER`, `HISTORY_PROVIDER` and
-`FUNDAMENTALS_PROVIDER`. Other production environment variables may hold
-similarly stale, contradictory or silently ineffective values.
+Why it was opened: `PROFILE_PROVIDER` became known only because PR A's strict
+boot validation rejected its contradictory production value. That was a narrow,
+accidental observation, not an audit. `QUOTE_PROVIDER`, `SEARCH_PROVIDER`,
+`HISTORY_PROVIDER` and `FUNDAMENTALS_PROVIDER` had not been observed, and source
+defaults, documentation and local configuration do not prove deployed
+environment configuration.
 
-Source defaults, documentation and local configuration do not prove deployed
-environment configuration. A configuration value that is never validated or
-safely observed is not known to be correct.
+**Method.** Ahsan manually observed the complete Render production backend
+environment and supplied a sanitized inventory — variable names, provider
+identifiers, booleans and safe numeric values — on 2026-08-24. Secret values
+were never requested, supplied or read; secret-bearing variables were reported
+only as present. That inventory was compared against the deployed code contract
+at code merge `7c64801fa7888db0bac8c5cd9d98bb2666188baf` by static reading of
+the code at that exact SHA. No HTTP request, provider call, endpoint probe or
+environment change was made. Provider-backed requests: **zero**. Provider cost:
+**zero**.
 
-A separate provider-safe Render environment audit is required before PR B. It
-must compare variable names and non-secret provider selections against the
-deployed code contract without exposing API keys or any other secret value.
-This release does not perform that audit and does not claim it as complete.
+The full audit report was retained outside the repository at the session scratch
+path `.../scratchpad/PRODUCTION_ENV_CONTRACT_AUDIT.md`, SHA-256
+`decc1869d5d98a42e3be6b0a7a8b4614274b60d258461b3fd38743e029a00549`. It is not
+committed, and session scratch storage is not durable, so the findings below are
+the durable record.
+
+**Finding 1 — provider ownership is mostly established by source defaults, not
+by Render.** Of the five capability selectors, only `PROFILE_PROVIDER` appeared
+in the supplied inventory, explicitly set to `finnhub`. `QUOTE_PROVIDER`,
+`SEARCH_PROVIDER`, `HISTORY_PROVIDER` and `FUNDAMENTALS_PROVIDER` were absent
+from it. Dashboard absence and effective runtime ownership are different facts
+and are recorded separately:
+
+| Capability | Effective provider at `7c64801f` | Established by |
+|---|---|---|
+| quote | Finnhub | frozen source default; `QUOTE_PROVIDER` absent from the inventory |
+| profile | Finnhub | explicit Render value, equal to the source default |
+| search | Finnhub | frozen source default; `SEARCH_PROVIDER` absent from the inventory |
+| history | Twelve Data | frozen source default; `HISTORY_PROVIDER` absent from the inventory |
+| fundamentals | Finnhub | frozen source default; `FUNDAMENTALS_PROVIDER` absent from the inventory |
+
+Those defaults live in `DEFAULTS` in `backend/providers/marketDataProvider.js`,
+are frozen with `Object.freeze`, and are pinned byte-for-byte by
+`backend/tests/testProviderAdapter.js`. They are authoritative at runtime. They
+are not explicit Render configuration and must never be described as such.
+
+**The durable rule this establishes:** the Render dashboard is not a statement
+of what production does. Deployed configuration must be derived from the
+deployed code contract and the observed inventory together, never from either
+alone. An audit reading only the dashboard would find one selector configured
+and would infer nothing correct about the other four.
+
+The `PROFILE_PROVIDER` contradiction recorded above is closed.
+`PROFILE_PROVIDER=finnhub` agrees with the source default, and
+`TWELVE_DATA_PROFILE_ENABLED` was absent from the inventory, so no capability
+selects a Twelve Data implementation whose feature flag would refuse it. The
+audit found no other invalid provider configuration, and no provider variable
+that the deployed code requires and production omits.
+
+**Finding 2 — `FEATURE_LIVE_SHARIAH_ENABLED` is a boot-time consistency guard,
+not the operational kill switch.** The inventory supplied
+`FEATURE_LIVE_SHARIAH_ENABLED=true`. In the deployed code it is read only by
+boot validation, where it asserts that `SHARIAH_DATA_MODE=live` and that
+`HALAL_TERMINAL_API_KEY` is present. It gates no provider request.
+
+Setting it false would remove that validation and would not independently stop
+paid Halal Terminal calls. Operational behaviour is controlled through the
+Shariah data mode, the Halal Terminal live setting and the token-budget
+controls.
+
+The name and the semantics disagree, which is the same class of hazard as the
+`PROFILE_PROVIDER` drift: a control that reads as protective and is not.
+Correcting it — by giving the flag runtime effect, or by renaming it to the
+assertion it is and pinning that with a test — requires a separately authorized
+documentation or code-contract correction. This roadmap pass changes no flag, no
+variable and no runtime behaviour.
+
+**Finding 3 — the Halal Terminal token budget is not a durable calendar-month
+cap.** Render supplied `HALAL_TERMINAL_MONTHLY_TOKEN_BUDGET=30`.
+`HALAL_TERMINAL_USAGE_LEDGER_PATH` was absent from the inventory, so the usage
+ledger resolves to its source default inside the deployed application directory,
+on Render's ephemeral filesystem. A deployment or restart may erase recorded
+consumption, and month-to-date spend restarts from zero when it does.
+
+The control therefore limits spend between restarts. It is not a reliable
+durable enforcement boundary and must not be described as enforcing a true
+calendar-month cap. Observed evaluation usage has been low, which limits
+realized impact but does not strengthen the control. Relying on it at scale
+requires a durable ledger or an explicitly documented alternative enforcement
+design, under separate authorization.
+
+**The commercial entitlement, recorded separately from that internal control.**
+Halal Terminal offered AzaLens the Starter tier free for three months, providing
+2,500 tokens per month during the promotional period. The offer must be redeemed
+by 30 September 2026, and it continues automatically at the standard Starter
+price after the free period unless cancelled or changed. Ahsan plans to redeem
+it before that deadline. As of 2026-08-24 the offer is recorded as offered and
+not redeemed. The reserved redemption code is deliberately not recorded in this
+repository.
+
+The application's internal safety budget stays at 30 while the commercial
+entitlement is 2,500. That divergence is a known, deliberate and unchanged state
+under this authorization, not an oversight. Commercial entitlement and the
+application's internal cost-safety budget are separate controls, and raising one
+does not raise the other. No Render value was changed by this pass.
+
+**Finding 4 — Halal Terminal attribution and external-display rights.** Halal
+Terminal stated that the attribution line it sent on 10 August 2026 must appear
+wherever screening results are displayed, and described this as a condition
+attached to redistribution before the workspace is opened to users.
+
+The exact approved wording must be preserved and used verbatim rather than
+paraphrased. It is deliberately not reproduced in this entry and must be
+retrieved from the 10 August message before implementation.
+
+This creates a product and UI requirement with likely visual-baseline impact,
+and implementation requires separate authorization.
+
+Whether the Starter tier itself permits external user-facing display and
+redistribution with attribution is unconfirmed. Enterprise is the tier Halal
+Terminal described as appropriate for custom methodology support before launch.
+Starter redistribution rights, Enterprise terms and custom methodology support
+are none of them approved, and none may be claimed on the strength of the
+attribution statement alone.
+
+**Finding 5 — the market-data delay disclosure rests on a source-code default.**
+`MARKET_DATA_DELAY_MINUTES` was absent from the supplied inventory, and its
+deprecated alias `FINNHUB_DELAY_MINUTES` was absent as well. The 15-minute delay
+disclosure the product displays therefore comes from a source-code default
+rather than from an explicit Render value.
+
+Unlike the provider selectors, that variable is not protected by equivalent boot
+validation. A configured zero, or another unsupported value that resolves
+without rejection, could alter a user-facing market-data claim without feed
+quality or real-time entitlement having been established.
+
+This is a truthfulness and configuration-contract gap, not an observed false
+statement: the 15-minute figure has not been shown to be wrong. It has equally
+not been empirically or contractually verified, and no real-time market-data
+entitlement is claimed. A separately authorized fix must validate the disclosure
+against actual provider entitlement and feed characteristics.
+
+**Finding 6 — Supabase configuration is validated but unused by the deployed
+backend.** `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY`
+were supplied and are boot-validated in production: shape, key-prefix and
+project-reference rules all apply, and a malformed value refuses startup. The
+audited backend code at `7c64801f` contains no active runtime Supabase client
+consumer for them.
+
+They are recorded as validated-but-unused backend configuration. Supabase is not
+operationally used by the deployed backend. No value was read or recorded.
+Removing them, or activating a consumer, each requires separate authorization
+and belongs with the Bucket 3 accounts-and-database work rather than with PR B.
+
+**Finding 7 — backup-log tooling gap (minor, separate).** The verified 24 August
+backup remains valid on its own evidence: checksum verification, archive
+integrity verification and reconstruction of the recorded tree. The local backup
+log at `~/Library/Logs/AzaLens-backup.log` contains no entry after 12 August
+2026, although later backups were created and verified.
+
+This does not invalidate any completed backup. It means backup history has to be
+reconstructed from archive filenames and checksums rather than read from one
+log. The logging path or the backup script's logging behaviour requires separate
+investigation. No backup tooling was modified by this pass.
+
+**Verification-capability note (recorded 2026-08-24, separate from the audit).**
+An automated integrity check of the seven retained PR A patch artifacts held on
+the local Desktop returned "Operation not permitted" from macOS, although the
+same listing had succeeded earlier in the same session. That is a loss of read
+access. It does not prove that any artifact changed or disappeared; the
+automated process could not observe them either way. Persistent loss of that
+access would prevent future automated integrity checks of retained evidence held
+outside the repository. No permission, filesystem or tooling change is
+authorized or made by this pass.
+
+**Attestation (2026-08-24).** Ahsan attested that the seven retained Desktop
+patch artifacts remain intact; the automated process could not independently
+verify them because macOS denied Desktop access. This records a direct human
+observation. It is not tool-observed evidence, it does not remove the macOS
+access limitation, and it does not close the verification-capability follow-up
+above.
+
+**Finding 8 — PR B decision boundary.**
+
+- PR B is technically safe to plan.
+- PR B is technically safe to implement and test locally, under separate
+  authorization.
+- PR B is **not** authorized for production activation.
+
+Production activation is blocked by all of: Twelve Data endpoint and plan-access
+confirmation; commercial licensing and external-display rights; evidence
+supporting whatever delay or real-time disclosure would be published;
+unexercised cache and provider-transition behaviour; and coordinated
+profile/fundamentals capability controls, since selecting Twelve Data for either
+capability without `TWELVE_DATA_PROFILE_ENABLED=true` in the same change refuses
+boot by design.
+
+Technical parity is not licensing permission. This roadmap update authorizes no
+provider switch.
+
+**What this audit does not establish:** Twelve Data endpoint-plan access,
+consolidated-feed quality, Twelve Data licensing, external-display rights,
+Starter redistribution permission, Enterprise approval, custom methodology
+support, real-time market-data entitlement, a durable Halal Terminal monthly
+cap, completion of the Halal Terminal redemption, or active Supabase runtime
+usage. It covers the Render backend service only; Vercel frontend environment
+configuration was not examined.
 
 ---
 
@@ -158,13 +347,13 @@ This release does not perform that audit and does not claim it as complete.
 | 2.2 | **Run the full 22-suite backend CI locally on this Mac** for `92d483c` — the recorded pass came from another environment; Rule 7 requires local confirmation | Blocked on a local run only | 7, 8 | None |
 | 2.3 | **Scanner rate-limit double-count decision**: `/api/scanner` is on the strict limiter *and* counted by the global limiter (audit items 3–4). Either exempt scanner from global, or move scanner off strict. Recommendation: keep scanner on strict (it is provider-backed), add scanner paths to the global exemption list, and exclude `GET /policy` from strict | Partially Verified | 8, 17 | None |
 | 2.4 | **Unmount `/api/portfolio/intelligence`** until a page uses it — it is unauthenticated, unused, and spends ~5 tokens per holding per cold call; when re-mounted, make its withheld state honest (currently degrades to "Unknown") | Live and unused (audit N2, item 11-A) | 13, 17, 23 | Saves tokens |
-| 2.5 | **Minimal API access control before any public link circulates**: today any stranger can drain the 177-token budget via `/api/analyze` (audit N1). A simple app-token header checked server-side is enough pre-accounts | Not Built | 17, 23 | None |
+| 2.5 | **Minimal API access control before any public link circulates.** The unauthenticated-stranger exposure recorded as audit N1 is closed: the production closed-demo gate fronts the protected `/api` routes, and a production request without valid closed-demo access receives HTTP 401. **The cost-control weakness behind this item is not closed.** The gate is an access control, not a durable spend control. Anyone holding valid closed-demo access may initiate permitted analysis requests, and the Halal Terminal usage ledger resolves to non-durable storage on Render's ephemeral filesystem, where a deployment or restart may erase recorded usage. The application therefore does not durably enforce a calendar-month token ceiling — see Finding 3 under the production environment audit, which also records the three-month Starter promotion of 2,500 tokens per month that Halal Terminal offered and that Ahsan plans to redeem, a commercial entitlement distinct from the application's internal safety budget. Restricting access reduces exposure; it does not resolve the underlying weakness. A server-side app-token header is the cheap pre-accounts step; durable spend enforcement is a separate one | Partly closed (unauthenticated exposure closed; durable spend enforcement not built) | 17, 23 | None |
 | 2.6 | **Remove obsolete `/api/explanation`.** The frontend already reads the gated explanation from `/api/analyze`; the standalone route had no consumer, duplicated the full provider pipeline, and misreported a valid Shariah-withheld outcome as HTTP 500 | Implemented locally; deployment pending | 5, 13, 17 | Saves tokens |
 | 2.7 | Delete `diag/proxy-capture` (local **and** origin) after saving the three captured proxy log lines outside the repo (open item 2); prune the other stale branches and the `legacy-platform` remote | Pending | 7 | None |
 | 2.8 | `trust proxy = 3` topology watch: correct today, silently wrong if Render changes its edge (open item 7). Add a startup log of the observed hop count to `/ops/metrics` for periodic eyeballing | Verified, fragile | 8 | None |
 | 2.9 | Review/remove the leftover `alpha-lens-ai` Vercel project (open item 5) — harmless (doesn't own the domain) but an attack/typo-confusion surface | Unverifiable from repo | 3, 23 | None |
 | 2.10 | Reconcile `design/*.ts` with `index.css` (two conflicting token sources; audit V9) — resolved by Design Phase 1 | Stale files | 7 | None |
-| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6) | Undecided | 12, 17 | None |
+| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6). **Halal Terminal is decided on the attribution question:** it stated on 10 August 2026 that its attribution line must appear wherever screening results are displayed, as a condition attached to redistribution — recorded as Finding 4 under the production environment audit. Whether Starter permits that redistribution is unconfirmed. Finnhub and Twelve Data are undecided | Partly decided (Halal Terminal stated; Finnhub and Twelve Data undecided) | 12, 17 | None |
 | 2.12 | Watchlist server-side size cap (audit N7) | Not Built | 17, 23 | None |
 | 2.13 | **Correct invalid-input semantics on `/api/analyze`.** Invalid ticker input reportedly reaches HTTP 500 instead of a client-error response. Reproduce hermetically and fix separately without changing Shariah gating or verdict behavior | Newly observed; unverified | 7, 8 | None |
 
