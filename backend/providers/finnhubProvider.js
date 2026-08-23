@@ -1,10 +1,34 @@
 const axios = require("axios");
 
+const {
+  buildCacheKey
+} = require("../utils/cache");
+
 // ==================================================
 // Finnhub Configuration
 // ==================================================
 
 const FINNHUB_BASE_URL = "https://finnhub.io/api/v1";
+const PROVIDER_ID = "finnhub";
+
+/*
+  Cache and pending-request keys carry the provider id and the cache contract
+  version. The Maps below are module-private, so a Twelve Data record cannot
+  physically reach them today - but that is a property of the file layout, not
+  a declared guarantee. Qualifying the key makes it one, and keeps the two
+  providers' namespaces provably disjoint under
+  backend/tests/testProviderCacheNamespaces.js.
+
+  This is a namespacing change only. TTLs, values, coalescing behaviour and
+  every normalized response field are untouched.
+*/
+function finnhubCacheKey(capability, ...parts) {
+  return buildCacheKey({
+    provider: PROVIDER_ID,
+    capability,
+    parts
+  });
+}
 
 const DEFAULT_QUOTE_CACHE_TTL_MS = 20 * 1000;
 const DEFAULT_PROFILE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -49,12 +73,63 @@ function normalizeSymbol(symbol) {
     .toUpperCase();
 }
 
-function toFiniteNumber(value, fallback = null) {
-  const number = Number(value);
+/*
+  ==========================================================================
+  Strict numeric parsing
+  ==========================================================================
 
-  return Number.isFinite(number)
-    ? number
-    : fallback;
+  This is a DEFAULT-PATH correction, not part of the Twelve Data parity work.
+  Finnhub is the configured quote provider today, so this guard runs on live
+  production traffic.
+
+  The previous implementation was `Number(value)` guarded by `isFinite`, which
+  reads as safe and is not: `Number(null)`, `Number("")`, `Number("   ")` and
+  `Number([])` are all 0, and 0 is finite. Any quote field Finnhub omitted as
+  null or blank therefore reached the product as a real-looking zero - a
+  previous close of $0.00, a change of "no movement", a timestamp of 1970 - and
+  nothing downstream could tell that apart from a genuine zero.
+
+  Blank-string rejection cannot be an equality test against "", because "   "
+  and "\t\n" coerce to 0 exactly like "" does. Truthiness is unusable too,
+  because 0 and "0" are legitimate quote values that must survive unchanged.
+
+    ACCEPTED  - a finite number, including 0 and negative numbers
+              - a string that is non-blank after trimming AND parses to a
+                finite number, including "0"
+
+    REJECTED  - null, undefined
+              - "", and any whitespace-only string
+              - any non-numeric string
+              - NaN, Infinity, -Infinity (as numbers or as strings)
+              - booleans, arrays, objects, and every other type
+
+  Rejected input returns `fallback` - null for every quote field - which is the
+  adapter's existing unavailable representation. No new error shape is
+  introduced, and every well-formed numeric response is byte-identical to
+  before.
+*/
+function toFiniteNumber(value, fallback = null) {
+  if (typeof value === "number") {
+    return Number.isFinite(value)
+      ? value
+      : fallback;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (trimmed === "") {
+      return fallback;
+    }
+
+    const number = Number(trimmed);
+
+    return Number.isFinite(number)
+      ? number
+      : fallback;
+  }
+
+  return fallback;
 }
 
 function roundNumber(value, decimals = 3) {
@@ -173,11 +248,19 @@ function writeCache(cache, key, value, ttlMs) {
 }
 
 function isValidQuote(quote) {
+  /*
+    Validation must apply the SAME accepted domain as the field normalizer.
+    With a looser coercion here, a payload whose `c` was `true` or `["101"]`
+    would pass validation and then normalize to a null price - a "successful"
+    quote carrying no price, which is worse than an honest failure.
+  */
+  const currentPrice = toFiniteNumber(quote?.c);
+
   return (
     quote &&
     typeof quote === "object" &&
-    Number.isFinite(Number(quote.c)) &&
-    Number(quote.c) > 0
+    currentPrice !== null &&
+    currentPrice > 0
   );
 }
 
@@ -203,7 +286,10 @@ async function searchListedEquities(query, limit = 12) {
     return [];
   }
 
-  const cacheKey = normalizedQuery.toLowerCase();
+  const cacheKey = finnhubCacheKey(
+    "search",
+    normalizedQuery.toLowerCase()
+  );
   const cachedEntry = readFreshCache(symbolSearchCache, cacheKey);
 
   if (cachedEntry) {
@@ -267,17 +353,19 @@ async function searchListedEquities(query, limit = 12) {
 // ==================================================
 
 async function fetchCompanyProfile(symbol) {
+  const cacheKey = finnhubCacheKey("profile", symbol);
+
   const cachedEntry = readFreshCache(
     profileCache,
-    symbol
+    cacheKey
   );
 
   if (cachedEntry) {
     return cachedEntry.value;
   }
 
-  if (pendingProfileRequests.has(symbol)) {
-    return pendingProfileRequests.get(symbol);
+  if (pendingProfileRequests.has(cacheKey)) {
+    return pendingProfileRequests.get(cacheKey);
   }
 
   const requestPromise = (async () => {
@@ -302,7 +390,7 @@ async function fetchCompanyProfile(symbol) {
 
     writeCache(
       profileCache,
-      symbol,
+      cacheKey,
       profile,
       PROFILE_CACHE_TTL_MS
     );
@@ -311,14 +399,14 @@ async function fetchCompanyProfile(symbol) {
   })();
 
   pendingProfileRequests.set(
-    symbol,
+    cacheKey,
     requestPromise
   );
 
   try {
     return await requestPromise;
   } finally {
-    pendingProfileRequests.delete(symbol);
+    pendingProfileRequests.delete(cacheKey);
   }
 }
 
@@ -452,9 +540,14 @@ async function getFinnhubQuote(symbol) {
     };
   }
 
+  const cacheKey = finnhubCacheKey(
+    "quote",
+    normalizedSymbol
+  );
+
   const cachedEntry = readFreshCache(
     quoteCache,
-    normalizedSymbol
+    cacheKey
   );
 
   if (cachedEntry) {
@@ -477,19 +570,19 @@ async function getFinnhubQuote(symbol) {
   */
   if (
     pendingQuoteRequests.has(
-      normalizedSymbol
+      cacheKey
     )
   ) {
     try {
       const pendingResult =
         await pendingQuoteRequests.get(
-          normalizedSymbol
+          cacheKey
         );
 
       const newCacheEntry =
         readFreshCache(
           quoteCache,
-          normalizedSymbol
+          cacheKey
         );
 
       return {
@@ -538,7 +631,7 @@ async function getFinnhubQuote(symbol) {
 
     const cacheEntry = writeCache(
       quoteCache,
-      normalizedSymbol,
+      cacheKey,
       freshResult,
       QUOTE_CACHE_TTL_MS
     );
@@ -568,7 +661,7 @@ async function getFinnhubQuote(symbol) {
   derivedQuotePromise.catch(() => {});
 
   pendingQuoteRequests.set(
-    normalizedSymbol,
+    cacheKey,
     derivedQuotePromise
   );
 
@@ -610,7 +703,7 @@ async function getFinnhubQuote(symbol) {
     };
   } finally {
     pendingQuoteRequests.delete(
-      normalizedSymbol
+      cacheKey
     );
   }
 }
@@ -703,9 +796,14 @@ function clearFinnhubQuoteCache(symbol = null) {
     const normalizedSymbol =
       normalizeSymbol(symbol);
 
-    quoteCache.delete(normalizedSymbol);
-    pendingQuoteRequests.delete(
+    const cacheKey = finnhubCacheKey(
+      "quote",
       normalizedSymbol
+    );
+
+    quoteCache.delete(cacheKey);
+    pendingQuoteRequests.delete(
+      cacheKey
     );
 
     return {
@@ -733,12 +831,17 @@ function clearFinnhubProfileCache(
     const normalizedSymbol =
       normalizeSymbol(symbol);
 
-    profileCache.delete(
+    const cacheKey = finnhubCacheKey(
+      "profile",
       normalizedSymbol
     );
 
+    profileCache.delete(
+      cacheKey
+    );
+
     pendingProfileRequests.delete(
-      normalizedSymbol
+      cacheKey
     );
 
     return {
@@ -783,12 +886,31 @@ function getFinnhubCacheStats() {
   };
 }
 
+function clearFinnhubSearchCache() {
+  symbolSearchCache.clear();
+  pendingSymbolSearchRequests.clear();
+}
+
+function getFinnhubCacheKeysForTests() {
+  return {
+    quote: [...quoteCache.keys()],
+    profile: [...profileCache.keys()],
+    search: [...symbolSearchCache.keys()],
+    pendingQuote: [...pendingQuoteRequests.keys()],
+    pendingProfile: [...pendingProfileRequests.keys()],
+    pendingSearch: [...pendingSymbolSearchRequests.keys()]
+  };
+}
+
 module.exports = {
   getFinnhubQuote,
   getFinnhubCompanyProfile,
   getHistoricalCandles,
   clearFinnhubQuoteCache,
   clearFinnhubProfileCache,
+  clearFinnhubSearchCache,
+  getFinnhubCacheKeysForTests,
   getFinnhubCacheStats,
+  isListedEquitySearchResult,
   searchListedEquities
 };

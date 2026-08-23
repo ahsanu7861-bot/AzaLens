@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 
 const {
   assertEnvironmentValid,
+  getRequiredEnvironmentKeys,
   validateEnvironment,
 } = require("../scripts/validateEnvironment");
 const {
@@ -139,6 +140,510 @@ check("existing provider-key requirements are unchanged", () => {
 
   const devNoProviders = validateEnvironment({ APP_ENV: "development" });
   assert.equal(devNoProviders.valid, true);
+});
+
+/*
+  ==================================================================
+  Conditional provider-key validation
+  ==================================================================
+
+  FINNHUB_API_KEY used to be required unconditionally in staging and
+  production, regardless of which providers any capability actually selected.
+  A deployment that had migrated every capability to Twelve Data would still
+  have refused to start without a Finnhub key it never intended to use - the
+  boot guard would have blocked a correct configuration.
+
+  Requirements are now derived from the ACTIVE selection. This is technical
+  boot parity only: it changes no default, and under the accepted defaults the
+  required set is identical to the old static list, which the first check
+  below pins.
+
+  No key VALUE is asserted anywhere here. Only names, and obviously fake
+  placeholders.
+*/
+
+const PRODUCTION_BASE = {
+  APP_ENV: "production",
+  SUPABASE_URL: PROD_URL,
+  SUPABASE_PUBLISHABLE_KEY: FAKE_PUBLISHABLE,
+  SUPABASE_SECRET_KEY: FAKE_SECRET,
+  ...GATE_ON,
+};
+
+check("default selection requires exactly the historically required keys", () => {
+  assert.deepEqual(getRequiredEnvironmentKeys("production", {}), [
+    "FINNHUB_API_KEY",
+    "OBSERVABILITY_METRICS_TOKEN",
+    "TWELVE_DATA_API_KEY",
+  ]);
+  assert.deepEqual(
+    getRequiredEnvironmentKeys("staging", {}),
+    getRequiredEnvironmentKeys("production", {})
+  );
+
+  // Development and test still require nothing and still start with no gate.
+  assert.deepEqual(getRequiredEnvironmentKeys("development", {}), []);
+  assert.deepEqual(getRequiredEnvironmentKeys("test", {}), []);
+});
+
+check("default production boot still demands a Finnhub key", () => {
+  const withoutFinnhub = validateEnvironment({
+    ...PRODUCTION_BASE,
+    TWELVE_DATA_API_KEY: "x",
+    OBSERVABILITY_METRICS_TOKEN: "x",
+  });
+
+  assert.equal(withoutFinnhub.valid, false);
+  assert.match(withoutFinnhub.errors.join(" "), /FINNHUB_API_KEY/);
+
+  // The error names the selection that made the key required.
+  assert.match(withoutFinnhub.errors.join(" "), /quote=finnhub/);
+
+  const complete = validateEnvironment({
+    ...PRODUCTION_BASE,
+    ...PROVIDER_KEYS,
+  });
+  assert.equal(complete.valid, true, complete.errors.join(" "));
+  assert.deepEqual(complete.providerSelection, {
+    quote: "finnhub",
+    profile: "finnhub",
+    search: "finnhub",
+    history: "twelve_data",
+    fundamentals: "finnhub",
+  });
+});
+
+check("a Twelve Data-only selection without its feature flag is refused", () => {
+  /*
+    This check previously asserted that exactly this configuration was VALID,
+    and that assertion was the blocker: PROFILE_PROVIDER and
+    FUNDAMENTALS_PROVIDER were set to twelve_data with
+    TWELVE_DATA_PROFILE_ENABLED absent, so the service booted green and every
+    profile request then failed with PROVIDER_CAPABILITY_DISABLED.
+
+    The correct Twelve Data-only configuration - the same selection WITH the
+    flag - is covered separately below and still boots with no Finnhub key.
+  */
+  const withoutFlag = validateEnvironment({
+    ...PRODUCTION_BASE,
+    QUOTE_PROVIDER: "twelve_data",
+    PROFILE_PROVIDER: "twelve_data",
+    SEARCH_PROVIDER: "twelve_data",
+    HISTORY_PROVIDER: "twelve_data",
+    FUNDAMENTALS_PROVIDER: "twelve_data",
+    TWELVE_DATA_API_KEY: "x",
+    OBSERVABILITY_METRICS_TOKEN: "x",
+    // TWELVE_DATA_PROFILE_ENABLED and FINNHUB_API_KEY both deliberately absent.
+  });
+
+  assert.equal(withoutFlag.valid, false);
+  assert.deepEqual(
+    withoutFlag.missing,
+    [],
+    "no key is missing - the selection itself is the problem"
+  );
+  assert.deepEqual(
+    withoutFlag.providerConfigurationProblems.map((problem) => problem.capability),
+    ["profile", "fundamentals"]
+  );
+
+  assert.throws(
+    () =>
+      assertEnvironmentValid({
+        ...PRODUCTION_BASE,
+        QUOTE_PROVIDER: "twelve_data",
+        PROFILE_PROVIDER: "twelve_data",
+        SEARCH_PROVIDER: "twelve_data",
+        HISTORY_PROVIDER: "twelve_data",
+        FUNDAMENTALS_PROVIDER: "twelve_data",
+        TWELVE_DATA_API_KEY: "x",
+        OBSERVABILITY_METRICS_TOKEN: "x",
+      }),
+    /TWELVE_DATA_PROFILE_ENABLED/
+  );
+});
+
+check("a selected provider with no key still fails boot clearly", () => {
+  const missingTwelveData = validateEnvironment({
+    ...PRODUCTION_BASE,
+    QUOTE_PROVIDER: "twelve_data",
+    PROFILE_PROVIDER: "twelve_data",
+    SEARCH_PROVIDER: "twelve_data",
+    HISTORY_PROVIDER: "twelve_data",
+    FUNDAMENTALS_PROVIDER: "twelve_data",
+    OBSERVABILITY_METRICS_TOKEN: "x",
+  });
+
+  assert.equal(missingTwelveData.valid, false);
+  assert.match(missingTwelveData.errors.join(" "), /TWELVE_DATA_API_KEY/);
+
+  // A single Finnhub capability is enough to make the Finnhub key required.
+  const oneFinnhubCapability = validateEnvironment({
+    ...PRODUCTION_BASE,
+    QUOTE_PROVIDER: "twelve_data",
+    PROFILE_PROVIDER: "twelve_data",
+    SEARCH_PROVIDER: "finnhub",
+    HISTORY_PROVIDER: "twelve_data",
+    FUNDAMENTALS_PROVIDER: "twelve_data",
+    TWELVE_DATA_API_KEY: "x",
+    OBSERVABILITY_METRICS_TOKEN: "x",
+  });
+
+  assert.equal(oneFinnhubCapability.valid, false);
+  assert.match(oneFinnhubCapability.errors.join(" "), /FINNHUB_API_KEY/);
+  assert.match(oneFinnhubCapability.errors.join(" "), /search=finnhub/);
+});
+
+check("an unused provider key is never demanded", () => {
+  assert.equal(
+    getRequiredEnvironmentKeys("production", {
+      QUOTE_PROVIDER: "twelve_data",
+      PROFILE_PROVIDER: "twelve_data",
+      SEARCH_PROVIDER: "twelve_data",
+      HISTORY_PROVIDER: "twelve_data",
+      FUNDAMENTALS_PROVIDER: "twelve_data",
+    }).includes("FINNHUB_API_KEY"),
+    false
+  );
+
+  assert.equal(
+    getRequiredEnvironmentKeys("production", {
+      HISTORY_PROVIDER: "finnhub",
+      QUOTE_PROVIDER: "finnhub",
+      PROFILE_PROVIDER: "finnhub",
+      SEARCH_PROVIDER: "finnhub",
+      FUNDAMENTALS_PROVIDER: "finnhub",
+    }).includes("TWELVE_DATA_API_KEY"),
+    false
+  );
+});
+
+check("validation output never contains a key value", () => {
+  const result = validateEnvironment({
+    ...PRODUCTION_BASE,
+    FINNHUB_API_KEY: "finnhub-value-must-not-appear",
+    TWELVE_DATA_API_KEY: "twelve-value-must-not-appear",
+    OBSERVABILITY_METRICS_TOKEN: "metrics-value-must-not-appear",
+  });
+
+  const serialized = JSON.stringify(result);
+
+  for (const secret of [
+    "finnhub-value-must-not-appear",
+    "twelve-value-must-not-appear",
+    "metrics-value-must-not-appear",
+  ]) {
+    assert.equal(serialized.includes(secret), false);
+  }
+});
+
+/*
+  ==================================================================
+  Provider-configuration validity
+  ==================================================================
+
+  Key derivation used to double as provider validation:
+
+      const keyName = PROVIDER_API_KEYS[provider];
+      if (keyName) required.add(keyName);
+
+  An unknown, misspelled or blank provider fell straight out of that lookup,
+  contributed no required key, and the service booted green - then failed on the
+  first real request, in front of a user. Selecting Twelve Data for profile or
+  fundamentals without TWELVE_DATA_PROFILE_ENABLED had the same shape.
+
+  Every expected result below is written out independently. None of it is
+  produced by asking the validator what it thinks, which would only prove the
+  validator agrees with itself.
+*/
+
+const VALID_PRODUCTION = {
+  ...PRODUCTION_BASE,
+  ...PROVIDER_KEYS,
+};
+
+// Each entry: label, environment overrides, and the independently stated verdict.
+const CONFIGURATION_CASES = [
+  ["accepted defaults", {}, { valid: true }],
+  ["unknown quote provider", { QUOTE_PROVIDER: "alphavantage" }, { valid: false, code: "PROVIDER_UNSUPPORTED", capability: "quote" }],
+  ["unknown profile provider", { PROFILE_PROVIDER: "iex" }, { valid: false, code: "PROVIDER_UNSUPPORTED", capability: "profile" }],
+  ["unknown search provider", { SEARCH_PROVIDER: "polygon" }, { valid: false, code: "PROVIDER_UNSUPPORTED", capability: "search" }],
+  ["unknown history provider", { HISTORY_PROVIDER: "yahoo" }, { valid: false, code: "PROVIDER_UNSUPPORTED", capability: "history" }],
+  ["unknown fundamentals provider", { FUNDAMENTALS_PROVIDER: "nope" }, { valid: false, code: "PROVIDER_UNSUPPORTED", capability: "fundamentals" }],
+  /*
+    This entry previously asserted { valid: true } for an explicitly empty
+    QUOTE_PROVIDER, and that assertion was the defect: `env[key] || DEFAULT`
+    collapsed "" into the accepted default, so blanking a variable silently
+    selected Finnhub and reported usesDefaults: true. An explicitly empty value
+    is a configuration statement, and it is now refused.
+  */
+  ["explicitly empty quote provider", { QUOTE_PROVIDER: "" }, { valid: false, code: "PROVIDER_UNSUPPORTED", capability: "quote" }],
+  ["whitespace quote provider", { QUOTE_PROVIDER: "   " }, { valid: false, code: "PROVIDER_UNSUPPORTED", capability: "quote" }],
+  ["whitespace history provider", { HISTORY_PROVIDER: "\t" }, { valid: false, code: "PROVIDER_UNSUPPORTED", capability: "history" }],
+  ["twelve data profile, flag absent", { PROFILE_PROVIDER: "twelve_data" }, { valid: false, code: "PROVIDER_CAPABILITY_FLAG_DISABLED", capability: "profile" }],
+  ["twelve data profile, flag false", { PROFILE_PROVIDER: "twelve_data", TWELVE_DATA_PROFILE_ENABLED: "false" }, { valid: false, code: "PROVIDER_CAPABILITY_FLAG_DISABLED", capability: "profile" }],
+  ["twelve data fundamentals, flag absent", { FUNDAMENTALS_PROVIDER: "twelve_data" }, { valid: false, code: "PROVIDER_CAPABILITY_FLAG_DISABLED", capability: "fundamentals" }],
+  ["twelve data fundamentals, flag false", { FUNDAMENTALS_PROVIDER: "twelve_data", TWELVE_DATA_PROFILE_ENABLED: "0" }, { valid: false, code: "PROVIDER_CAPABILITY_FLAG_DISABLED", capability: "fundamentals" }],
+  ["twelve data profile and fundamentals, flag true", { PROFILE_PROVIDER: "twelve_data", FUNDAMENTALS_PROVIDER: "twelve_data", TWELVE_DATA_PROFILE_ENABLED: "true" }, { valid: true }],
+  ["twelve data quote and search need no flag", { QUOTE_PROVIDER: "twelve_data", SEARCH_PROVIDER: "twelve_data" }, { valid: true }],
+];
+
+for (const [label, overrides, expected] of CONFIGURATION_CASES) {
+  check(`configuration: ${label}`, () => {
+    const result = validateEnvironment({ ...VALID_PRODUCTION, ...overrides });
+
+    assert.equal(
+      result.valid,
+      expected.valid,
+      `${label}: expected valid=${expected.valid}, got ${result.valid} (${result.errors.join(" | ")})`
+    );
+
+    if (expected.valid) {
+      assert.deepEqual(result.providerConfigurationProblems, []);
+      return;
+    }
+
+    const problem = result.providerConfigurationProblems.find(
+      (candidate) => candidate.capability === expected.capability
+    );
+
+    assert.ok(problem, `${label}: expected a problem for the ${expected.capability} capability`);
+    assert.equal(problem.code, expected.code);
+    assert.match(result.errors.join(" "), new RegExp(expected.code));
+
+    // assertEnvironmentValid is the real startup guard, so it must refuse too.
+    assert.throws(
+      () => assertEnvironmentValid({ ...VALID_PRODUCTION, ...overrides }),
+      /Environment validation failed/,
+      `${label}: startup must refuse this configuration`
+    );
+  });
+}
+
+/*
+  The full absent / empty / whitespace matrix, for every capability.
+
+  Three distinct states that `||` could not tell apart:
+    - the variable is ABSENT      -> the accepted default applies
+    - the variable is ""          -> a configuration statement, and refused
+    - the variable is whitespace  -> the same
+*/
+const CAPABILITY_VARIABLES = [
+  ["quote", "QUOTE_PROVIDER"],
+  ["profile", "PROFILE_PROVIDER"],
+  ["search", "SEARCH_PROVIDER"],
+  ["history", "HISTORY_PROVIDER"],
+  ["fundamentals", "FUNDAMENTALS_PROVIDER"],
+];
+
+const BLANK_VALUES = [
+  ["empty string", ""],
+  ["single space", " "],
+  ["spaces", "   "],
+  ["tab", "\t"],
+  ["newline", "\n"],
+  ["tab and newline", "\t\n "],
+];
+
+for (const [capability, variable] of CAPABILITY_VARIABLES) {
+  for (const [valueLabel, value] of BLANK_VALUES) {
+    check(`blank configuration: ${variable} = ${valueLabel}`, () => {
+      const env = { ...VALID_PRODUCTION, [variable]: value };
+      const result = validateEnvironment(env);
+
+      assert.equal(result.valid, false, `${variable}=${valueLabel} must be refused`);
+
+      const problem = result.providerConfigurationProblems.find(
+        (candidate) => candidate.capability === capability
+      );
+
+      assert.ok(problem, `expected a problem for the ${capability} capability`);
+      assert.equal(problem.code, "PROVIDER_UNSUPPORTED");
+      assert.equal(problem.provider, "", "a blank value must normalize to an empty provider, not a default");
+
+      assert.throws(
+        () => assertEnvironmentValid(env),
+        /Environment validation failed/,
+        `${variable}=${valueLabel} must refuse startup`
+      );
+
+      // It must not have silently become a default provider.
+      assert.notEqual(result.providerSelection[capability], "finnhub");
+      assert.notEqual(result.providerSelection[capability], "twelve_data");
+    });
+  }
+}
+
+check("a genuinely absent provider variable still selects the accepted default", () => {
+  /*
+    The other half of the distinction. Absence must keep working exactly as it
+    always did, including when the property is present with the value undefined.
+  */
+  const absent = validateEnvironment(VALID_PRODUCTION);
+
+  assert.equal(absent.valid, true, absent.errors.join(" | "));
+  assert.deepEqual(absent.providerSelection, {
+    quote: "finnhub",
+    profile: "finnhub",
+    search: "finnhub",
+    history: "twelve_data",
+    fundamentals: "finnhub",
+  });
+
+  const explicitlyUndefined = validateEnvironment({
+    ...VALID_PRODUCTION,
+    QUOTE_PROVIDER: undefined,
+    PROFILE_PROVIDER: undefined,
+    SEARCH_PROVIDER: undefined,
+    HISTORY_PROVIDER: undefined,
+    FUNDAMENTALS_PROVIDER: undefined,
+  });
+
+  assert.equal(explicitlyUndefined.valid, true, explicitlyUndefined.errors.join(" | "));
+  assert.deepEqual(explicitlyUndefined.providerSelection, absent.providerSelection);
+  assert.deepEqual(explicitlyUndefined.providerConfigurationProblems, []);
+});
+
+check("every capability blanked at once is refused, capability by capability", () => {
+  const env = { ...VALID_PRODUCTION };
+  for (const [, variable] of CAPABILITY_VARIABLES) env[variable] = "";
+
+  const result = validateEnvironment(env);
+
+  assert.equal(result.valid, false);
+  assert.deepEqual(
+    result.providerConfigurationProblems.map((problem) => problem.capability),
+    ["quote", "profile", "search", "history", "fundamentals"],
+    "each blanked capability must be reported individually"
+  );
+  assert.deepEqual(
+    result.requiredProviderKeys,
+    [],
+    "a wholly blank selection requires no provider key - and is still refused"
+  );
+});
+
+check("an unsupported provider contributes no silently-missing key requirement", () => {
+  /*
+    The precise regression: an unsupported provider used to require no key, so
+    "every required key is present" was trivially true and nothing objected.
+    Requiring no key is still correct - there is no key for a provider that does
+    not exist - but it must no longer be the only thing that is checked.
+  */
+  const result = validateEnvironment({
+    ...VALID_PRODUCTION,
+    QUOTE_PROVIDER: "alphavantage",
+  });
+
+  assert.deepEqual(result.missing, [], "no key is missing for a provider that does not exist");
+  assert.equal(result.valid, false, "and yet the configuration must still be refused");
+  assert.equal(result.providerConfigurationProblems.length, 1);
+});
+
+check("a correctly enabled Twelve Data-only selection still boots without a Finnhub key", () => {
+  const env = {
+    ...PRODUCTION_BASE,
+    QUOTE_PROVIDER: "twelve_data",
+    PROFILE_PROVIDER: "twelve_data",
+    SEARCH_PROVIDER: "twelve_data",
+    HISTORY_PROVIDER: "twelve_data",
+    FUNDAMENTALS_PROVIDER: "twelve_data",
+    TWELVE_DATA_PROFILE_ENABLED: "true",
+    TWELVE_DATA_API_KEY: "x",
+    OBSERVABILITY_METRICS_TOKEN: "x",
+  };
+
+  const result = validateEnvironment(env);
+
+  assert.equal(result.valid, true, result.errors.join(" | "));
+  assert.deepEqual(result.requiredProviderKeys, ["TWELVE_DATA_API_KEY"]);
+  assert.deepEqual(result.providerConfigurationProblems, []);
+  assert.doesNotThrow(() => assertEnvironmentValid(env));
+});
+
+check("one remaining Finnhub capability still requires its key", () => {
+  const env = {
+    ...PRODUCTION_BASE,
+    QUOTE_PROVIDER: "twelve_data",
+    PROFILE_PROVIDER: "twelve_data",
+    SEARCH_PROVIDER: "finnhub",
+    HISTORY_PROVIDER: "twelve_data",
+    FUNDAMENTALS_PROVIDER: "twelve_data",
+    TWELVE_DATA_PROFILE_ENABLED: "true",
+    TWELVE_DATA_API_KEY: "x",
+    OBSERVABILITY_METRICS_TOKEN: "x",
+  };
+
+  const result = validateEnvironment(env);
+
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.missing, ["FINNHUB_API_KEY"]);
+  assert.deepEqual(result.providerConfigurationProblems, []);
+  assert.match(result.errors.join(" "), /search=finnhub/);
+});
+
+check("default provider ownership is unchanged by configuration validation", () => {
+  const result = validateEnvironment(VALID_PRODUCTION);
+
+  assert.deepEqual(result.providerSelection, {
+    quote: "finnhub",
+    profile: "finnhub",
+    search: "finnhub",
+    history: "twelve_data",
+    fundamentals: "finnhub",
+  });
+  assert.deepEqual(result.requiredProviderKeys, [
+    "FINNHUB_API_KEY",
+    "TWELVE_DATA_API_KEY",
+  ]);
+});
+
+check("configuration errors expose no key value", () => {
+  const result = validateEnvironment({
+    ...PRODUCTION_BASE,
+    QUOTE_PROVIDER: "alphavantage",
+    PROFILE_PROVIDER: "twelve_data",
+    FINNHUB_API_KEY: "config-finnhub-value-must-not-appear",
+    TWELVE_DATA_API_KEY: "config-twelve-value-must-not-appear",
+    OBSERVABILITY_METRICS_TOKEN: "config-metrics-value-must-not-appear",
+  });
+
+  const serialized = JSON.stringify(result);
+
+  for (const secret of [
+    "config-finnhub-value-must-not-appear",
+    "config-twelve-value-must-not-appear",
+    "config-metrics-value-must-not-appear",
+  ]) {
+    assert.equal(serialized.includes(secret), false);
+  }
+
+  // Variable NAMES are expected and useful; values are not.
+  assert.match(serialized, /QUOTE_PROVIDER/);
+  assert.match(serialized, /TWELVE_DATA_PROFILE_ENABLED/);
+});
+
+check("closed-demo and Shariah boot invariants are unchanged", () => {
+  const noGate = validateEnvironment({
+    APP_ENV: "production",
+    SUPABASE_URL: PROD_URL,
+    SUPABASE_PUBLISHABLE_KEY: FAKE_PUBLISHABLE,
+    SUPABASE_SECRET_KEY: FAKE_SECRET,
+    ...PROVIDER_KEYS,
+  });
+  assert.equal(noGate.valid, false);
+  assert.match(noGate.errors.join(" "), /CLOSED_DEMO_ENABLED must be explicitly true/);
+
+  const liveShariahWithoutMode = validateEnvironment({
+    ...PRODUCTION_BASE,
+    ...PROVIDER_KEYS,
+    FEATURE_LIVE_SHARIAH_ENABLED: "true",
+  });
+  assert.equal(liveShariahWithoutMode.valid, false);
+  assert.match(
+    liveShariahWithoutMode.errors.join(" "),
+    /SHARIAH_DATA_MODE=live/
+  );
 });
 
 check("partial Supabase configuration fails in development too", () => {

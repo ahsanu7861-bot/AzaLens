@@ -3,6 +3,14 @@
 const {
   getReleaseVersion,
 } = require("../config/releaseVersion");
+const {
+  getProviderConfigurationProblems,
+  getProviderSelectionSnapshot,
+  getRequiredProviderKeys,
+} = require("../providers/marketDataProvider");
+const {
+  resolveMarketDelay,
+} = require("../services/analysisTrustService");
 
 const crypto = require("node:crypto");
 const {
@@ -541,13 +549,49 @@ function buildReadinessSnapshot({
         parseBoolean(
           env.OBSERVABILITY_STRICT_READINESS
         );
-  const marketProvidersConfigured = Boolean(
-    String(env.FINNHUB_API_KEY || "").trim() &&
-      String(env.TWELVE_DATA_API_KEY || "").trim()
-  );
+  /*
+    Readiness now asks whether every key the ACTIVE capability selection needs
+    is present, rather than demanding both provider keys unconditionally.
+
+    Under the accepted defaults the required set is still FINNHUB_API_KEY plus
+    TWELVE_DATA_API_KEY, so this check is invariant today. It stops being a
+    deploy-blocker only for a selection that genuinely does not use a provider.
+
+    Only presence is tested, and only the aggregate word "configured" or
+    "incomplete" is published. No key name and no key value reaches this public
+    endpoint.
+  */
+  /*
+    A selection that cannot serve a request must not report ready.
+
+    Key presence alone was never sufficient: an unsupported provider required no
+    key at all, so "every required key is present" was trivially true and strict
+    readiness returned ready for a configuration that could not answer a single
+    request. Selecting Twelve Data for profile or fundamentals without its
+    feature flag had the same shape.
+  */
+  const configurationProblems = getProviderConfigurationProblems(env);
+  const providerConfigurationValid = configurationProblems.length === 0;
+  const marketProviderKeysPresent = getRequiredProviderKeys(
+    env
+  ).every((keyName) => Boolean(String(env[keyName] || "").trim()));
+  const marketProvidersConfigured =
+    providerConfigurationValid && marketProviderKeysPresent;
   const ready =
     !strictReadiness ||
     marketProvidersConfigured;
+
+  /*
+    The published value stays a single aggregate word. It distinguishes "a key
+    is missing" from "the selection itself is invalid" - useful to an operator
+    reading a health check - while naming no capability, provider, variable,
+    flag or key. Everything specific stays behind the metrics token.
+  */
+  const marketProvidersState = !providerConfigurationValid
+    ? "misconfigured"
+    : marketProviderKeysPresent
+      ? "configured"
+      : "incomplete";
 
   return {
     status: ready ? "ready" : "not_ready",
@@ -556,10 +600,7 @@ function buildReadinessSnapshot({
     strict: strictReadiness,
     checks: {
       runtime: "pass",
-      marketProviders:
-        marketProvidersConfigured
-          ? "configured"
-          : "incomplete",
+      marketProviders: marketProvidersState,
       shariahDataMode:
         String(
           env.SHARIAH_DATA_MODE || "offline"
@@ -577,6 +618,28 @@ function getMetricsSnapshot() {
 
   return {
     generatedAt: new Date().toISOString(),
+    /*
+      Which provider owns each capability, for the protected metrics endpoint
+      only. This is what lets PR B prove the switch actually took effect, and
+      lets anyone verify that no Finnhub call is hiding behind a Twelve Data
+      selection: compare `providerSelection.capabilities` against the
+      `providers[]` counters below.
+
+      Configuration NAMES and provider IDS only. No key values, no quotas, no
+      endpoints, no provider account detail. `/ops/metrics` keeps its existing
+      token protection, and the public health endpoints are unchanged.
+    */
+    providerSelection: {
+      ...getProviderSelectionSnapshot(),
+      /*
+        Which variable supplied the disclosed market-data delay, so the claim
+        on the methodology page can be traced to its source rather than
+        assumed. The minute count is already public; the resolution path is
+        not, and belongs behind the token with the rest of the configuration
+        detail.
+      */
+      marketDataDelay: resolveMarketDelay(),
+    },
     process: {
       startedAt: state.startedAt,
       uptimeSeconds: round(process.uptime(), 3),

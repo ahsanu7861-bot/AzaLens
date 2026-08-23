@@ -25,7 +25,7 @@ My honest sequencing recommendation, even where it differs from prior assumption
 | 1.2 | **Remove/relabel the "AzaLens Pro — Upgrade to unlock" upsell** (`ProFeatureWrapper`, `StockHeader`): no such tier exists | Violation live (audit V7) | 7, 21, 26 | None |
 | 1.3 | **Methodology & Limitations page** (user-facing): AAOIFI version, thresholds (30% debt/assets, 5% impermissible income), screening source description (within Rule 12 limits), 24h-cache / 7-day-stale rules, swing horizon + data delays, purification explanation, "not a fatwa" | **Released and exact-SHA verified** in PR #28 merge `00e29b934b3efba6355ac8e7c1d1d0085d2dca7f`; CI run `32536321705` passed, Render and Vercel identify that merge, and the public desktop route was verified. Mobile production-browser observation remains qualified by exact served-build identity plus accepted mobile Linux visual coverage, not a direct mobile production session. The page distinguishes AzaLens's internal contract v0.5.0 from the provider-stated AAOIFI Standard No. 21, disclaims accreditation/endorsement and leaves the precise external edition unverified. Future scholar/provider review may require correction; this release does not independently validate the 30%/5% research boundaries. | 11, 15, 25 | None |
 | 1.4 | **Purification section in the Shariah workspace** (today it is one metric row) | **Released and exact-SHA verified** in PR #28 merge `00e29b934b3efba6355ac8e7c1d1d0085d2dca7f`; the provider-reported rate is now a dedicated panel, unavailable is explicitly not zero, and AzaLens does not calculate personal purification obligations. Two focused purification baselines and four public-methodology baselines are active alongside the six reviewed landing replacements; all 24 Linux comparisons passed on merge-SHA CI run `32536321705` with zero missing, mismatched or silently written snapshots. | 4, 11 | None |
-| 1.5 | **Fix the Finnhub crash path** — add `.catch` to the derived pending-quote promise (`finnhubProvider.js:581–586`); an unhandled rejection can kill the process mid-demo | Confirmed bug (audit item 13) | 8 | None |
+| 1.5 | ~~**Fix the Finnhub crash path**~~ — **already fixed; no implementation was required in PR A.** `derivedQuotePromise.catch(() => {})` is present in `backend/providers/finnhubProvider.js`, with a source comment explaining why a no-op catch marks the promise handled for Node's tracking without swallowing the rejection for a real awaiter. Focused coverage lives in `backend/tests/testFinnhubQuoteRejectionSafety.js` and is registered in `backend/tests/runCiSuite.js`, so ordinary CI protects it. The old line reference (`581–586`) is stale — the fix sits earlier in the file after later edits. **Carry-forward:** the Twelve Data quote adapter added in PR A reproduces the same coalescing shape, so `backend/tests/testTwelveDataQuoteRejectionSafety.js` now carries the same invariant, and it must stay registered when the Finnhub suite is eventually removed. | **Verified — closed.** Re-verified against `32d7066` on 2026-08-22 | 8 | None |
 | 1.6 | Title → "AzaLens" (drop "AI"); purge the `AlphaLens` remnant in `StockChart.tsx` | Violation (audit V12) | 2 | None |
 | 1.7 | **Docs truth sweep**: refresh `docs/PRODUCT_BUILD_STATUS.md` (its "Verified Status 2026-07-28" is now false about rate limiting/CI); this file supersedes the old roadmap | Stale (audit V1–V6) | 7 | None |
 | 1.8 | **Demo-day runbook**: warm the backend ~10 min before each meeting (Render Free cold start looks broken); optionally pre-screen the demo tickers with your explicit approval | Planned (audit N3) | 17 | 0 or ~10–15 tokens, user-approved |
@@ -42,6 +42,41 @@ Production identity was verified independently. Release-scope classification rep
 Items 2.15–2.17 are live: the landing demonstration publishes the canonical guidance label and horizon; the invalid `riskLevel: "Medium"` fixture data was removed as **latent drift that was never visibly rendered**, not as a previously visible risk defect; and the public landing copy, metadata, social preview and GitHub repository description/homepage no longer present deterministic computation as AI. The landing agreement input remains hand-authored; only the published guidance presentation is re-derived through the real guidance engine. Nothing in PR #22 empirically validates, calibrates or proves the accuracy of unrelated risk thresholds, penalties or evidence-model behaviour. Provider-backed analysis calls and provider cost for release verification: **zero**.
 
 All Phase 0 items need one later, separately approved code session (this session was read-only + docs by instruction).
+
+### Provider migration status (2026-08-22)
+
+Where the Finnhub-to-Twelve-Data migration actually stands, so no future session
+has to re-derive it:
+
+- **Historical OHLCV already uses Twelve Data.** `HISTORY_PROVIDER` has defaulted
+  to `twelve_data` for some time and `/time_series` serves production today.
+- **Finnhub remains the default for live quotes, symbol search, company profiles
+  and fundamentals** until PR B. PR A did not change that.
+- **PR A adds tested Twelve Data parity without changing any production
+  default.** Twelve Data quote and equity-only search adapters now exist behind
+  explicit capability selection, the Twelve Data profile path no longer falls
+  back to or enriches from Finnhub, cache keys carry provider identity and a
+  contract version, boot validation derives its required keys from the active
+  selection, and provider selection is observable through protected metrics.
+  The accepted default provider map is pinned byte-for-byte by
+  `backend/tests/testProviderAdapter.js`.
+- **PR A does not complete the migration.** Twelve Data is not live for quotes,
+  search, profiles or fundamentals, and Finnhub has not been removed.
+- **Technical parity does not establish commercial rights.** Passing contract
+  tests says the adapters normalize correctly. It says nothing about which
+  endpoints the current plan reaches, or whether the data may be shown to the
+  public.
+- **External-display authorization is `UNKNOWN/UNVERIFIED`.** It has not been
+  confirmed in writing and it has not been ruled out. It must be described that
+  way rather than as either licensed or unlicensed.
+- **The closed-demo gate is an access control, not a licensing determination.**
+  It restricts who can reach provider-backed routes. It does not establish that
+  any provider's terms are satisfied, and it must never be cited as if it did.
+- **PR B requires written provider and plan confirmation** covering endpoint
+  access, market coverage and external-display rights, alongside parity
+  evidence, verified cache transition and explicit production authorization.
+- **PR C requires stable production observation** after PR B, and removes
+  Finnhub only then.
 
 ---
 
