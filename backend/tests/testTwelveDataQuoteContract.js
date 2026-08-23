@@ -184,7 +184,126 @@ async function run() {
   assert.equal(normalized.providerMetadata.lastQuoteAt, 1787356740);
 
   // ------------------------------------------------------------------
-  // 4. Malformed and unusable responses fail honestly
+  // 4. Missing fields stay unavailable - never zero
+  // ------------------------------------------------------------------
+  clearTwelveDataQuoteCache();
+  stubQuote(async () => {
+    const partial = quoteFixture();
+    delete partial.previous_close;
+    delete partial.change;
+    delete partial.percent_change;
+    delete partial.timestamp;
+    delete partial.name;
+    partial.open = null;
+    return { data: partial };
+  });
+
+  const partial = await getTwelveDataQuote("AAPL");
+
+  assert.equal(partial.success, true, "a usable price still yields a quote");
+  assert.equal(partial.data.price, 227.3);
+
+  /*
+    Whitespace-only is the case an equality test against "" misses. `Number("   ")`
+    is 0 and 0 is finite, so a guard checking only `=== ""` lets a blank field
+    through as a real-looking zero. Pinned here alongside the other unavailable
+    forms so reverting the trim fails this suite, not only the shared
+    numeric-safety suite.
+  */
+  for (const blank of ["   ", "\t", "\n", "\t\n "]) {
+    clearTwelveDataQuoteCache();
+    stubQuote(async () => ({
+      data: quoteFixture({
+        previous_close: blank,
+        change: blank,
+        percent_change: blank,
+        timestamp: blank,
+        open: blank,
+      }),
+    }));
+
+    const blanked = await getTwelveDataQuote("AAPL");
+
+    for (const field of [
+      "previousClose",
+      "change",
+      "changePercent",
+      "timestamp",
+      "open",
+    ]) {
+      assert.equal(
+        blanked.data[field],
+        null,
+        `a whitespace-only ${field} must be unavailable, not zero`
+      );
+      assert.equal(
+        Number.isFinite(blanked.data[field]),
+        false,
+        `a whitespace-only ${field} must not be a finite number`
+      );
+    }
+  }
+
+  // Types that coerce numerically must also be rejected.
+  for (const [label, value, ] of [
+    ["boolean", true],
+    ["array", [5]],
+    ["object", {}],
+  ]) {
+    clearTwelveDataQuoteCache();
+    stubQuote(async () => ({
+      data: quoteFixture({ previous_close: value, timestamp: value }),
+    }));
+
+    const coerced = await getTwelveDataQuote("AAPL");
+    assert.equal(
+      coerced.data.previousClose,
+      null,
+      `a ${label} previous close must be unavailable`
+    );
+    assert.equal(
+      coerced.data.timestamp,
+      null,
+      `a ${label} timestamp must be unavailable`
+    );
+  }
+
+  // Legitimate zero survives, in both number and string form.
+  for (const zero of [0, "0"]) {
+    clearTwelveDataQuoteCache();
+    stubQuote(async () => ({
+      data: quoteFixture({ change: zero, percent_change: zero, open: zero }),
+    }));
+
+    const zeroed = await getTwelveDataQuote("AAPL");
+    assert.equal(zeroed.data.change, 0, "a real zero change must survive");
+    assert.equal(zeroed.data.changePercent, 0);
+    assert.equal(zeroed.data.open, 0);
+  }
+
+  for (const field of [
+    "previousClose",
+    "change",
+    "changePercent",
+    "timestamp",
+    "open",
+  ]) {
+    assert.equal(
+      partial.data[field],
+      null,
+      `${field} must be null when unavailable`
+    );
+    assert.notEqual(
+      partial.data[field],
+      0,
+      `${field} must never be coerced to zero`
+    );
+  }
+
+  assert.equal(partial.data.company, null);
+
+  // ------------------------------------------------------------------
+  // 5. Malformed and unusable responses fail honestly
   // ------------------------------------------------------------------
   for (const [label, payload] of [
     ["empty body", {}],
@@ -219,7 +338,7 @@ async function run() {
   assert.match(notFound.error, /not found/);
 
   // ------------------------------------------------------------------
-  // 5. Timeout
+  // 6. Timeout
   // ------------------------------------------------------------------
   clearTwelveDataQuoteCache();
   stubQuote(async () => {

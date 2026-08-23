@@ -33,6 +33,7 @@ const deterministicSuites = [
   "testPortfolioRouterFactory.js",
   "testProviderAdapter.js",
   "testProviderCacheNamespaces.js",
+  "testProviderNumericSafety.js",
   "testProviderSelectionObservability.js",
   "testTwelveDataProfileProvider.js",
   "testTwelveDataQuoteContract.js",

@@ -488,10 +488,57 @@ async function getHistoricalData(
 // Shared normalization helpers
 // ==================================================
 
-function toFiniteNumber(value, fallback = null) {
-  const number = Number(value);
+/*
+  ==========================================================================
+  Strict numeric parsing
+  ==========================================================================
 
-  return Number.isFinite(number) ? number : fallback;
+  Unavailable must stay unavailable, and JavaScript's numeric coercion works
+  hard against that. `Number(null)`, `Number("")`, `Number("   ")` and
+  `Number([])` are all 0, and 0 is finite - so a naive Number()/isFinite() pair
+  silently turns a field the provider never supplied into a real-looking zero.
+  On a quote that means a missing previous close renders as $0.00, a missing
+  change renders as "no movement", and a missing timestamp renders as 1970.
+  Every one of those is an assertion AzaLens has no evidence for.
+
+  Blank-string rejection cannot be an equality test against "": a value of
+  "   " or "\t\n" coerces to 0 exactly like "" does, and an earlier version of
+  this guard checked only `=== ""` and let whitespace through.
+
+  Truthiness is not usable here either, because 0 and "0" are legitimate values
+  that must survive. So the accepted domain is stated by type instead:
+
+    ACCEPTED  - a finite number, including 0 and negative numbers
+              - a string that is non-blank after trimming AND parses to a
+                finite number, including "0"
+
+    REJECTED  - null, undefined
+              - "", and any whitespace-only string
+              - any non-numeric string
+              - NaN, Infinity, -Infinity (as numbers or as strings)
+              - booleans, arrays, objects, and every other type
+
+  Rejected input returns `fallback`, which is null for every quote field, and
+  never a number derived from coercion.
+*/
+function toFiniteNumber(value, fallback = null) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (trimmed === "") {
+      return fallback;
+    }
+
+    const number = Number(trimmed);
+
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  return fallback;
 }
 
 function roundNumber(value, decimals = 3) {
@@ -711,11 +758,20 @@ function missCacheMetadata(ttlMs) {
   this far - is a failure, not a zero. Never let an unavailable price become 0.
 */
 function isUsableQuote(quote) {
+  /*
+    The usability check must apply the SAME accepted domain as the field
+    normalizer below. If it used a looser coercion, a payload whose `close` was
+    `true` or `["101"]` would pass validation and then normalize to a null
+    price - a "successful" quote carrying no price at all, which is worse than
+    an honest failure.
+  */
+  const close = toFiniteNumber(quote?.close);
+
   return (
     quote &&
     typeof quote === "object" &&
-    Number.isFinite(Number(quote.close)) &&
-    Number(quote.close) > 0
+    close !== null &&
+    close > 0
   );
 }
 

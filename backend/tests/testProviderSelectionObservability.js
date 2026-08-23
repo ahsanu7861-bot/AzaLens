@@ -366,6 +366,104 @@ async function run() {
     assert.equal(adapter.getProviderSelectionSnapshot({ ...KEYS }).usesDefaults, true);
 
     // ----------------------------------------------------------------
+    // 4e. Delay-fallback diagnostics are protected-only and value-free
+    // ----------------------------------------------------------------
+    const savedDelay = {
+      MARKET_DATA_DELAY_MINUTES: process.env.MARKET_DATA_DELAY_MINUTES,
+      FINNHUB_DELAY_MINUTES: process.env.FINNHUB_DELAY_MINUTES,
+    };
+
+    try {
+      process.env.MARKET_DATA_DELAY_MINUTES = "-999-not-a-delay";
+      delete process.env.FINNHUB_DELAY_MINUTES;
+
+      observability.resetObservabilityForTests();
+      const withRejection = observability.getMetricsSnapshot();
+      const delay = withRejection.providerSelection.marketDataDelay;
+
+      assert.equal(delay.minutes, 15, "the safe default must still be used");
+      assert.equal(delay.source, "DEFAULT");
+      assert.equal(delay.fallbackReason, "ALL_SOURCES_INVALID");
+      assert.deepEqual(delay.rejectedSources, [
+        { variable: "MARKET_DATA_DELAY_MINUTES", reason: "NOT_NUMERIC" },
+      ]);
+
+      /*
+        A rejected primary that falls through to a usable legacy source is a
+        fallback, and the protected record must not claim otherwise. This used
+        to report "NONE" beside a non-empty rejectedSources list.
+      */
+      process.env.MARKET_DATA_DELAY_MINUTES = "-5";
+      process.env.FINNHUB_DELAY_MINUTES = "20";
+
+      observability.resetObservabilityForTests();
+      const fellThrough =
+        observability.getMetricsSnapshot().providerSelection.marketDataDelay;
+
+      assert.equal(fellThrough.minutes, 20, "the legacy value must still be used");
+      assert.equal(fellThrough.source, "FINNHUB_DELAY_MINUTES");
+      assert.equal(
+        fellThrough.fallbackReason,
+        "PRIMARY_SOURCE_REJECTED",
+        "a rejected primary plus a resolved legacy source must be reported as a fallback"
+      );
+      assert.deepEqual(fellThrough.rejectedSources, [
+        { variable: "MARKET_DATA_DELAY_MINUTES", reason: "NEGATIVE" },
+      ]);
+      assert.notEqual(
+        fellThrough.fallbackReason,
+        "NONE",
+        "fallbackReason and rejectedSources must never disagree"
+      );
+
+      // A clean configuration claims no fallback and lists no rejection.
+      process.env.MARKET_DATA_DELAY_MINUTES = "20";
+      delete process.env.FINNHUB_DELAY_MINUTES;
+
+      observability.resetObservabilityForTests();
+      const clean =
+        observability.getMetricsSnapshot().providerSelection.marketDataDelay;
+
+      assert.equal(clean.fallbackReason, "NONE");
+      assert.deepEqual(clean.rejectedSources, []);
+
+      process.env.MARKET_DATA_DELAY_MINUTES = "-999-not-a-delay";
+      delete process.env.FINNHUB_DELAY_MINUTES;
+      observability.resetObservabilityForTests();
+
+      assert.equal(
+        JSON.stringify(withRejection).includes("-999-not-a-delay"),
+        false,
+        "a rejected delay value must never be echoed into metrics"
+      );
+
+      // The public readiness endpoint gains none of this.
+      const publicWithRejection = JSON.stringify(
+        observability.buildReadinessSnapshot({ env: { ...KEYS }, strict: true })
+      );
+
+      for (const forbidden of [
+        "fallbackReason",
+        "rejectedSources",
+        "configuredSources",
+        "MARKET_DATA_DELAY_MINUTES",
+        "FINNHUB_DELAY_MINUTES",
+        "-999-not-a-delay",
+      ]) {
+        assert.equal(
+          publicWithRejection.includes(forbidden),
+          false,
+          `public readiness must not expose "${forbidden}"`
+        );
+      }
+    } finally {
+      for (const [key, value] of Object.entries(savedDelay)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+
+    // ----------------------------------------------------------------
     // 5. A Twelve Data selection makes ZERO Finnhub call attempts
     // ----------------------------------------------------------------
     for (const [key, value] of Object.entries(TWELVE_DATA_ONLY)) {
