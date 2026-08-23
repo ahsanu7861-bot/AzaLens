@@ -43,40 +43,110 @@ Items 2.15–2.17 are live: the landing demonstration publishes the canonical gu
 
 All Phase 0 items need one later, separately approved code session (this session was read-only + docs by instruction).
 
-### Provider migration status (2026-08-22)
+### PR A durable release record — Twelve Data provider parity (2026-08-23)
 
-Where the Finnhub-to-Twelve-Data migration actually stands, so no future session
-has to re-derive it:
+PR #30 merged at code merge SHA `7c64801fa7888db0bac8c5cd9d98bb2666188baf`
+(tree `52ca2695d153d74560fe94a9bd04b478084f271c`), combining two commits:
+`87f0561d` (provider parity, configuration, cache and observability) and
+`5fecf6a4` (malformed-input and market-delay safety). 21 paths, +6,362/−142.
 
-- **Historical OHLCV already uses Twelve Data.** `HISTORY_PROVIDER` has defaulted
-  to `twelve_data` for some time and `/time_series` serves production today.
-- **Finnhub remains the default for live quotes, symbol search, company profiles
-  and fundamentals** until PR B. PR A did not change that.
-- **PR A adds tested Twelve Data parity without changing any production
-  default.** Twelve Data quote and equity-only search adapters now exist behind
-  explicit capability selection, the Twelve Data profile path no longer falls
-  back to or enriches from Finnhub, cache keys carry provider identity and a
-  contract version, boot validation derives its required keys from the active
-  selection, and provider selection is observable through protected metrics.
-  The accepted default provider map is pinned byte-for-byte by
-  `backend/tests/testProviderAdapter.js`.
-- **PR A does not complete the migration.** Twelve Data is not live for quotes,
-  search, profiles or fundamentals, and Finnhub has not been removed.
-- **Technical parity does not establish commercial rights.** Passing contract
-  tests says the adapters normalize correctly. It says nothing about which
-  endpoints the current plan reaches, or whether the data may be shown to the
-  public.
-- **External-display authorization is `UNKNOWN/UNVERIFIED`.** It has not been
-  confirmed in writing and it has not been ruled out. It must be described that
-  way rather than as either licensed or unlicensed.
-- **The closed-demo gate is an access control, not a licensing determination.**
-  It restricts who can reach provider-backed routes. It does not establish that
-  any provider's terms are satisfied, and it must never be cited as if it did.
-- **PR B requires written provider and plan confirmation** covering endpoint
-  access, market coverage and external-display rights, alongside parity
-  evidence, verified cache transition and explicit production authorization.
-- **PR C requires stable production observation** after PR B, and removes
-  Finnhub only then.
+Exact-merge Reliability Gates run `32656193126` passed on that SHA: backend
+**48/48** deterministic suites without live-provider credentials; frontend
+**172/172 across 18 files**; browser journeys **15 passed with one documented
+skip**; visual **12/12 test cases**. All 24 committed Linux baseline blobs are
+byte-identical to the pre-merge base, no Darwin baseline exists, every
+silent-write marker is absent, the no-baseline-written proof passed and the
+failure-evidence upload was skipped.
+
+Exact-merge Render production verification passed. Production Release Health run
+`32656346129` recorded both outcomes faithfully: **attempt 1 failed** while
+Render still served the previous deployment (`expectedCommit 7c64801f…`,
+`deployedCommit 00e29b93…`), and **attempt 2 passed** after the production
+configuration was corrected, with backend liveness HTTP 200, backend readiness
+HTTP 200 and deployed commit equal to expected commit. Three spaced
+provider-safe `/health/live` samples returned HTTP 200 and healthy at the exact
+merge SHA with coherent uptime and no intervening restart.
+
+Vercel deployment `6050926601` is associated with the merge SHA and production
+is healthy, but the frontend tree is byte-identical to the merge's first parent,
+so served assets cannot discriminate this backend release. That result is
+recorded as **QUALIFIED**, not as proof of backend identity.
+
+**The production configuration defect this release exposed.** Render production
+carried `PROFILE_PROVIDER=twelve_data` without `TWELVE_DATA_PROFILE_ENABLED=true`.
+Before PR A that combination silently served Finnhub company profiles while the
+deployment appeared configured for Twelve Data. PR A's strict boot validation
+refused startup on the contradiction rather than continuing, which is how the
+drift became visible. Ahsan restored `PROFILE_PROVIDER=finnhub`;
+`TWELVE_DATA_PROFILE_ENABLED` was not enabled, and no Twelve Data
+production-profile activation occurred.
+
+Production provider ownership after this release:
+
+| Capability | Provider |
+|---|---|
+| quote | Finnhub |
+| profile | Finnhub |
+| search | Finnhub |
+| history | Twelve Data |
+| fundamentals | Finnhub |
+
+Historical OHLCV already used Twelve Data before this release and continues to.
+
+**What PR A establishes:** technical parity for the Twelve Data quote, search and
+profile capabilities behind explicit configuration, provider- and
+contract-version-qualified cache and pending-request identities, boot validation
+and strict readiness derived from the active capability selection, and strict
+rejection of malformed numeric and market-delay input.
+
+**What PR A does not establish:** endpoint-plan access, consolidated-feed
+quality, commercial licensing, external-display rights, or authorization for
+PR B. External-display authorization is `UNKNOWN/UNVERIFIED` — neither confirmed
+in writing nor ruled out. The closed-demo gate is an access control, not a
+licensing determination. Passing contract tests show the adapters normalize
+correctly; they say nothing about what the current plan reaches or what may be
+shown publicly.
+
+IPO date remains intentionally unavailable under Twelve Data rather than
+fabricated. It feeds no calculation, verdict, indicator, risk value, guidance
+state, Shariah gate or scanner decision, and it is not sourced from Finnhub
+enrichment or from the 100-credit IPO calendar.
+
+**Visual comparison-level evidence is `PARTIAL`.** CI directly observes 12
+Playwright test cases. The 24 screenshot comparisons are derived from the visual
+spec structure and the baseline mapping; the reporter does not enumerate
+individual screenshot assertions. This is a reporter-granularity limitation, not
+evidence of a visual defect. Adding a list or JSON reporter is a future
+CI-touching follow-up and was not done in this release.
+
+Finnhub removal remains blocked on plan and endpoint-access evidence, written
+licensing evidence, and a separately authorized production provider switch.
+PR B requires that written provider and plan confirmation alongside parity
+evidence, verified cache transition and explicit production authorization.
+PR C removes Finnhub only after stable production observation following PR B.
+
+Provider-backed requests made for this release and its verification: **zero**.
+Provider cost: **zero**.
+
+### Open follow-up — production environment audit (opened 2026-08-23)
+
+`PROFILE_PROVIDER` became known only because PR A's strict boot validation
+rejected its contradictory production value. That is a narrow, accidental
+observation, not an audit.
+
+The remaining live Render provider variables were **not** observed:
+`QUOTE_PROVIDER`, `SEARCH_PROVIDER`, `HISTORY_PROVIDER` and
+`FUNDAMENTALS_PROVIDER`. Other production environment variables may hold
+similarly stale, contradictory or silently ineffective values.
+
+Source defaults, documentation and local configuration do not prove deployed
+environment configuration. A configuration value that is never validated or
+safely observed is not known to be correct.
+
+A separate provider-safe Render environment audit is required before PR B. It
+must compare variable names and non-secret provider selections against the
+deployed code contract without exposing API keys or any other secret value.
+This release does not perform that audit and does not claim it as complete.
 
 ---
 
