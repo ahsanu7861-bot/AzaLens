@@ -16,6 +16,11 @@ import type {
   HistoricalBar,
   HistoryResponse,
 } from '../types/analysis';
+import {
+  EMPTY_HISTORY,
+  readHistoryProvider,
+  type HistoryProvenance,
+} from './historyProvenance';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
@@ -94,7 +99,9 @@ export default function StockChart({
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const { resolvedTheme } = useTheme();
 
-  const [bars, setBars] = useState<HistoricalBar[]>([]);
+  const [history, setHistory] =
+    useState<HistoryProvenance>(EMPTY_HISTORY);
+  const { bars } = history;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -158,7 +165,10 @@ export default function StockChart({
           );
         }
 
-        setBars(validBars);
+        setHistory({
+          bars: validBars,
+          provider: readHistoryProvider(result),
+        });
       } catch (caughtError) {
         if (
           caughtError instanceof DOMException &&
@@ -167,7 +177,7 @@ export default function StockChart({
           return;
         }
 
-        setBars([]);
+        setHistory(EMPTY_HISTORY);
         setError(
           caughtError instanceof Error
             ? caughtError.message
