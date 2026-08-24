@@ -273,6 +273,21 @@ export interface HistoryResponse {
   interval: string
   bars?: HistoricalBar[]
   error?: string
+  /*
+   * Provenance as the backend actually sends it.
+   *
+   * `GET /history/:symbol` returns `marketEngine.getHistory` verbatim
+   * (`backend/server.js`), and that record carries a provider LABEL - "TwelveData"
+   * or "Finnhub" - stamped by the adapter that produced the bars.
+   *
+   * Optional because the field is read, never assumed: a response without it must
+   * yield no provider at all. The frontend must never substitute a default, and
+   * must never derive the provider from HISTORY_PROVIDER, the source defaults, the
+   * environment, the symbol or the endpoint name. History defaults to Twelve Data
+   * today; inferring "TwelveData" from that fact would be a fabricated claim about
+   * where the data came from, and would keep asserting it after the selector moved.
+   */
+  provider?: string
 }
 
 export interface AnalysisResponse {
