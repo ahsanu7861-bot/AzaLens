@@ -459,6 +459,11 @@ copy** — is: "Indicative real-time composite pricing; not consolidated
 exchange-tape data." No production wording, default or configuration value was
 modified by this pass.
 
+*(Scope corrected 2026-08-24: describing this as a copy and methodology decision
+understates it. The market-state contract is currently binary and cannot
+represent a composite feed at all, so the fix requires a contract change as well
+as wording. See Finding P-B.)*
+
 **Finding TD-6 — attribution is required.** Attribution to Twelve Data is
 required wherever its data is displayed. The exact wording, logo and link
 requirements are governed by the attribution guidelines document above; the
@@ -467,6 +472,11 @@ be taken from that document. Attribution creates product and UI work with likely
 visual-baseline impact, and its implementation requires separate authorization.
 This is the same shape of obligation already recorded for Halal Terminal in
 Finding 4 of the production environment audit.
+
+*(Scope corrected 2026-08-24: this requirement is **not** limited to capabilities
+PR B would switch. History is already served by Twelve Data in production, so the
+obligation attaches to surfaces displaying Twelve Data-sourced history today. See
+Finding P-A.)*
 
 **Finding TD-7 — caching, storage and the termination lifecycle.** During an
 active qualifying subscription, Twelve Data permits temporary server-side
@@ -546,6 +556,111 @@ non-US exchange licensing; and exact production-switch authorization.
 
 **No provider switch is authorized by this documentation pass.**
 
+### Two findings surfaced by PR B planning (recorded 2026-08-24, docs-only)
+
+Both were found while planning PR B against the code at merge
+`a9f680ada19c57e4a4e2f083f1183aa7a94338f3`, by reading the code rather than by
+running it. No provider call was made, and this pass changes no code, contract,
+copy or baseline. The planning report itself is retained outside the repository.
+
+**Finding P-A — the Twelve Data attribution requirement already applies today,
+not only after PR B.**
+
+Production provider ownership already assigns **history** to Twelve Data:
+`DEFAULTS` in `backend/providers/marketDataProvider.js:32` sets
+`history: "twelve_data"`, historical OHLCV used Twelve Data before PR A and
+continues to, and the production environment audit recorded the same effective
+ownership. Bogdan stated that attribution to Twelve Data is required wherever
+its data is displayed (Finding TD-6).
+
+It follows that attribution is **not** an obligation that begins when PR B
+switches additional capabilities. It already attaches to every surface that
+displays Twelve Data-sourced history — the price chart, the technical-evidence
+surfaces derived from those bars, and the scanner and watchlist views.
+
+The current implementation has **no Twelve Data attribution component**: no
+frontend source file names Twelve Data at all, and the only provider text on the
+analysis surface is the incidental `marketSource` string assembled in
+`frontend/src/components/analysis/StockHeader.tsx` (around lines 122 and 208).
+
+**Record this as a present implementation gap against the provider-stated
+attribution requirement — not as a legal breach or a violation.** AzaLens has
+not made that legal determination and is not in a position to. Present exposure
+is limited on three independent grounds: the product is private, the protected
+`/api` routes sit behind the closed-demo gate, and the Twelve Data account is on
+the free, non-commercial Basic plan (Finding TD-1), which is a
+testing-and-development tier rather than a live commercial deployment.
+
+Attribution must be implemented before any of: opening the workspace to users;
+activating commercial production; or describing the Twelve Data integration as
+launch-ready. The exact wording, logo and link requirements must come from the
+official attribution guidelines and must not be invented or paraphrased.
+Implementation is separately authorized and carries visual-baseline cost. **No
+UI change is made in this pass.**
+
+**Trial-output boundary.** The attribution implementation must land **before any
+Twelve Data trial output is displayed through AzaLens user-facing surfaces**. An
+API-only private validation harness that does not display provider data to users
+is **not, by this roadmap statement alone, classified as external display**; its
+licensing treatment remains governed by Twelve Data's terms and written
+guidance, not by this paragraph. Validation output stays in harness evidence
+files and protected observability, never on a rendered product surface, until
+attribution exists.
+
+**Sequencing decision (recorded 2026-08-24).** Because Finding P-A establishes
+that the attribution obligation attaches to surfaces already live rather than to
+a future switch, the planning order changes:
+
+- **B7 attribution planning moves ahead of B1.** It is the first slice to be
+  designed, not the last.
+- **This does not authorize B7 implementation.** Planning only; the wording, logo
+  and link rules must still come from the official guidelines, and the UI and
+  visual-baseline work needs its own authorization.
+- **B1 remains separately authorized, and only after** its runtime
+  call-amplification, retry and rollback boundaries have been reviewed — the
+  profile path already issues three requests per miss, and no retry, backoff,
+  `Retry-After` handling or circuit breaker exists today, so B1 changes live
+  request behaviour and must not be waved through as a small internal slice.
+- **No 12-day trial begins before the harness is ready** (Finding TD-12 and the
+  trial-readiness checklist in the retained planning report).
+- **No trial-derived data may be displayed through the AzaLens UI before
+  attribution is implemented**, per the trial-output boundary above.
+
+None of this authorizes B7, B1, a trial, a provider switch or any production
+change.
+
+**Finding P-B — the market-state contract cannot represent composite pricing,
+so the disclosure problem is not copy-only.**
+
+`resolveMarketState` in `backend/services/analysisTrustService.js:380` reduces
+the market-data state to a binary at its final step: after the `unavailable`,
+`fallback`, `stale` and `cached` branches, it returns
+`delayMinutes > 0 ? "delayed" : "realtime"` (line 393), where `delayMinutes`
+comes from `resolveMarketDelay()` and defaults to
+`DEFAULT_MARKET_DELAY_MINUTES = 15` (line 5).
+
+That contract **cannot express** Twelve Data's described indicative real-time
+aggregated composite feed (Finding TD-5). Both available outcomes are wrong for
+it:
+
+- setting the delay to zero yields an unqualified `realtime` state, which
+  exceeds the evidence and conflicts directly with TD-5;
+- keeping fifteen minutes describes the prospective Venture feed as a
+  fixed-delay feed, which Bogdan stated it is not.
+
+The consequence is that replacing the 15-minute disclosure is **not a copy
+change**. It requires a separately authorized change to the market-state
+contract itself — a third state, or an equivalent richer representation — which
+would propagate through the trust contract's `state` and `delayMinutes` fields,
+the header badge in `StockHeader.tsx` (around lines 113–114) and the sourcing
+sentence in `frontend/src/pages/MethodologyPage.tsx` (around line 23), and would
+change visual baselines.
+
+**No state name and no user-facing wording is approved here.** This work belongs
+to the proposed disclosure PR (planning reference **B6**), which is separately
+authorized, and explicitly not to the non-user-facing slices B1–B5. No
+production copy, runtime contract or baseline is changed in this pass.
+
 ---
 
 ## PART 2 — FIX (correctness and truth, after Phase 0)
@@ -562,7 +677,7 @@ non-US exchange licensing; and exact production-switch authorization.
 | 2.8 | `trust proxy = 3` topology watch: correct today, silently wrong if Render changes its edge (open item 7). Add a startup log of the observed hop count to `/ops/metrics` for periodic eyeballing | Verified, fragile | 8 | None |
 | 2.9 | Review/remove the leftover `alpha-lens-ai` Vercel project (open item 5) — harmless (doesn't own the domain) but an attack/typo-confusion surface | Unverifiable from repo | 3, 23 | None |
 | 2.10 | Reconcile `design/*.ts` with `index.css` (two conflicting token sources; audit V9) — resolved by Design Phase 1 | Stale files | 7 | None |
-| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6). **Halal Terminal is decided on the attribution question:** it stated on 10 August 2026 that its attribution line must appear wherever screening results are displayed, as a condition attached to redistribution — recorded as Finding 4 under the production environment audit. Whether Starter permits that redistribution is unconfirmed. **Twelve Data is now decided on the attribution question (2026-08-24):** it stated in writing that attribution is required wherever its data is displayed, with wording, logo and link requirements governed by its attribution guidelines — recorded as Finding TD-6. The exact wording must be taken from that document, not paraphrased, and implementation requires separate authorization. Finnhub remains undecided | Partly decided (Halal Terminal and Twelve Data stated; Finnhub undecided) | 12, 17 | None |
+| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6). **Halal Terminal is decided on the attribution question:** it stated on 10 August 2026 that its attribution line must appear wherever screening results are displayed, as a condition attached to redistribution — recorded as Finding 4 under the production environment audit. Whether Starter permits that redistribution is unconfirmed. **Twelve Data is now decided on the attribution question (2026-08-24):** it stated in writing that attribution is required wherever its data is displayed, with wording, logo and link requirements governed by its attribution guidelines — recorded as Finding TD-6. The exact wording must be taken from that document, not paraphrased, and implementation requires separate authorization. **This is a present gap, not future PR B work (Finding P-A):** history is already Twelve Data in production and no attribution component exists. Finnhub remains undecided | Partly decided (Halal Terminal and Twelve Data stated; Finnhub undecided) | 12, 17 | None |
 | 2.12 | Watchlist server-side size cap (audit N7) | Not Built | 17, 23 | None |
 | 2.13 | **Correct invalid-input semantics on `/api/analyze`.** Invalid ticker input reportedly reaches HTTP 500 instead of a client-error response. Reproduce hermetically and fix separately without changing Shariah gating or verdict behavior | Newly observed; unverified | 7, 8 | None |
 
