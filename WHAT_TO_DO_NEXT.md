@@ -107,10 +107,22 @@ licensing determination. Passing contract tests show the adapters normalize
 correctly; they say nothing about what the current plan reaches or what may be
 shown publicly.
 
-IPO date remains intentionally unavailable under Twelve Data rather than
-fabricated. It feeds no calculation, verdict, indicator, risk value, guidance
-state, Shariah gate or scanner decision, and it is not sourced from Finnhub
-enrichment or from the 100-credit IPO calendar.
+*(Superseded on 2026-08-24 as a statement of current knowledge, and accurate as
+a historical record of what PR A itself established: Twelve Data has since
+answered in writing, and external-display rights for authenticated users are
+confirmed for the **Venture** business tier — not for the free Basic plan
+AzaLens currently holds. See "Twelve Data licensing clarification", Findings
+TD-1 to TD-3.)*
+
+IPO date remains intentionally omitted rather than fabricated. It feeds no
+calculation, verdict, indicator, risk value, guidance state, Shariah gate or
+scanner decision, and it is not sourced from Finnhub enrichment or from the IPO
+calendar endpoint.
+
+*(Corrected 2026-08-24. Two statements above were wrong as written. The IPO
+calendar costs **40 credits per request**, not 100, and IPO Calendar **is
+available** on the Venture tier — so the omission is a deliberate
+cost-and-contract decision, not a technical unavailability. See Finding TD-10.)*
 
 **Visual comparison-level evidence is `PARTIAL`.** CI directly observes 12
 Playwright test cases. The 24 screenshot comparisons are derived from the visual
@@ -124,6 +136,12 @@ licensing evidence, and a separately authorized production provider switch.
 PR B requires that written provider and plan confirmation alongside parity
 evidence, verified cache transition and explicit production authorization.
 PR C removes Finnhub only after stable production observation following PR B.
+
+*(Updated 2026-08-24: the **written licensing evidence** named here has since
+been received. Every other blocker in this paragraph stands, and new obligations
+were added — attribution, composite-pricing disclosure, raw-versus-derived data
+lifecycle controls, and an active qualifying business subscription. See Finding
+TD-13 for the current PR B boundary.)*
 
 Provider-backed requests made for this release and its verification: **zero**.
 Provider cost: **zero**.
@@ -271,6 +289,16 @@ not been empirically or contractually verified, and no real-time market-data
 entitlement is claimed. A separately authorized fix must validate the disclosure
 against actual provider entitlement and feed characteristics.
 
+*(Escalated 2026-08-24. Twelve Data has since described US-listed-share data on
+the Venture tier as an aggregated composite giving an indicative real-time last
+price, with no fixed delay in minutes. That says nothing about today's
+Finnhub-served production quote path, where the 15-minute figure remains an
+unverified source-code default and has still not been shown to be wrong. It does
+mean the same figure would be wrong for a Twelve Data Venture implementation,
+and that an unqualified "real-time" claim would be wrong too — so this is now a
+hard prerequisite for any provider switch rather than a latent configuration
+gap. See Finding TD-5.)*
+
 **Finding 6 — Supabase configuration is validated but unused by the deployed
 backend.** `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY`
 were supplied and are boot-validated in production: shape, key-prefix and
@@ -329,6 +357,12 @@ boot by design.
 Technical parity is not licensing permission. This roadmap update authorizes no
 provider switch.
 
+*(Superseded 2026-08-24 by Finding TD-13, which supplies the current PR B
+boundary: planning is now authorized in principle because the commercial route
+is clarified in writing; local implementation and testing still require separate
+authorization; production activation remains blocked, on a longer list of
+conditions than this finding recorded.)*
+
 **What this audit does not establish:** Twelve Data endpoint-plan access,
 consolidated-feed quality, Twelve Data licensing, external-display rights,
 Starter redistribution permission, Enterprise approval, custom methodology
@@ -336,6 +370,181 @@ support, real-time market-data entitlement, a durable Halal Terminal monthly
 cap, completion of the Halal Terminal redemption, or active Supabase runtime
 usage. It covers the Render backend service only; Vercel frontend environment
 configuration was not examined.
+
+*(Still accurate as a statement of what **this audit** established. Three items
+in that list — Twelve Data licensing, external-display rights and the
+real-time/delay question — have since been answered in writing by the provider,
+for the Venture tier only, and are recorded in the next entry. Twelve Data
+endpoint-plan access and consolidated-feed quality remain unestablished by any
+test AzaLens has run.)*
+
+### Twelve Data licensing clarification — written provider response recorded 2026-08-24
+
+**What this entry is.** Bogdan at Twelve Data answered AzaLens's fourteen
+due-diligence questions in writing. This entry is a durable factual summary of
+that response. The original written response is retained outside this
+repository; neither the complete email nor any email header, address or
+identifier is committed here, and no API key, credential, trial link or
+promotional code appears in this repository.
+
+**Provenance.** Bogdan's written Twelve Data response displayed a received
+timestamp of **24 August 2026 at 2:33 PM**; **no timezone was displayed**, and
+none is assigned or inferred here. Ahsan directly observed the email metadata.
+The licensing findings were recorded in the roadmap on 24 August 2026. The
+automated process that wrote this entry did not independently access or
+authenticate the email; the fourteen answers below are **user-supplied
+documentary evidence**, not tool-observed evidence.
+
+Documents Twelve Data identified as governing:
+
+| Subject | URL |
+|---|---|
+| Terms of Use | https://twelvedata.com/terms |
+| Attribution guidelines | https://support.twelvedata.com/en/articles/12647398-attribution-guidelines-for-using-twelve-data |
+| US-equities sourcing | https://support.twelvedata.com/en/articles/9935903-us-equities-market-data |
+| Business pricing | https://twelvedata.com/pricing-business |
+
+Those URLs are recorded as identified by the provider. This pass fetched none of
+them, made no provider-backed request, activated no trial and purchased no
+subscription. Provider calls: **zero**. Provider cost: **zero**.
+
+**Finding TD-1 — the current plan and what it forbids.** AzaLens's Twelve Data
+account is on the free **Basic** plan. Basic is an individual, non-commercial
+testing and development tier. It cannot be used for a live commercial,
+user-facing AzaLens product. No production provider activation is authorized
+under Basic, and nothing in this response changes that.
+
+**Finding TD-2 — Venture is the commercial route, and AzaLens is not on it.**
+Venture is Twelve Data's entry business tier for a customer-facing product.
+Bogdan quoted pricing from **$149 per month, or $1,490 per year as a one-time
+annual payment**. For the AzaLens model described to him, Venture includes
+external-display and derived-data rights, and **no separate commercial display
+agreement is required** for that standard use: the standard Terms of Use govern,
+and Twelve Data does not issue a separate order form for standard plans. Raw
+market-data redistribution through an AzaLens API is **outside** that described
+permission and may require a separate arrangement or Enterprise.
+
+This establishes a **commercial path**. It does **not** mean AzaLens holds an
+active Venture subscription. AzaLens is not commercially active on Twelve Data,
+and production is not unblocked by this entry.
+
+**Finding TD-3 — authenticated-user display scope under Venture.** Bogdan
+confirmed display to **authenticated users** of: quotes and prices; historical
+OHLCV; company profiles; symbol search results; company fundamentals; and
+exchange/instrument metadata. That confirmation is scoped to authenticated
+users. It must not be silently extended to unauthenticated public display, and
+this entry extends it to no such surface.
+
+**Finding TD-4 — derived analytics and AI-generated explanation.** Venture
+permits derived technical analytics, risk assessments, family-level conclusions
+and AI-generated explanations, provided the outputs do not allow reconstruction
+of the underlying raw dataset. Twelve Data data may be used as factual input for
+explanations. Training on, or redistributing, a raw market-data dataset is not
+permitted by the described use.
+
+**Finding TD-5 — US feed characteristics, and the disclosure conflict this
+creates.** Bogdan described US-listed-share data on Venture as an **aggregated
+composite providing an indicative real-time last price**. He stated it is **not
+a delayed feed** and has **no fixed delay in minutes**. That description must
+not be equated with consolidated exchange-tape (SIP) data.
+
+This directly conflicts with AzaLens's existing 15-minute-delay wording, which
+Finding 5 of the production environment audit already recorded as resting on an
+unverified source-code default. For a prospective Venture implementation,
+**neither "15-minute delayed" nor an unqualified "real-time market data" claim
+would be acceptable**. Final user-facing wording requires a separately
+authorized copy and methodology decision informed by the sourcing and
+attribution guidelines above. A candidate *concept* — explicitly **not approved
+copy** — is: "Indicative real-time composite pricing; not consolidated
+exchange-tape data." No production wording, default or configuration value was
+modified by this pass.
+
+**Finding TD-6 — attribution is required.** Attribution to Twelve Data is
+required wherever its data is displayed. The exact wording, logo and link
+requirements are governed by the attribution guidelines document above; the
+required wording is deliberately **not** invented or paraphrased here and must
+be taken from that document. Attribution creates product and UI work with likely
+visual-baseline impact, and its implementation requires separate authorization.
+This is the same shape of obligation already recorded for Halal Terminal in
+Finding 4 of the production environment audit.
+
+**Finding TD-7 — caching, storage and the termination lifecycle.** During an
+active qualifying subscription, Twelve Data permits temporary server-side
+caching; database storage of historical data; storage of profile and fundamental
+data; cached reuse across authenticated users; and retention of derived results.
+Twelve Data **recommends** cache-based reuse rather than duplicate per-user API
+calls.
+
+After subscription termination, **raw market data must be deleted within 30
+days**; derived results may be retained. That creates a data-classification,
+retention and deletion obligation: AzaLens must be able to distinguish raw
+provider data from derived results before production activation. **The existing
+cache is not claimed to satisfy this lifecycle obligation** — no such capability
+has been designed, built or verified, and the durable-storage work remains
+parked in Part 3.
+
+**Finding TD-8 — limits and cost behaviour.** Entry Venture provides **610 API
+credits per minute** and **500 WebSocket credits**, resetting each minute.
+Bogdan stated there is **no daily cap**. Exceeding the per-minute limit produces
+**HTTP 429**, and he stated there is **no overage charge** — requests must be
+retried later. Cost exposure is therefore bounded by subscription price rather
+than by per-call billing, but a production implementation still requires bounded
+retries, caching and observability; none of that is verified against a live
+Venture plan.
+
+**Finding TD-9 — endpoint and plan boundaries.** Venture covers most of the
+capabilities AzaLens asked about. **Enterprise** is required for analyst
+estimates and analytics data, full ETF composition and holdings, and full
+historical financial statements; lower tiers return **six recent
+financial-statement periods**. Bogdan separately confirmed that the fundamentals
+required for debt and interest-ratio work are available on Venture.
+
+Six historical periods do **not** by themselves prove Shariah-methodology
+sufficiency. Methodological sufficiency remains subject to AzaLens's own Shariah
+and data-quality review, and nothing here anticipates that review's outcome.
+
+**Finding TD-10 — IPO Calendar, and a correction.** IPO Calendar **is available
+on Venture**, at a cost Bogdan stated as **40 credits per request**. The earlier
+roadmap assumption of 100 credits is corrected. Availability does not require
+implementation: the IPO date remains intentionally omitted unless its analytical
+value justifies its cost and its data contract, and it still feeds no
+calculation, verdict, indicator, risk value, guidance state, Shariah gate or
+scanner decision.
+
+**Finding TD-11 — geographic launch boundary.** Bogdan stated that **no separate
+pre-launch review is required for a US-focused launch on a qualifying plan**.
+Non-US exchange data displayed to paying users may require **direct exchange
+licences arranged separately**. AzaLens's worldwide-listed-shares ambition
+therefore **exceeds** the presently clarified US launch permission, and
+worldwide commercial activation requires market-by-market licensing review. **No
+global display right may be claimed.** Existing mounted landing copy describing
+worldwide coverage is flagged here as a copy question for a separately
+authorized decision; no wording was changed by this pass.
+
+**Finding TD-12 — trial and startup discount (offered, not taken).** Twelve Data
+offered a **12-day Unlimited trial** for validation, and a **20% startup
+discount** may be available subject to eligibility. The trial should begin only
+once an exact validation matrix and a runnable PR B test harness are ready, so
+that its twelve days are spent on evidence rather than on setup. A trial is
+**not** authorization for public commercial production. Neither the trial nor
+the discount was activated, applied for or accepted in this pass.
+
+**Finding TD-13 — PR B decision boundary, updated.** This supersedes the PR B
+boundary in Finding 8 of the production environment audit.
+
+- PR B **planning is authorized in principle**.
+- PR B **local implementation and testing still require separate
+  authorization**.
+- The written licensing clarification **removes the uncertainty about the
+  commercial route** that previously blocked planning. It removes nothing else.
+
+PR B **production activation** remains blocked by all of: an active qualifying
+business subscription; trial-based endpoint and parity validation; attribution
+implementation; accurate composite-pricing disclosure; raw-versus-derived data
+lifecycle controls; caching, retry and observability verification; any required
+non-US exchange licensing; and exact production-switch authorization.
+
+**No provider switch is authorized by this documentation pass.**
 
 ---
 
@@ -353,7 +562,7 @@ configuration was not examined.
 | 2.8 | `trust proxy = 3` topology watch: correct today, silently wrong if Render changes its edge (open item 7). Add a startup log of the observed hop count to `/ops/metrics` for periodic eyeballing | Verified, fragile | 8 | None |
 | 2.9 | Review/remove the leftover `alpha-lens-ai` Vercel project (open item 5) — harmless (doesn't own the domain) but an attack/typo-confusion surface | Unverifiable from repo | 3, 23 | None |
 | 2.10 | Reconcile `design/*.ts` with `index.css` (two conflicting token sources; audit V9) — resolved by Design Phase 1 | Stale files | 7 | None |
-| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6). **Halal Terminal is decided on the attribution question:** it stated on 10 August 2026 that its attribution line must appear wherever screening results are displayed, as a condition attached to redistribution — recorded as Finding 4 under the production environment audit. Whether Starter permits that redistribution is unconfirmed. Finnhub and Twelve Data are undecided | Partly decided (Halal Terminal stated; Finnhub and Twelve Data undecided) | 12, 17 | None |
+| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6). **Halal Terminal is decided on the attribution question:** it stated on 10 August 2026 that its attribution line must appear wherever screening results are displayed, as a condition attached to redistribution — recorded as Finding 4 under the production environment audit. Whether Starter permits that redistribution is unconfirmed. **Twelve Data is now decided on the attribution question (2026-08-24):** it stated in writing that attribution is required wherever its data is displayed, with wording, logo and link requirements governed by its attribution guidelines — recorded as Finding TD-6. The exact wording must be taken from that document, not paraphrased, and implementation requires separate authorization. Finnhub remains undecided | Partly decided (Halal Terminal and Twelve Data stated; Finnhub undecided) | 12, 17 | None |
 | 2.12 | Watchlist server-side size cap (audit N7) | Not Built | 17, 23 | None |
 | 2.13 | **Correct invalid-input semantics on `/api/analyze`.** Invalid ticker input reportedly reaches HTTP 500 instead of a client-error response. Reproduce hermetically and fix separately without changing Shariah gating or verdict behavior | Newly observed; unverified | 7, 8 | None |
 
