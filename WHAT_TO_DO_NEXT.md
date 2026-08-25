@@ -125,11 +125,27 @@ available** on the Venture tier — so the omission is a deliberate
 cost-and-contract decision, not a technical unavailability. See Finding TD-10.)*
 
 **Visual comparison-level evidence is `PARTIAL`.** CI directly observes 12
-Playwright test cases. The 24 screenshot comparisons are derived from the visual
-spec structure and the baseline mapping; the reporter does not enumerate
-individual screenshot assertions. This is a reporter-granularity limitation, not
-evidence of a visual defect. Adding a list or JSON reporter is a future
-CI-touching follow-up and was not done in this release.
+Playwright test cases; the reporter does not enumerate individual screenshot
+assertions, so comparison counts are derived from the spec structure and the
+baseline mapping rather than read from the reporter. This is a
+reporter-granularity limitation, not evidence of a visual defect. Adding a list
+or JSON reporter is a future CI-touching follow-up and was not done in this
+release.
+
+*(Arithmetic corrected 2026-08-26 — the earlier phrasing "the 24 screenshot
+comparisons" was imprecise about where the number comes from, and a later note
+compounded it by claiming two baselines are compared twice. Both are restated
+durably here.)* At this SHA, the visual suite contains 24 tracked Linux baseline
+files, seven assertion sites and twelve visual test cases. Twenty-four
+comparisons execute: five assertion sites execute across both themes and both
+projects, while two sites execute only for the night theme across both projects.
+Twenty-eight is only the structural maximum obtained by multiplying all seven
+sites by two themes and two projects; it is not the executed count. The two
+night-only sites are `analysis-purification` (`frontend/e2e/visual.spec.ts`,
+inside `if (theme === "night")`) and `landing-verdict`
+(`frontend/e2e/landing-visual.spec.ts`, same guard). Because 24 comparisons run
+over 24 files, **each baseline file is compared exactly once**; no file is
+compared twice.
 
 Finnhub removal remains blocked on plan and endpoint-access evidence, written
 licensing evidence, and a separately authorized production provider switch.
@@ -145,6 +161,165 @@ TD-13 for the current PR B boundary.)*
 
 Provider-backed requests made for this release and its verification: **zero**.
 Provider cost: **zero**.
+
+### B7 durable release record — provider attribution (2026-08-26)
+
+Three merged slices, recorded together because none of them is intelligible
+alone. B7-0 carried provenance, B7a decided wording, B7b rendered it.
+
+**B7-0 — history provenance contract.** Merged before B7a. It preserves the
+provider label that `GET /history/:symbol` already sends, through the typed
+frontend contract and into StockChart's **atomic** bars/provenance state, so no
+render can observe one response's bars beside another response's provider. It
+renders **no attribution by itself**. Provider identity is read from the
+response and is never inferred from `DEFAULTS`, `HISTORY_PROVIDER`, the
+environment, the symbol or the endpoint name — deriving it would keep asserting
+an origin after the selector moved.
+
+**B7a — attribution registry and component.** Merge
+`d54bc9f3909278f8abd03fca79bb8ecceb61c4e8`, tree
+`d57e0ce20d4d2515054d126be3521bae16e33d6e`. It stores the exact phrase **"Data
+provided by Twelve Data"**, text-only, with no logo and no variant mechanism.
+Normalization accepts the exact backend label **`TwelveData`** and nothing else;
+unknown, absent or differently cased providers resolve to **no attribution**,
+never to a Twelve Data fallback. **Halal Terminal remains absent from the
+runtime registry** because its exact wording and its external-display permission
+are both unresolved — it exists only as a type-level blocked id carrying no
+text, href or renderable object. B7a was **mounted nowhere** and tree-shaken out
+of production assets at that release: the phrase and href appeared in zero
+emitted chunks.
+
+**B7b — history-chart attribution.** PR #37. Implementation commit `cf306ee`;
+ResizeObserver test-race correction
+`8a0400438d52dd545830557511294987806e7c68`; baseline-acceptance commit
+`d774f985eb304b1b6527f3f4002958b705058555`; merge
+`9e30911a495ddb74099239b4409d16eea0ac117c`, first parent
+`d54bc9f3909278f8abd03fca79bb8ecceb61c4e8`, second parent
+`d774f985eb304b1b6527f3f4002958b705058555`, tree
+`29534d48f0b1a636fb8e86d838d342be762182e0`. Eleven first-parent changed paths;
+**951 insertions and 68 deletions**; exactly four reviewed Linux overview
+baselines accepted. No amend, squash, rebase or force-push at any point.
+
+The chart footer now carries two block lines — the Twelve Data credit above the
+existing TradingView credit — as two separate anchors making two separate
+statements, so neither can be read as supplying the other's service. Visibility
+is **provenance-driven, not presence-driven**: the Twelve Data line renders only
+when the request is not loading, not errored, and the registry *resolves* the
+provider the response actually declared. This deliberately differs from the
+TradingView credit, which renders unconditionally because it credits a charting
+library present whenever the component renders.
+
+**Verification.** Exact-head CI run `32901204664` and exact-merge CI run
+`32901633348` (event `push`, branch `main`, head exactly the merge SHA) both
+passed **all five jobs**. Frontend **266/266**; browser journeys **19 passed
+with one pre-existing skip**; visual **12/12**, exercising **24 executed
+screenshot comparisons**. No baseline was written during verification, and
+**zero Darwin baselines** exist. Release scope reported:
+
+```
+{"backendChanged":false,"expectedCommit":"","deploymentAttempts":1}
+```
+
+No Render deployment was required — all eleven changed paths are under
+`frontend/`. Provider-backed calls: **zero**. Provider credits and cost:
+**zero**. The Twelve Data trial was **not** started.
+
+**Baseline verification, reproducible only.** Before acceptance, `git diff`
+against `HEAD` for the baseline paths was empty where applicable, and every
+working file was compared against its **index blob OID**. After B7b, all 24
+tracked baselines are byte-identical to the merged index. Exactly four overview
+baselines changed, through the separately reviewed Linux candidate workflow;
+the other 20 remained unchanged. *(An earlier working digest recorded during
+planning was not reproducible from any derivation and is deliberately not
+retained; blob-OID comparison replaces it and needs no convention.)*
+
+**Production verification — stated at exactly the strength supported.**
+Production-served frontend assets contain the B7b attribution phrase and href
+**exactly once each, in the StockChart chunk**, reached by traversing the served
+module graph from `index.html`. The first-parent tree was independently rebuilt
+from `git archive` and its build contained **neither** the phrase nor the href,
+so the served bytes **discriminate B7b from its parent**. On that basis Vercel
+verification is an **unconditional served-asset PASS**.
+
+Its limits are equally part of the record. **Vercel deployment identity was not
+obtained from the Vercel API**, because no CLI or token was available; identity
+rests on served content that only the B7b tree can produce, plus HTTP 200 and
+Vercel response headers. **No provider-backed production history request was
+made**, and **no authenticated live production chart was observed rendering the
+attribution during this verification**. It must therefore **not** be stated
+without qualification that tool observation proved the attribution visibly
+rendered from live provider data in production. What is proven is narrower and
+still substantial: CI and browser evidence prove the attribution **renders for a
+`TwelveData`-labelled history response**, and served-asset evidence proves the
+**implementation is deployed**.
+
+**Reconciliation with Finding P-A.** B7b implements the Twelve Data attribution
+requirement on StockChart whenever the history response identifies `TwelveData`,
+and the production frontend serving that implementation is verified. This
+**closes the known missing implementation for the history chart at the code, CI
+and deployed-asset levels**. It is **not** a legal-compliance determination; it
+is **not** evidence of a provider-backed production transaction; and it does
+**not** resolve attribution treatment for locally derived analytics or for other
+surfaces.
+
+#### Open findings recorded by this pass (none authorized for fix here)
+
+1. **Local snapshot-write hazard.** `frontend/playwright.config.ts` sets
+   `updateSnapshots: process.env.CI ? "none" : "missing"`, so the "none"
+   guarantee applies **only under CI**. A plain local visual run can therefore
+   **silently create Darwin baselines inside tracked snapshot directories**. All
+   B7b browser runs forced `CI=1`, and **zero Darwin baselines were created**.
+   This is a tooling/configuration follow-up, **not a B7b defect**. Likely
+   remediation is unconditional `"none"` with a deliberate opt-in acceptance
+   mechanism, but **no fix is approved by this docs pass**.
+
+2. **TradingView attribution/licensing follow-up.** `StockChart` sets
+   `attributionLogo: false`, suppressing the charting library's own watermark,
+   while AzaLens renders a separate "Charts powered by TradingView Lightweight
+   Charts™" text link. B7b **preserved this arrangement unchanged**. **No
+   determination has been made that the substitution satisfies the library's
+   licence.** Verify against authoritative TradingView Lightweight Charts
+   licensing and attribution requirements before altering or relying upon it.
+
+3. **Footer contrast.** The existing inherited 11px muted footer colour was
+   **preserved**; B7b changed no colour or contrast token. Automated
+   accessibility checks found **no serious or critical issue**. Visual contrast
+   improvement was **explicitly deferred** and remains a separate UI decision.
+   Do **not** call it a confirmed accessibility failure without measured
+   evidence.
+
+#### Unresolved boundaries carried forward unchanged
+
+- **Derived-output attribution remains unanswered by Twelve Data.** The
+  guidelines are silent on output computed from provider data; silence is not
+  permission, and B7b makes no claim there.
+- **The closed-demo / internal-use exception remains unanswered.**
+- **Halal Terminal's exact 10 August attribution wording is not retained in
+  repository evidence**, and must not be guessed, paraphrased, or substituted
+  with Twelve Data's wording.
+- **Halal Terminal Starter-versus-Enterprise external-display permission remains
+  unanswered.**
+- **Mixed-provider surfaces remain blocked** from attribution completion until
+  Halal Terminal evidence exists.
+- **B1 remains separate and unimplemented.**
+- **No production provider switch is authorized.**
+
+**Backup — recorded honestly.** `AzaLens-2026-08-26-9e30911.zip` and
+`AzaLens-2026-08-26-9e30911.sha256`. ZIP size **6,802,032 bytes**; ZIP SHA-256
+`04d3f243c4a2bb848e3c3bcfc1987bc3e9839cbd7946ec9619e0c7c0ff484601`. Built with
+`git archive` from the exact merge commit object; unzipped and re-hashed, the
+archive **reconstructs tree `29534d48f0b1a636fb8e86d838d342be762182e0`** — the
+exact merge tree — with all eleven first-parent paths byte-correct. Local
+staging and the Google Drive CloudStorage sync-folder copies were
+**byte-identical**; the Drive-folder count increased **57 to 59**, and the **56
+pre-existing objects were unchanged**.
+
+**Transport was the local Drive sync folder, not a Drive API upload and not an
+independent server download.** Cloud propagation is asynchronous and was **not**
+independently verified, so this is **not** independent server-backed Drive
+verification. Backup staging and both candidate sets — the Darwin
+implementation-design candidates and the exact-head Linux candidates — remain
+retained.
 
 ### Production environment audit — closed 2026-08-24
 
@@ -583,6 +758,16 @@ frontend source file names Twelve Data at all, and the only provider text on the
 analysis surface is the incidental `marketSource` string assembled in
 `frontend/src/components/analysis/StockHeader.tsx` (around lines 122 and 208).
 
+*(Superseded for the history chart on 2026-08-26. The paragraph above was true
+when written and is kept as the finding's original statement. B7-0, B7a and B7b
+have since shipped: a reviewed attribution registry exists, and StockChart
+renders "Data provided by Twelve Data" whenever the history response identifies
+`TwelveData`. See the B7 durable release record. The gap is closed **for the
+history chart only** — the technical-evidence surfaces derived from those bars,
+and the scanner and watchlist views, are **not** addressed, and derived-output
+attribution remains unanswered by the provider. Nothing here is a
+legal-compliance determination.)*
+
 **Record this as a present implementation gap against the provider-stated
 attribution requirement — not as a legal breach or a violation.** AzaLens has
 not made that legal determination and is not in a position to. Present exposure
@@ -677,7 +862,7 @@ production copy, runtime contract or baseline is changed in this pass.
 | 2.8 | `trust proxy = 3` topology watch: correct today, silently wrong if Render changes its edge (open item 7). Add a startup log of the observed hop count to `/ops/metrics` for periodic eyeballing | Verified, fragile | 8 | None |
 | 2.9 | Review/remove the leftover `alpha-lens-ai` Vercel project (open item 5) — harmless (doesn't own the domain) but an attack/typo-confusion surface | Unverifiable from repo | 3, 23 | None |
 | 2.10 | Reconcile `design/*.ts` with `index.css` (two conflicting token sources; audit V9) — resolved by Design Phase 1 | Stale files | 7 | None |
-| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6). **Halal Terminal is decided on the attribution question:** it stated on 10 August 2026 that its attribution line must appear wherever screening results are displayed, as a condition attached to redistribution — recorded as Finding 4 under the production environment audit. Whether Starter permits that redistribution is unconfirmed. **Twelve Data is now decided on the attribution question (2026-08-24):** it stated in writing that attribution is required wherever its data is displayed, with wording, logo and link requirements governed by its attribution guidelines — recorded as Finding TD-6. The exact wording must be taken from that document, not paraphrased, and implementation requires separate authorization. **This is a present gap, not future PR B work (Finding P-A):** history is already Twelve Data in production and no attribution component exists. Finnhub remains undecided | Partly decided (Halal Terminal and Twelve Data stated; Finnhub undecided) | 12, 17 | None |
+| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6). **Halal Terminal is decided on the attribution question:** it stated on 10 August 2026 that its attribution line must appear wherever screening results are displayed, as a condition attached to redistribution — recorded as Finding 4 under the production environment audit. Whether Starter permits that redistribution is unconfirmed. **Twelve Data is now decided on the attribution question (2026-08-24):** it stated in writing that attribution is required wherever its data is displayed, with wording, logo and link requirements governed by its attribution guidelines — recorded as Finding TD-6. The exact wording must be taken from that document, not paraphrased, and implementation requires separate authorization. **This was a present gap, not future PR B work (Finding P-A); it is now closed for the history chart (2026-08-26):** history is already Twelve Data in production, and B7-0/B7a/B7b shipped the provenance contract, the reviewed registry and the rendered chart attribution, verified at the code, CI and deployed-asset levels — see the B7 durable release record. **Still open:** derived analytics and the other Twelve Data-sourced surfaces (technical evidence, scanner, watchlist) carry no attribution; derived-output treatment is unanswered by the provider; and Halal Terminal's exact wording and external-display permission remain unresolved, so mixed-provider surfaces stay blocked. This closes an implementation gap, not a legal-compliance question. Finnhub remains undecided | Partly decided (Halal Terminal and Twelve Data stated; Finnhub undecided) | 12, 17 | None |
 | 2.12 | Watchlist server-side size cap (audit N7) | Not Built | 17, 23 | None |
 | 2.13 | **Correct invalid-input semantics on `/api/analyze`.** Invalid ticker input reportedly reaches HTTP 500 instead of a client-error response. Reproduce hermetically and fix separately without changing Shariah gating or verdict behavior | Newly observed; unverified | 7, 8 | None |
 
