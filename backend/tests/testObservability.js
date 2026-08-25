@@ -10,6 +10,9 @@ const {
   getCurrentRequestId,
   getMetricsSnapshot,
   isMetricsAuthorized,
+  recordProviderAttempt,
+  recordProviderBreakerEvent,
+  recordProviderRetry,
   recordProviderResult,
   requestObservability,
   resetObservabilityForTests,
@@ -179,6 +182,128 @@ async function run() {
     durationMs: 1,
   });
 
+  assert.equal(
+    recordProviderAttempt({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      outcome: "rate_limit",
+      symbol: "MUST_NOT_BE_RECORDED",
+      query: "MUST_NOT_BE_RECORDED",
+      credential: "MUST_NOT_BE_RECORDED",
+      payload: "MUST_NOT_BE_RECORDED",
+    }),
+    true
+  );
+  assert.equal(
+    recordProviderAttempt({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      outcome: "success",
+    }),
+    true
+  );
+  assert.equal(
+    recordProviderRetry({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      reason: "rate_limit",
+      delayMs: 250,
+    }),
+    true
+  );
+  assert.equal(
+    recordProviderBreakerEvent({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      event: "opened",
+    }),
+    true
+  );
+  assert.equal(
+    recordProviderBreakerEvent({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      event: "rejected",
+    }),
+    true
+  );
+  assert.equal(
+    recordProviderBreakerEvent({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      event: "half_opened",
+    }),
+    true
+  );
+  assert.equal(
+    recordProviderBreakerEvent({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      event: "closed",
+    }),
+    true
+  );
+
+  for (const rejectedEvent of [
+    {
+      provider: "UnboundedProvider",
+      operation: "historical_ohlcv",
+      outcome: "success",
+    },
+    {
+      provider: "TwelveData",
+      operation: "symbol:AAPL",
+      outcome: "success",
+    },
+    {
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      outcome: "credential:test-key",
+    },
+  ]) {
+    assert.equal(
+      recordProviderAttempt(rejectedEvent),
+      false
+    );
+  }
+
+  assert.equal(
+    recordProviderRetry({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      reason: "server_error",
+      delayMs: 250,
+    }),
+    false
+  );
+  assert.equal(
+    recordProviderRetry({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      reason: "timeout",
+      delayMs: "250",
+    }),
+    false,
+    "numeric-looking strings must not become recorded delay measurements"
+  );
+  assert.equal(
+    recordProviderRetry({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      reason: "timeout",
+      delayMs: 86_400_001,
+    }),
+    false
+  );
+  assert.equal(
+    recordProviderBreakerEvent({
+      provider: "TwelveData",
+      operation: "historical_ohlcv",
+      event: "forced_open_with_symbol",
+    }),
+    false
+  );
+
   const metrics = getMetricsSnapshot();
   const httpRoute = metrics.http.routes.find(
     ({ route }) =>
@@ -195,6 +320,12 @@ async function run() {
     ({ provider }) =>
       provider === "Halal Terminal"
   );
+  const historyResilience =
+    metrics.providerResilience.find(
+      ({ provider, operation }) =>
+        provider === "TwelveData" &&
+        operation === "historical_ohlcv"
+    );
 
   assert.equal(metrics.http.count, 2);
   assert.equal(metrics.http.successes, 1);
@@ -216,6 +347,52 @@ async function run() {
   assert.equal(twelveData.rateLimits, 1);
   assert.equal(shariah.blocked, 1);
   assert.equal(shariah.failures, 0);
+  assert.deepEqual(historyResilience, {
+    provider: "TwelveData",
+    operation: "historical_ohlcv",
+    attempts: {
+      total: 2,
+      successes: 1,
+      failures: 0,
+      timeouts: 0,
+      rateLimits: 1,
+    },
+    retries: {
+      total: 1,
+      timeouts: 0,
+      rateLimits: 1,
+      totalDelayMs: 250,
+      maximumDelayMs: 250,
+    },
+    breaker: {
+      state: "closed",
+      opened: 1,
+      halfOpened: 1,
+      closed: 1,
+      rejected: 1,
+    },
+  });
+  assert.equal(
+    metrics.providerResilience.length,
+    1,
+    "rejected labels must not create unbounded metric series"
+  );
+
+  const serializedMetrics = JSON.stringify(metrics);
+
+  for (const forbiddenValue of [
+    "MUST_NOT_BE_RECORDED",
+    "UnboundedProvider",
+    "symbol:AAPL",
+    "credential:test-key",
+    "forced_open_with_symbol",
+  ]) {
+    assert.equal(
+      serializedMetrics.includes(forbiddenValue),
+      false,
+      `protected metrics must not retain ${forbiddenValue}`
+    );
+  }
 
   const incompleteReadiness =
     buildReadinessSnapshot({
@@ -400,8 +577,21 @@ async function run() {
         401
       );
       assert.equal(
+        "providerResilience" in
+          (unauthenticatedMetrics.body.data || {}),
+        false,
+        "resilience telemetry must stay behind metrics authorization"
+      );
+      assert.equal(
         authenticatedMetrics.response.status,
         200
+      );
+      assert.equal(
+        Array.isArray(
+          authenticatedMetrics.body.data
+            .providerResilience
+        ),
+        true
       );
     } finally {
       if (
