@@ -19,7 +19,37 @@ const {
 
 const MAX_RECENT_DURATION_SAMPLES = 500;
 const MAX_TRACKED_ROUTES = 100;
+const MAX_OBSERVED_RETRY_DELAY_MS = 86_400_000;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
+const RESILIENCE_PROVIDERS = new Set([
+  "Finnhub",
+  "TwelveData",
+]);
+const RESILIENCE_OPERATIONS = new Set([
+  "live_quote",
+  "company_profile",
+  "instrument_metadata",
+  "company_logo",
+  "symbol_search",
+  "historical_ohlcv",
+  "fundamentals",
+]);
+const PROVIDER_ATTEMPT_OUTCOMES = new Set([
+  "success",
+  "failure",
+  "timeout",
+  "rate_limit",
+]);
+const PROVIDER_RETRY_REASONS = new Set([
+  "timeout",
+  "rate_limit",
+]);
+const PROVIDER_BREAKER_EVENTS = new Set([
+  "opened",
+  "half_opened",
+  "closed",
+  "rejected",
+]);
 const BLOCKED_PROVIDER_CODES = new Set([
   "HALAL_TERMINAL_LIVE_OPT_IN_REQUIRED",
   "SHARIAH_CACHE_MISS",
@@ -51,6 +81,7 @@ function createState() {
       routes: new Map(),
     },
     providers: new Map(),
+    providerResilience: new Map(),
   };
 }
 
@@ -363,6 +394,180 @@ function normalizeCacheStatus(result) {
 
 function getProviderKey(provider, operation) {
   return `${provider}:${operation}`;
+}
+
+function resolveResilienceLabels(provider, operation) {
+  if (
+    !RESILIENCE_PROVIDERS.has(provider) ||
+    !RESILIENCE_OPERATIONS.has(operation)
+  ) {
+    return null;
+  }
+
+  return {
+    provider,
+    operation,
+    key: getProviderKey(provider, operation),
+  };
+}
+
+function getOrCreateProviderResilience(
+  provider,
+  operation
+) {
+  const labels = resolveResilienceLabels(
+    provider,
+    operation
+  );
+
+  if (!labels) {
+    return null;
+  }
+
+  if (!state.providerResilience.has(labels.key)) {
+    state.providerResilience.set(labels.key, {
+      provider: labels.provider,
+      operation: labels.operation,
+      attempts: {
+        total: 0,
+        successes: 0,
+        failures: 0,
+        timeouts: 0,
+        rateLimits: 0,
+      },
+      retries: {
+        total: 0,
+        timeouts: 0,
+        rateLimits: 0,
+        totalDelayMs: 0,
+        maximumDelayMs: 0,
+      },
+      breaker: {
+        state: "closed",
+        opened: 0,
+        halfOpened: 0,
+        closed: 0,
+        rejected: 0,
+      },
+    });
+  }
+
+  return state.providerResilience.get(labels.key);
+}
+
+/*
+  B2-min is passive observability only. These recorders neither execute nor
+  schedule provider work: they accept a closed label vocabulary and update
+  bounded-cardinality counters that are exposed only by the protected metrics
+  endpoint. Extra caller fields are ignored by destructuring, so symbols,
+  queries, credentials and payloads have no storage path here.
+*/
+function recordProviderAttempt({
+  provider,
+  operation,
+  outcome,
+} = {}) {
+  if (!PROVIDER_ATTEMPT_OUTCOMES.has(outcome)) {
+    return false;
+  }
+
+  const resilience = getOrCreateProviderResilience(
+    provider,
+    operation
+  );
+
+  if (!resilience) {
+    return false;
+  }
+
+  resilience.attempts.total += 1;
+
+  if (outcome === "success") {
+    resilience.attempts.successes += 1;
+  } else if (outcome === "failure") {
+    resilience.attempts.failures += 1;
+  } else if (outcome === "timeout") {
+    resilience.attempts.timeouts += 1;
+  } else if (outcome === "rate_limit") {
+    resilience.attempts.rateLimits += 1;
+  }
+
+  return true;
+}
+
+function recordProviderRetry({
+  provider,
+  operation,
+  reason,
+  delayMs,
+} = {}) {
+  if (
+    !PROVIDER_RETRY_REASONS.has(reason) ||
+    typeof delayMs !== "number" ||
+    !Number.isFinite(delayMs) ||
+    delayMs < 0 ||
+    delayMs > MAX_OBSERVED_RETRY_DELAY_MS
+  ) {
+    return false;
+  }
+
+  const resilience = getOrCreateProviderResilience(
+    provider,
+    operation
+  );
+
+  if (!resilience) {
+    return false;
+  }
+
+  resilience.retries.total += 1;
+  resilience.retries.totalDelayMs += delayMs;
+  resilience.retries.maximumDelayMs = Math.max(
+    resilience.retries.maximumDelayMs,
+    delayMs
+  );
+
+  if (reason === "timeout") {
+    resilience.retries.timeouts += 1;
+  } else if (reason === "rate_limit") {
+    resilience.retries.rateLimits += 1;
+  }
+
+  return true;
+}
+
+function recordProviderBreakerEvent({
+  provider,
+  operation,
+  event,
+} = {}) {
+  if (!PROVIDER_BREAKER_EVENTS.has(event)) {
+    return false;
+  }
+
+  const resilience = getOrCreateProviderResilience(
+    provider,
+    operation
+  );
+
+  if (!resilience) {
+    return false;
+  }
+
+  if (event === "opened") {
+    resilience.breaker.state = "open";
+    resilience.breaker.opened += 1;
+  } else if (event === "half_opened") {
+    resilience.breaker.state = "half_open";
+    resilience.breaker.halfOpened += 1;
+  } else if (event === "closed") {
+    resilience.breaker.state = "closed";
+    resilience.breaker.closed += 1;
+  } else if (event === "rejected") {
+    resilience.breaker.rejected += 1;
+  }
+
+  return true;
 }
 
 function getOrCreateProviderAggregate(
@@ -693,6 +898,33 @@ function getMetricsSnapshot() {
           )
         )
       ),
+    providerResilience: [
+      ...state.providerResilience.values(),
+    ]
+      .map((resilience) => ({
+        provider: resilience.provider,
+        operation: resilience.operation,
+        attempts: {
+          ...resilience.attempts,
+        },
+        retries: {
+          ...resilience.retries,
+        },
+        breaker: {
+          ...resilience.breaker,
+        },
+      }))
+      .sort((first, second) =>
+        getProviderKey(
+          first.provider,
+          first.operation
+        ).localeCompare(
+          getProviderKey(
+            second.provider,
+            second.operation
+          )
+        )
+      ),
   };
 }
 
@@ -781,6 +1013,9 @@ module.exports = {
   getCurrentRequestId,
   getMetricsSnapshot,
   isMetricsAuthorized,
+  recordProviderAttempt,
+  recordProviderBreakerEvent,
+  recordProviderRetry,
   recordProviderResult,
   requestObservability,
   resetObservabilityForTests,
