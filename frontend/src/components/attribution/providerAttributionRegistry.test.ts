@@ -358,16 +358,23 @@ describe("purity and inference controls", () => {
 
 /*
  * ==========================================================================
- * Isolation
+ * Single-importer guard (B7b)
  * ==========================================================================
  *
- * B7a's whole safety claim is that nothing imports it. That is asserted here
- * rather than assumed: the scan reads every source file under src/ through
- * Vite's eager raw glob - no Node APIs, per this project's jsdom constraint -
- * and fails if any file outside this folder references the attribution module.
+ * B7a's guarantee was "nothing imports this". B7b deliberately ends that: the
+ * component is now mounted, so the old `describe("B7a is imported by nothing")`
+ * block was removed in the same change that made it false. Its comment said
+ * that deletion was the intended way for the guarantee to end.
  *
- * When B7b mounts the component it will delete this describe block. That is the
- * intended way for the guarantee to end: visibly, in the diff that ends it.
+ * Deleting a control without replacing it would leave the module with LESS
+ * protection than before, at exactly the moment it gained a production caller.
+ * So the guarantee is not dropped, it is narrowed: from "no importer" to
+ * "exactly one named importer". A second mount - a second surface quietly
+ * claiming Twelve Data as its source, or a copy of the phrase somewhere the
+ * registry does not own - now fails here, by name.
+ *
+ * The scan reads source through Vite's eager raw glob rather than Node's fs,
+ * per this project's jsdom constraint.
  */
 const SOURCE_FILES = import.meta.glob("../../**/*.{ts,tsx}", {
   query: "?raw",
@@ -375,60 +382,201 @@ const SOURCE_FILES = import.meta.glob("../../**/*.{ts,tsx}", {
   eager: true,
 }) as Record<string, string>;
 
-describe("B7a is imported by nothing", () => {
-  it("reads a meaningful sample of the frontend source", () => {
-    expect(Object.keys(SOURCE_FILES).length).toBeGreaterThan(30);
-  });
+/*
+ * The one file authorized to import B7a. Vite normalizes glob keys relative to
+ * this file, so a file outside this folder arrives as "../Name.tsx".
+ */
+const AUTHORIZED_IMPORTER = "../StockChart.tsx";
 
-  it("is referenced by no file outside the attribution folder", () => {
-    const offenders: string[] = [];
+const IMPORT_PATTERNS = [
+  /from\s+["'][^"']*[Pp]roviderAttribution(Registry)?/,
+  /import\(["'][^"']*[Pp]roviderAttribution(Registry)?/,
+  /components\/attribution/,
+];
 
-    for (const [path, source] of Object.entries(SOURCE_FILES)) {
-      /*
-       * Vite normalizes keys relative to this file, so files in this same
-       * folder arrive as "./Name.tsx" rather than with an /attribution/
-       * segment. Both forms are skipped: B7a referencing itself is the point.
-       */
-      if (path.includes("/attribution/") || !path.startsWith("../")) {
-        continue;
-      }
+/*
+ * Production source only: this folder's own files are excluded (B7a referencing
+ * itself is the point) and so is every test file, which may import freely.
+ */
+function productionSources(): Array<[string, string]> {
+  return Object.entries(SOURCE_FILES).filter(
+    ([path]) =>
+      path.startsWith("../") &&
+      !path.includes("/attribution/") &&
+      !path.includes(".test.") &&
+      !path.includes("/test/"),
+  );
+}
 
-      if (
-        /from\s+["'][^"']*[Pp]roviderAttribution(Registry)?/.test(source) ||
-        /import\(["'][^"']*[Pp]roviderAttribution(Registry)?/.test(source) ||
-        source.includes("components/attribution")
-      ) {
-        offenders.push(path);
-      }
-    }
+function importersOfAttribution(): string[] {
+  return productionSources()
+    .filter(([, source]) =>
+      IMPORT_PATTERNS.some((pattern) => pattern.test(source)),
+    )
+    .map(([path]) => path)
+    .sort();
+}
+
+describe("B7a has exactly one authorized production importer", () => {
+  /*
+   * Non-vacuity. Every assertion below is a claim about a population, and a
+   * population of zero would make all of them pass while proving nothing - the
+   * exact failure mode a deleted guard is supposed to avoid. If the glob
+   * pattern, the folder layout or the filters ever silently stop matching, this
+   * fails first and the rest of the block is known to be meaningless.
+   */
+  it("scans a non-zero, meaningful production-source population", () => {
+    const sources = productionSources();
+
+    expect(sources.length).toBeGreaterThan(30);
+
+    const authorized = sources.find(([path]) =>
+      path.endsWith("StockChart.tsx"),
+    );
 
     expect(
-      offenders,
-      `B7a must be mounted by nothing; found importer(s): ${offenders.join(", ")}`,
+      authorized,
+      "the scan must be able to see the authorized importer at all",
+    ).toBeDefined();
+    expect(
+      authorized?.[1].length ?? 0,
+      "the authorized importer's source came back empty",
+    ).toBeGreaterThan(1000);
+
+    /*
+     * Total volume, not per-file: src/components/search/index.ts is a
+     * deliberately empty barrel, so "every file is non-empty" would be false for
+     * a reason that has nothing to do with this guard. What matters is that the
+     * glob returned real content rather than a map of empty strings, which is
+     * the shape a silently broken `?raw` query would produce.
+     */
+    const totalChars = sources.reduce(
+      (total, [, source]) => total + source.length,
+      0,
+    );
+
+    expect(totalChars).toBeGreaterThan(100_000);
+  });
+
+  it("is imported by exactly one production file", () => {
+    const importers = importersOfAttribution();
+
+    expect(
+      importers,
+      `expected exactly one importer; found: ${importers.join(", ") || "none"}`,
+    ).toHaveLength(1);
+  });
+
+  it("names StockChart.tsx as that importer", () => {
+    expect(importersOfAttribution()).toEqual([AUTHORIZED_IMPORTER]);
+  });
+
+  it("finds no other production importer of either module", () => {
+    const others = importersOfAttribution().filter(
+      (path) => path !== AUTHORIZED_IMPORTER,
+    );
+
+    expect(
+      others,
+      `unauthorized attribution importer(s): ${others.join(", ")}`,
     ).toEqual([]);
   });
 
-  it("leaves StockChart free of any attribution import", () => {
-    const stockChart = Object.entries(SOURCE_FILES).find(([path]) =>
+  /*
+   * The mutation control, run in-process rather than by hand.
+   *
+   * A guard that only ever sees the passing case is not evidence. This proves
+   * the detector actually fires: a synthetic second importer, with the same
+   * shape a real one would have, must be reported as an offender - and must be
+   * reported IN ADDITION to StockChart, so the guard cannot be passing merely
+   * because it counts one thing.
+   *
+   * The probe is a string held in this test, not a file written to the
+   * repository: no probe file is created, so none can be left behind.
+   */
+  it("fails when a second production importer exists", () => {
+    const probePath = "../pages/UnauthorizedAttributionProbe.tsx";
+    const probeSource =
+      'import ProviderAttribution from "../components/attribution/ProviderAttribution";\n';
+
+    const mutated: Array<[string, string]> = [
+      ...productionSources(),
+      [probePath, probeSource],
+    ];
+
+    const offenders = mutated
+      .filter(([, source]) =>
+        IMPORT_PATTERNS.some((pattern) => pattern.test(source)),
+      )
+      .map(([path]) => path)
+      .sort();
+
+    expect(offenders).toContain(probePath);
+    expect(offenders).toContain(AUTHORIZED_IMPORTER);
+    expect(offenders.length).toBeGreaterThan(1);
+    expect(offenders).not.toEqual([AUTHORIZED_IMPORTER]);
+  });
+
+  it("fails when the authorized importer stops importing", () => {
+    const withoutImporter = productionSources().filter(
+      ([path]) => path !== AUTHORIZED_IMPORTER,
+    );
+
+    const offenders = withoutImporter
+      .filter(([, source]) =>
+        IMPORT_PATTERNS.some((pattern) => pattern.test(source)),
+      )
+      .map(([path]) => path);
+
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("the approved phrase and href stay owned by the registry", () => {
+  /*
+   * Ownership is two claims, and both are asserted: the phrase appears in no
+   * production file outside this folder, AND it does appear - exactly once - in
+   * the registry that owns it. Asserting only the first would pass if the
+   * phrase had been deleted from the codebase entirely.
+   */
+  it("puts the approved phrase in exactly one non-test source file", () => {
+    const outsiders = productionSources()
+      .filter(([, source]) => source.includes("Data provided by Twelve Data"))
+      .map(([path]) => path);
+
+    expect(outsiders).toEqual([]);
+
+    const owners = Object.entries(SOURCE_FILES)
+      .filter(
+        ([path]) =>
+          !path.startsWith("../") &&
+          !path.includes(".test.") &&
+          SOURCE_FILES[path].includes("Data provided by Twelve Data"),
+      )
+      .map(([path]) => path);
+
+    expect(owners).toHaveLength(1);
+    expect(owners[0]?.toLowerCase()).toContain(
+      "providerattributionregistry.ts",
+    );
+  });
+
+  it("keeps the phrase out of StockChart, which only mounts the component", () => {
+    const stockChart = productionSources().find(([path]) =>
       path.endsWith("StockChart.tsx"),
     );
 
     expect(stockChart).toBeDefined();
-    expect(stockChart?.[1]).not.toContain("ProviderAttribution");
-    expect(stockChart?.[1]).not.toContain("providerAttributionRegistry");
-    expect(stockChart?.[1]).not.toContain("attribution/");
+    expect(stockChart?.[1]).toContain("ProviderAttribution");
     expect(stockChart?.[1]).not.toContain("Data provided by");
+    expect(stockChart?.[1]).not.toContain("twelvedata.com");
   });
 
-  it("puts the approved phrase in exactly one source file", () => {
-    const carriers = Object.entries(SOURCE_FILES)
-      .filter(([, source]) => source.includes("Data provided by Twelve Data"))
-      .map(([path]) => path)
-      .filter((path) => !path.includes(".test."));
+  it("keeps the href out of every production file but the registry", () => {
+    const carriers = productionSources()
+      .filter(([, source]) => source.includes("https://twelvedata.com"))
+      .map(([path]) => path);
 
-    expect(carriers).toHaveLength(1);
-    expect(carriers[0]?.toLowerCase()).toContain(
-      "providerattributionregistry.ts",
-    );
+    expect(carriers).toEqual([]);
   });
 });

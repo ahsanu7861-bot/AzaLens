@@ -21,6 +21,8 @@ import {
   readHistoryProvider,
   type HistoryProvenance,
 } from './historyProvenance';
+import ProviderAttribution from './attribution/ProviderAttribution';
+import { resolveProviderAttribution } from './attribution/providerAttributionRegistry';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
@@ -104,6 +106,40 @@ export default function StockChart({
   const { bars } = history;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  /*
+   * B7b. Twelve Data attribution is provenance-driven: it renders if and only
+   * if THIS response declared a provider the registry recognizes.
+   *
+   * The resolution is computed here rather than left to ProviderAttribution
+   * alone because the component returns null for a non-resolved provenance, and
+   * a wrapper element rendered around null would emit an empty block with a
+   * line box - an invisible layout shift in the footer. Deciding here means the
+   * wrapper and its content appear and disappear together.
+   *
+   * The three render conditions, and why each is required:
+   *
+   *   !loading  - during a symbol transition `history` still holds the PREVIOUS
+   *               response. Its bars and provider are atomic and therefore
+   *               consistent with each other, but the chart viewport is hidden
+   *               while loading, so without this the previous provider would be
+   *               credited with nothing on screen to credit.
+   *   !error    - an error response carries no bars, so there is no data whose
+   *               origin could be attributed.
+   *   resolved  - absent, blank, "Unknown", "Finnhub" and any unrecognized or
+   *               differently cased label all render nothing. There is no
+   *               default, no configuration fallback and no inference: the
+   *               provider is whatever the response said it was, or nothing.
+   *
+   * This deliberately differs from the TradingView credit below, which renders
+   * unconditionally. TradingView is credited for the charting LIBRARY, which is
+   * present whenever this component renders. Twelve Data would be credited for
+   * BARS a specific response declared it served, so its visibility must follow
+   * that response rather than the component's mere presence.
+   */
+  const attribution = resolveProviderAttribution(history.provider);
+  const showAttribution =
+    !loading && !error && attribution.status === 'resolved';
 
   useEffect(() => {
     const controller = new AbortController();
@@ -481,6 +517,19 @@ export default function StockChart({
         </div>
       )}
 
+      {/*
+        Two credits, two block lines, two anchors, two separate statements.
+
+        They are kept on their own lines rather than joined into one row so that
+        neither can be read as qualifying the other: Twelve Data supplies market
+        data, TradingView supplies the charting library, and no wording here
+        implies either provides the other's service. Separate blocks also mean
+        neither line can push the other into a wrap at narrow viewports.
+
+        The footer's padding, colour, font size and alignment are unchanged from
+        the TradingView-only version and are inherited by both lines, so the two
+        credits cannot drift apart visually and B7b alters no contrast token.
+      */}
       <div
         style={{
           padding: '9px 22px 16px',
@@ -489,15 +538,23 @@ export default function StockChart({
           textAlign: 'right',
         }}
       >
-        Charts powered by{' '}
-        <a
-          href="https://www.tradingview.com/"
-          target="_blank"
-          rel="noreferrer"
-          className="font-medium text-ink-soft transition-colors hover:text-brand"
-        >
-          TradingView Lightweight Charts™
-        </a>
+        {showAttribution && (
+          <div data-testid="chart-provider-attribution">
+            <ProviderAttribution provider={history.provider} />
+          </div>
+        )}
+
+        <div>
+          Charts powered by{' '}
+          <a
+            href="https://www.tradingview.com/"
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-ink-soft transition-colors hover:text-brand"
+          >
+            TradingView Lightweight Charts™
+          </a>
+        </div>
       </div>
     </section>
   );

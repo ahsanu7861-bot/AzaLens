@@ -389,10 +389,25 @@ export const historicalBars = Array.from(
   },
 );
 
+/*
+ * `provider` is the exact label the backend stamps on every successful history
+ * response: backend/providers/marketDataProvider.js maps twelve_data ->
+ * "TwelveData" through a frozen PROVIDER_LABELS object, and marketEngine's
+ * getHistory returns that record verbatim through GET /history/:symbol.
+ *
+ * It is declared here because `provider?` is optional, so a fixture without it
+ * compiles cleanly while modelling a success response the backend does not
+ * actually produce - and, until B7b, silently gave the chart's provenance-driven
+ * attribution no visual coverage at all.
+ *
+ * One word, no space. "Twelve Data" is not a label any adapter emits, and the
+ * registry matches exactly.
+ */
 export const historyResponse = {
   success: true,
   symbol: "AAPL",
   interval: "1day",
+  provider: "TwelveData",
   bars: historicalBars,
 } satisfies HistoryResponse;
 
