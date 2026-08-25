@@ -12,9 +12,14 @@ import { resolveProviderAttribution } from './providerAttributionRegistry';
  * the logic module is named `providerAttributionRegistry.ts` and the specifiers
  * here stay bare and unambiguous.
  *
- * B7a: this component is imported by no production surface. It exists so that
- * B7b has one reviewed place where provider-required wording lives, and so that
- * wording cannot drift between the surfaces B7b will eventually mount it on.
+ * B7b: this component now has exactly ONE authorized production importer,
+ * StockChart.tsx, which renders it under the chart it attributes. That single
+ * importer is enforced by the guard in providerAttributionRegistry.test.ts;
+ * adding a second one fails that guard by name.
+ *
+ * It remains the one reviewed place where provider-required wording lives, so
+ * the phrase and href cannot drift between surfaces. Callers do not supply
+ * either, and must not restate them.
  *
  * The prop is the raw provenance value, exactly as the response declared it.
  * That is deliberate and is the whole ownership argument: a caller holding a
