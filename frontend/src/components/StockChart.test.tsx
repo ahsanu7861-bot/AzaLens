@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import StockChart from "./StockChart";
 import { ThemeContext } from "../app/providers/theme";
@@ -86,13 +86,26 @@ function twelveDataLink() {
   return screen.queryByRole("link", { name: APPROVED_TEXT });
 }
 
-beforeEach(() => {
-  vi.stubGlobal("ResizeObserver", class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  });
-});
+/*
+ * ResizeObserver is installed once, permanently, at module scope - NOT stubbed
+ * per test and torn down in afterEach.
+ *
+ * The chart effect runs in a passive effect after the fetch resolves, which is a
+ * later tick than the assertion most of these tests await. A per-test stub
+ * removed in afterEach could therefore be gone by the time React flushed that
+ * effect, and `new ResizeObserver(...)` in StockChart.tsx threw
+ * "ResizeObserver is not defined" during teardown. It was timing-dependent:
+ * green locally, red on slower CI. A permanent global has no such window, and
+ * vi.unstubAllGlobals() below cannot remove it because it was never stubbed.
+ */
+class TestResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+globalThis.ResizeObserver =
+  TestResizeObserver as unknown as typeof globalThis.ResizeObserver;
 
 afterEach(() => {
   vi.unstubAllGlobals();
