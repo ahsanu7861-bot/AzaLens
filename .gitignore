@@ -37,3 +37,6 @@ frontend-backup/
 # backend/SHARIAH_COST_SAFETY.md)
 backend/storage/halal-terminal-usage.json
 backend/storage/halal-terminal-usage.json.lock
+
+# Private Twelve Data trial evidence (may contain licensed response metadata)
+backend/storage/twelve-data-trial/
