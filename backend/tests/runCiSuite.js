@@ -36,6 +36,7 @@ const deterministicSuites = [
   "testProviderCacheNamespaces.js",
   "testProviderNumericSafety.js",
   "testProviderSelectionObservability.js",
+  "testProviderTransitionMatrix.js",
   "testTwelveDataProfileProvider.js",
   "testTwelveDataQuoteContract.js",
   "testTwelveDataQuoteRejectionSafety.js",
