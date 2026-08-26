@@ -18,6 +18,14 @@ const {
   "../utils/observability"
 );
 
+/*
+  History caching is shared by both supported market-data providers. Keep the
+  pending owner beside that shared cache boundary so identical requests can
+  share one provider call while provider, symbol and interval remain part of
+  the key. This only removes duplicate work; it never retries or falls back.
+*/
+const pendingHistoryRequests = new Map();
+
 // ==================================================
 // Helpers
 // ==================================================
@@ -817,15 +825,51 @@ async function getHistoryUnobserved(
       };
     }
 
+    if (pendingHistoryRequests.has(cacheKey)) {
+      const pendingResult =
+        await pendingHistoryRequests.get(cacheKey);
+
+      if (pendingResult?.success !== true) {
+        return {
+          ...pendingResult,
+          performance: {
+            ...pendingResult?.performance,
+            durationMs:
+              Date.now() -
+              startedAt,
+            cacheHit: false
+          }
+        };
+      }
+
+      return {
+        ...pendingResult,
+        cache: "COALESCED",
+        dataQuality:
+          buildHistoricalQuality(
+            pendingResult.bars,
+            "COALESCED"
+          ),
+        performance: {
+          ...pendingResult.performance,
+          durationMs:
+            Date.now() -
+            startedAt,
+          cacheHit: true
+        }
+      };
+    }
+
     // ==============================================
-    // Twelve Data Fetch
+    // Provider Fetch
     // ==============================================
 
-    const result =
-      await getHistoricalCandles(
-        normalizedSymbol,
-        normalizedInterval
-      );
+    const requestPromise = (async () => {
+      const result =
+        await getHistoricalCandles(
+          normalizedSymbol,
+          normalizedInterval
+        );
 
     if (result?.success !== true) {
       return {
@@ -944,25 +988,37 @@ async function getHistoryUnobserved(
       30
     );
 
-    return {
-      ...normalizedResult,
+      return {
+        ...normalizedResult,
 
-      cache: "MISS",
+        cache: "MISS",
 
-      dataQuality:
-        buildHistoricalQuality(
-          bars,
-          "MISS"
-        ),
+        dataQuality:
+          buildHistoricalQuality(
+            bars,
+            "MISS"
+          ),
 
-      performance: {
-        durationMs:
-          Date.now() -
-          startedAt,
+        performance: {
+          durationMs:
+            Date.now() -
+            startedAt,
 
-        cacheHit: false
-      }
-    };
+          cacheHit: false
+        }
+      };
+    })();
+
+    pendingHistoryRequests.set(
+      cacheKey,
+      requestPromise
+    );
+
+    try {
+      return await requestPromise;
+    } finally {
+      pendingHistoryRequests.delete(cacheKey);
+    }
   } catch (error) {
     console.error(
       "Market Engine Historical Error:",
