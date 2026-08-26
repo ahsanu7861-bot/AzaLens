@@ -178,7 +178,7 @@ function buildSharedHistorySummary(
 
     provider:
       history?.provider ||
-      "TwelveData",
+      null,
 
     symbol:
       normalizedSymbol,
@@ -307,7 +307,7 @@ function buildFundamentalsSnapshot({
     provider:
       profileAvailable
         ? profile.source ||
-          "Finnhub Company Profile"
+          null
         : null,
 
     asOf:
@@ -2115,5 +2115,6 @@ async function getMasterAnalysis(
 
 module.exports = {
   getMasterAnalysis,
-  buildFundamentalsSnapshot
+  buildFundamentalsSnapshot,
+  buildSharedHistorySummary
 };
