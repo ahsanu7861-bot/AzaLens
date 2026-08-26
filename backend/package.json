@@ -48,7 +48,8 @@
     "test:shariah-fixtures": "node tests/testShariahSyntheticFixtures.js",
     "trace:shariah": "node tests/traceHalalTerminalResponse.js",
     "health:release": "node scripts/releaseHealthCheck.js",
-    "test:environment-validation": "node tests/testEnvironmentValidation.js"
+    "test:environment-validation": "node tests/testEnvironmentValidation.js",
+    "trial:twelve-data": "node scripts/twelveDataTrialHarness.js"
   },
   "keywords": [],
   "author": "Ahsan Ullah",
