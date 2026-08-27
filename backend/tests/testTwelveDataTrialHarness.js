@@ -111,15 +111,84 @@ async function run() {
   const file = path.join(directory, "evidence.json");
   writeEvidence(file, evidence);
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(EVIDENCE_ROOT).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(directory).mode & 0o777, 0o700);
   assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), evidence);
+  fs.chmodSync(directory, 0o755);
+  fs.chmodSync(file, 0o644);
+  const originalOpenSync = fs.openSync;
+  let evidenceOpenFlags = null;
+  fs.openSync = (target, flags, ...rest) => {
+    if (target === file) evidenceOpenFlags = flags;
+    return originalOpenSync(target, flags, ...rest);
+  };
+  try {
+    writeEvidence(file, evidence);
+  } finally {
+    fs.openSync = originalOpenSync;
+  }
+  assert.ok(evidenceOpenFlags & fs.constants.O_NOFOLLOW, "evidence files must be opened with O_NOFOLLOW");
+  assert.equal(fs.statSync(directory).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
   fs.rmSync(directory, { recursive: true, force: true });
   assert.throws(() => resolveEvidencePath(path.resolve(EVIDENCE_ROOT, "../escape.json")), /must stay inside/);
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), "azalens-b4-outside-"));
   const link = path.join(EVIDENCE_ROOT, "outside-link");
+  fs.rmSync(link, { force: true });
   fs.symlinkSync(outside, link, "dir");
-  assert.throws(() => writeEvidence(path.join(link, "escape.json"), evidence), /resolves outside/);
+  assert.throws(() => writeEvidence(path.join(link, "escape.json"), evidence), /real directories|resolves outside/);
   fs.rmSync(link, { force: true });
   fs.rmSync(outside, { recursive: true, force: true });
+
+  const outsideFileDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "azalens-b4-file-outside-"));
+  const outsideFile = path.join(outsideFileDirectory, "outside.json");
+  fs.writeFileSync(outsideFile, "unchanged\n", { mode: 0o600 });
+  const fileLink = path.join(EVIDENCE_ROOT, "outside-file-link.json");
+  fs.rmSync(fileLink, { force: true });
+  fs.symlinkSync(outsideFile, fileLink, "file");
+  assert.throws(() => writeEvidence(fileLink, evidence), /regular file, not a symbolic link/);
+  assert.equal(fs.readFileSync(outsideFile, "utf8"), "unchanged\n");
+  fs.rmSync(fileLink, { force: true });
+  fs.rmSync(outsideFileDirectory, { recursive: true, force: true });
+
+  const nonRegularTarget = path.join(EVIDENCE_ROOT, "non-regular-target");
+  fs.mkdirSync(nonRegularTarget, { mode: 0o700 });
+  assert.throws(() => writeEvidence(nonRegularTarget, evidence), /regular file/);
+  fs.rmSync(nonRegularTarget, { recursive: true, force: true });
+
+  const postOpenProbe = path.join(EVIDENCE_ROOT, "post-open-regular-file-probe.json");
+  const originalProbeOpenSync = fs.openSync;
+  const originalProbeFstatSync = fs.fstatSync;
+  let probeDescriptor = null;
+  let substitutedProbeStatus = false;
+  fs.openSync = (target, flags, ...rest) => {
+    const descriptor = originalProbeOpenSync(target, flags, ...rest);
+    if (target === postOpenProbe) probeDescriptor = descriptor;
+    return descriptor;
+  };
+  fs.fstatSync = (descriptor, ...rest) => {
+    if (descriptor === probeDescriptor && !substitutedProbeStatus) {
+      substitutedProbeStatus = true;
+      return { isFile: () => false };
+    }
+    return originalProbeFstatSync(descriptor, ...rest);
+  };
+  try {
+    assert.throws(() => writeEvidence(postOpenProbe, evidence), /must remain a regular file/);
+  } finally {
+    fs.openSync = originalProbeOpenSync;
+    fs.fstatSync = originalProbeFstatSync;
+    fs.rmSync(postOpenProbe, { force: true });
+  }
+  assert.equal(substitutedProbeStatus, true);
+
+  const insideLinkTarget = fs.mkdtempSync(path.join(EVIDENCE_ROOT, "inside-target-"));
+  const insideDirectoryLink = path.join(EVIDENCE_ROOT, "inside-directory-link");
+  fs.rmSync(insideDirectoryLink, { force: true });
+  fs.symlinkSync(insideLinkTarget, insideDirectoryLink, "dir");
+  assert.throws(() => writeEvidence(path.join(insideDirectoryLink, "evidence.json"), evidence), /real directories/);
+  fs.rmSync(insideDirectoryLink, { force: true });
+  fs.rmSync(insideLinkTarget, { recursive: true, force: true });
 
   console.log("Twelve Data private trial harness contract: PASS");
   console.log("Provider calls: 0; provider credits: 0");
