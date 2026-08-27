@@ -183,12 +183,57 @@ function writeEvidence(evidencePath, evidence) {
   fs.mkdirSync(EVIDENCE_ROOT, { recursive: true, mode: 0o700 });
   const parent = path.dirname(resolved);
   fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
+  const relativeParent = path.relative(EVIDENCE_ROOT, parent);
+  const privateDirectories = [EVIDENCE_ROOT];
+  if (relativeParent) {
+    let current = EVIDENCE_ROOT;
+    for (const segment of relativeParent.split(path.sep)) {
+      current = path.join(current, segment);
+      privateDirectories.push(current);
+    }
+  }
+  for (const directory of privateDirectories) {
+    const status = fs.lstatSync(directory);
+    if (status.isSymbolicLink() || !status.isDirectory()) {
+      throw new Error("Evidence directory components must be real directories, not symbolic links.");
+    }
+    const descriptor = fs.openSync(directory,
+      fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
+    try {
+      if (!fs.fstatSync(descriptor).isDirectory()) {
+        throw new Error("Evidence directory components must remain real directories.");
+      }
+      fs.fchmodSync(descriptor, 0o700);
+      if ((fs.fstatSync(descriptor).mode & 0o777) !== 0o700) {
+        throw new Error("Evidence directories must have owner-only permissions (0700).");
+      }
+    } finally {
+      fs.closeSync(descriptor);
+    }
+  }
   const realRoot = fs.realpathSync(EVIDENCE_ROOT);
   const realParent = fs.realpathSync(parent);
   if (realParent !== realRoot && !realParent.startsWith(`${realRoot}${path.sep}`)) {
     throw new Error("Evidence path resolves outside the private evidence directory.");
   }
-  fs.writeFileSync(resolved, `${JSON.stringify(evidence, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  if (fs.existsSync(resolved)) {
+    const status = fs.lstatSync(resolved);
+    if (status.isSymbolicLink() || !status.isFile()) {
+      throw new Error("Evidence file must be a regular file, not a symbolic link.");
+    }
+  }
+  const descriptor = fs.openSync(resolved,
+    fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK, 0o600);
+  try {
+    if (!fs.fstatSync(descriptor).isFile()) {
+      throw new Error("Evidence file must remain a regular file.");
+    }
+    fs.ftruncateSync(descriptor, 0);
+    fs.fchmodSync(descriptor, 0o600);
+    fs.writeFileSync(descriptor, `${JSON.stringify(evidence, null, 2)}\n`, { encoding: "utf8" });
+  } finally {
+    fs.closeSync(descriptor);
+  }
   return resolved;
 }
 
