@@ -5,7 +5,8 @@ const path = require("node:path");
 const axios = require("axios");
 const { TRIAL_MATRIX_VERSION, TRIAL_SYMBOL_MATRIX } = require("../config/twelveDataTrialMatrix");
 const { ABORT_CRITERIA, CACHE_OBSERVATION_PLAN, DAY_SCHEDULE, ENDPOINT_WEIGHTS, EXIT_CRITERIA,
-  PLAN_NAME, PLAN_VERSION, VENTURE_CREDITS_PER_MINUTE, WEIGHT_SOURCES } = require("../config/twelveDataTrialPlan");
+  PLAN_NAME, PLAN_VERSION, PROVIDER_ENTITLEMENT, TRIAL_BUDGET, VENTURE_CREDITS_PER_MINUTE,
+  WEIGHT_SOURCES } = require("../config/twelveDataTrialPlan");
 const { responseFor } = require("../fixtures/twelve-data-trial/stubResponses");
 
 const BASE_URL = "https://api.twelvedata.com";
@@ -125,7 +126,7 @@ function assertLiveAuthority(options, env = process.env) {
   if (!String(env.TWELVE_DATA_API_KEY || "").trim()) throw new Error("Live mode refused: Twelve Data API key is absent.");
   if (!options.evidencePath) throw new Error("Live mode refused: an evidence path is required.");
   resolveEvidencePath(options.evidencePath);
-  if (options.endpoint && ENDPOINTS[options.endpoint]?.status !== "confirmed_public_docs") {
+  if (options.endpoint && !ENDPOINTS[options.endpoint]?.status.startsWith("confirmed_")) {
     throw new Error(`Live mode refused: ${options.endpoint} credit weight is not confirmed.`);
   }
 }
@@ -242,9 +243,10 @@ async function main() {
   if (!options.endpoint) {
     process.stdout.write(`${JSON.stringify({ mode: "dry-run", liveTraffic: false, matrixVersion: TRIAL_MATRIX_VERSION,
       plan: { name: PLAN_NAME, version: PLAN_VERSION, ventureCreditsPerMinute: VENTURE_CREDITS_PER_MINUTE },
+      providerEntitlement: PROVIDER_ENTITLEMENT,
       symbols: TRIAL_SYMBOL_MATRIX, endpointWeights: ENDPOINTS, weightSources: WEIGHT_SOURCES,
       allowlistedEndpoints: Object.keys(ENDPOINTS), blockedEndpoints: BLOCKED_ENDPOINTS,
-      cacheObservationPlan: CACHE_OBSERVATION_PLAN, daySchedule: DAY_SCHEDULE,
+      cacheObservationPlan: CACHE_OBSERVATION_PLAN, daySchedule: DAY_SCHEDULE, trialBudget: TRIAL_BUDGET,
       abortCriteria: ABORT_CRITERIA, exitCriteria: EXIT_CRITERIA,
       defaultBudgets: { requests: DEFAULT_REQUEST_BUDGET, estimatedCredits: DEFAULT_CREDIT_BUDGET } }, null, 2)}\n`);
     return;

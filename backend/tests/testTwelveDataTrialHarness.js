@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { TRIAL_SYMBOL_MATRIX } = require("../config/twelveDataTrialMatrix");
 const { ABORT_CRITERIA, CACHE_OBSERVATION_PLAN, DAY_SCHEDULE, ENDPOINT_WEIGHTS, EXIT_CRITERIA,
-  PLAN_VERSION, VENTURE_CREDITS_PER_MINUTE } = require("../config/twelveDataTrialPlan");
+  PLAN_VERSION, PROVIDER_ENTITLEMENT, TRIAL_BUDGET, VENTURE_CREDITS_PER_MINUTE } = require("../config/twelveDataTrialPlan");
 const { BLOCKED_ENDPOINTS, ENDPOINTS, EVIDENCE_ROOT, EVIDENCE_SCHEMA_VERSION, LIVE_ACK, assertLiveAuthority,
   createBudget, parseArgs, redact, requireAllowedEndpoint, resolveEvidencePath, runHarness, writeEvidence } = require("../scripts/twelveDataTrialHarness");
 
@@ -17,15 +17,53 @@ async function run() {
   assert.equal(new Set(TRIAL_SYMBOL_MATRIX.map((row) => row.bucket)).size, 9);
   assert.deepEqual(Object.keys(ENDPOINTS), ["quote", "profile", "stocks", "logo", "symbol_search", "time_series"]);
   assert.equal(ENDPOINTS, ENDPOINT_WEIGHTS);
-  assert.equal(PLAN_VERSION, "b4b-v1");
+  assert.equal(PLAN_VERSION, "b4b-v2");
   assert.equal(VENTURE_CREDITS_PER_MINUTE, 610);
   assert.equal(DAY_SCHEDULE.length, 12);
   assert.deepEqual(DAY_SCHEDULE.map((item) => item.day), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   assert.equal(CACHE_OBSERVATION_PLAN.length, 7);
   assert.ok(ABORT_CRITERIA.length >= 8);
   assert.ok(EXIT_CRITERIA.length >= 6);
-  assert.equal(ENDPOINTS.logo.status, "provisional_unconfirmed");
-  assert.equal(ENDPOINTS.symbol_search.status, "provisional_unconfirmed");
+  assert.deepEqual(ENDPOINTS.profile, { credits: 10, status: "confirmed_written_provider_support", unit: "per_symbol" });
+  assert.deepEqual(ENDPOINTS.logo, { credits: 1, status: "confirmed_written_provider_support", unit: "per_symbol" });
+  assert.deepEqual(ENDPOINTS.symbol_search,
+    { credits: 1, status: "confirmed_written_provider_support", unit: "per_request" });
+  assert.equal(PROVIDER_ENTITLEMENT.confirmedOn, "2026-08-27");
+  assert.equal(PROVIDER_ENTITLEMENT.trial.privateInternalValidation, true);
+  assert.equal(PROVIDER_ENTITLEMENT.trial.publicDisplay, false);
+  assert.equal(PROVIDER_ENTITLEMENT.paidPlan, "venture_business");
+  assert.equal(PROVIDER_ENTITLEMENT.authenticatedClientDisplay, true);
+  assert.equal(PROVIDER_ENTITLEMENT.defaultUsEquitiesDisplayAddOnRequired, false);
+  assert.deepEqual(PROVIDER_ENTITLEMENT.restrictions,
+    ["no_raw_data_resale", "no_customer_facing_market_data_api", "no_bulk_downloads"]);
+  const expectedDays = [
+    [{ quote: 6, time_series: 6 }, { quote: 6, time_series: 6 }, 12, 12],
+    [{ quote: 18 }, { quote: 18 }, 18, 18],
+    [{ time_series: 18 }, { time_series: 18 }, 18, 18],
+    [{ symbol_search: 12 }, { symbol_search: 12 }, 12, 12],
+    [{ profile: 9, stocks: 9, logo: 9 }, { profile: 90, stocks: 9, logo: 9 }, 27, 108],
+    [{ quote: 12, time_series: 12 }, { quote: 12, time_series: 12 }, 24, 24],
+    [{ quote: 6, profile: 6, time_series: 6 }, { quote: 6, profile: 60, time_series: 6 }, 18, 72],
+    [{ quote: 9, time_series: 9 }, { quote: 9, time_series: 9 }, 18, 18],
+    [{ quote: 12 }, { quote: 12 }, 12, 12],
+    [{ quote: 6, time_series: 6 }, { quote: 6, time_series: 6 }, 12, 12],
+    [{}, {}, 0, 0],
+    [{}, {}, 0, 0],
+  ];
+  DAY_SCHEDULE.forEach((item, index) => {
+    const [requests, credits, requestBudget, creditBudget] = expectedDays[index];
+    assert.deepEqual(item.requestsByEndpoint, requests);
+    assert.deepEqual(item.creditsByEndpoint, credits);
+    assert.equal(item.requestBudget, requestBudget);
+    assert.equal(item.creditBudget, creditBudget);
+    assert.equal(Object.hasOwn(item, "liveBudget"), false);
+  });
+  assert.equal(DAY_SCHEDULE[10].gate,
+    "blocked_until_unresolved_findings_have_an_explicit_reviewed_endpoint_plan");
+  assert.deepEqual(TRIAL_BUDGET, { requests: 171, credits: 306,
+    currency: { amount: null, status: "blocked_pending_activation_and_billing_terms" } });
+  assert.equal(JSON.stringify(PROVIDER_ENTITLEMENT).includes("@"), false,
+    "entitlement metadata must not contain personal email addresses");
   assert.deepEqual(BLOCKED_ENDPOINTS, ["ipo_calendar", "income_statement", "balance_sheet", "cash_flow", "statistics"]);
   for (const endpoint of BLOCKED_ENDPOINTS) assert.throws(() => requireAllowedEndpoint(endpoint), /explicitly blocked/);
   assert.throws(() => requireAllowedEndpoint("income_statement"), /explicitly blocked/);
@@ -44,9 +82,9 @@ async function run() {
   assert.throws(() => assertLiveAuthority({ live: true, endpoint: "quote", evidencePath: "/tmp/outside.json" }, {
     B4_TWELVE_DATA_LIVE_ACK: LIVE_ACK, TWELVE_DATA_API_KEY: "x",
   }), /must stay inside/);
-  assert.throws(() => assertLiveAuthority({ live: true, endpoint: "logo", evidencePath: allowedEvidence }, {
+  assert.doesNotThrow(() => assertLiveAuthority({ live: true, endpoint: "logo", evidencePath: allowedEvidence }, {
     B4_TWELVE_DATA_LIVE_ACK: LIVE_ACK, TWELVE_DATA_API_KEY: "x",
-  }), /credit weight is not confirmed/);
+  }));
 
   let calls = 0;
   const evidence = await runHarness({ ...dry, endpoint: "quote", symbol: "aapl", requestBudget: 1, creditBudget: 1 }, {
@@ -70,10 +108,21 @@ async function run() {
   }), /Request budget exceeded/);
   assert.equal(calls, 0, "budget refusal must occur before transport");
 
-  const profileBudget = createBudget({ requestBudget: 3, creditBudget: 3 });
+  const profileBudget = createBudget({ requestBudget: 3, creditBudget: 12 });
   for (const endpoint of ["profile", "stocks", "logo"]) profileBudget.reserve(endpoint);
-  assert.deepEqual(profileBudget.snapshot(), { requestBudget: 3, creditBudget: 3, requests: 3, estimatedCredits: 3 });
+  assert.deepEqual(profileBudget.snapshot(), { requestBudget: 3, creditBudget: 12, requests: 3, estimatedCredits: 12 });
   assert.throws(() => profileBudget.reserve("logo"), /Request budget exceeded/);
+
+  calls = 0;
+  await rejects(() => runHarness({ ...dry, endpoint: "profile", symbol: "AAPL", requestBudget: 1, creditBudget: 9 }, {
+    transport: async () => { calls += 1; return { status: 200, data: {} }; }, env: {},
+  }), /Credit budget exceeded/);
+  assert.equal(calls, 0, "profile credit refusal must occur before transport");
+  const profileEvidence = await runHarness({ ...dry, endpoint: "profile", symbol: "AAPL",
+    requestBudget: 1, creditBudget: 10 }, { env: {} });
+  assert.equal(profileEvidence.budget.estimatedCredits, 10);
+  assert.deepEqual(profileEvidence.creditWeight,
+    { credits: 10, status: "confirmed_written_provider_support", unit: "per_symbol" });
 
   calls = 0;
   const limited = await runHarness({ ...dry, endpoint: "time_series", symbol: "AAPL", simulate429: true,
@@ -89,7 +138,8 @@ async function run() {
   assert.equal(providerError.outcome, "provider_error");
 
   for (const endpoint of Object.keys(ENDPOINTS)) {
-    const fixtureEvidence = await runHarness({ ...dry, endpoint, symbol: "AAPL", requestBudget: 1, creditBudget: 1 }, { env: {} });
+    const fixtureEvidence = await runHarness({ ...dry, endpoint, symbol: "AAPL", requestBudget: 1,
+      creditBudget: ENDPOINTS[endpoint].credits }, { env: {} });
     assert.equal(fixtureEvidence.responseContract.valid, true, `${endpoint} fixture must satisfy its minimum contract`);
   }
 
