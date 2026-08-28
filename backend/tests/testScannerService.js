@@ -77,6 +77,28 @@ async function run() {
   assert.equal(scan.results.length, 2);
   assert.match(scan.disclaimer, /does not issue trade signals/i);
 
+  let protectedCalls = 0;
+  const protectedScan = await scanWatchlist(
+    ["AAPL", "MSFT", "JPM"],
+    {
+      async getHistory() {
+        protectedCalls += 1;
+        return {
+          code: "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED",
+          error: "Local credit budget exhausted.",
+        };
+      },
+    }
+  );
+  assert.equal(protectedCalls, 1);
+  assert.equal(protectedScan.results.length, 3);
+  assert.ok(
+    protectedScan.results.every(
+      (result) => result.status === "UNAVAILABLE"
+    )
+  );
+  assert.match(protectedScan.results[1].message, /not requested/i);
+
   console.log("Scanner service: all assertions passed.");
 }
 

@@ -818,6 +818,9 @@ function buildReadinessSnapshot({
 }
 
 function getMetricsSnapshot() {
+  const {
+    getTwelveDataCreditSnapshot,
+  } = require("../services/twelveDataCreditGovernor");
   const aggregate =
     summarizeAggregate(state.http.aggregate);
 
@@ -845,6 +848,7 @@ function getMetricsSnapshot() {
       */
       marketDataDelay: resolveMarketDelay(),
     },
+    twelveDataCredits: getTwelveDataCreditSnapshot(),
     process: {
       startedAt: state.startedAt,
       uptimeSeconds: round(process.uptime(), 3),
