@@ -3,6 +3,9 @@ const axios = require("axios");
 const {
   buildCacheKey
 } = require("../utils/cache");
+const {
+  reserveTwelveDataCredits,
+} = require("../services/twelveDataCreditGovernor");
 
 const TWELVE_DATA_URL =
   "https://api.twelvedata.com/time_series";
@@ -150,6 +153,7 @@ async function fetchTwelveDataProfile(symbol) {
   const apiKey = String(process.env.TWELVE_DATA_API_KEY || "").trim();
   if (!apiKey) throw new Error("Twelve Data API key is not configured.");
 
+  await reserveTwelveDataCredits("profile_bundle");
   const request = (endpoint) => axios.get(`${TWELVE_DATA_BASE_URL}/${endpoint}`, {
     params: { symbol, apikey: apiKey },
     timeout: 15000
@@ -219,7 +223,8 @@ async function getTwelveDataCompanyProfile(symbol) {
         data, error: null, cache: { hit: false, status: "MISS" } };
     })
     .catch((error) => ({ success: false, provider: PROVIDER_LABEL,
-      symbol: normalizedSymbol, data: null, error: error.message }));
+      symbol: normalizedSymbol, data: null, error: error.message,
+      code: error.code || "TWELVE_DATA_PROFILE_REQUEST_FAILED" }));
   pendingProfileRequests.set(cacheKey, promise);
   try {
     return await promise;
@@ -286,6 +291,7 @@ async function getHistoricalData(
   }
 
   try {
+    await reserveTwelveDataCredits("time_series", { mode: "queue" });
     const response = await axios.get(
       TWELVE_DATA_URL,
       {
@@ -475,7 +481,9 @@ async function getHistoricalData(
         error.message ||
         "Twelve Data request failed.",
       code:
-        error.response?.status === 429
+        error.code === "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED"
+          ? error.code
+          : error.response?.status === 429
           ? "TWELVE_DATA_RATE_LIMIT"
           : "TWELVE_DATA_REQUEST_FAILED",
       httpStatus:
@@ -839,6 +847,8 @@ function normalizeTwelveDataQuote(symbol, quote) {
 async function fetchFreshTwelveDataQuote(symbol) {
   const apiKey = getApiKey();
 
+  await reserveTwelveDataCredits("quote", { mode: "queue" });
+
   const response = await axios.get(
     `${TWELVE_DATA_BASE_URL}/quote`,
     {
@@ -1098,6 +1108,8 @@ async function searchTwelveDataEquities(query, limit = 12) {
 
   const requestPromise = (async () => {
     const apiKey = getApiKey();
+
+    await reserveTwelveDataCredits("symbol_search", { mode: "queue" });
 
     const response = await axios.get(
       `${TWELVE_DATA_BASE_URL}/symbol_search`,

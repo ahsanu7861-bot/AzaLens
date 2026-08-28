@@ -223,18 +223,35 @@ async function scanWatchlist(
 
   // Deliberately sequential: one bounded provider request per symbol,
   // avoiding a burst that can overwhelm low-tier rate limits.
-  for (const symbol of normalizedSymbols) {
+  for (let index = 0; index < normalizedSymbols.length; index += 1) {
+    const symbol = normalizedSymbols[index];
     try {
       const history = await historyLoader(symbol, "1day");
+      if (history?.code === "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED") {
+        const budgetError = new Error(history.error);
+        budgetError.code = history.code;
+        throw budgetError;
+      }
       const bars = finiteBars(history);
       results.push(analyzeBars(symbol, bars));
-    } catch {
+    } catch (error) {
       results.push({
         symbol,
         status: "UNAVAILABLE",
         message: "Historical data was unavailable for this symbol.",
         observations: [],
       });
+      if (error?.code === "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED") {
+        for (const unrequested of normalizedSymbols.slice(index + 1)) {
+          results.push({
+            symbol: unrequested,
+            status: "UNAVAILABLE",
+            message: "Historical data was not requested because the local provider credit budget was exhausted.",
+            observations: [],
+          });
+        }
+        break;
+      }
     }
   }
 
