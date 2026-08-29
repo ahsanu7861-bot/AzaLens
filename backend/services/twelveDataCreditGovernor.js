@@ -5,6 +5,13 @@ const path = require("node:path");
 
 const BASIC_PLAN_ID = "basic_internal";
 
+const COORDINATION_MODES = Object.freeze({
+  DISABLED: "disabled",
+  SINGLE_INSTANCE: "single_instance",
+  MULTI_INSTANCE: "multi_instance",
+  SHARED_ATOMIC: "shared_atomic",
+});
+
 const TWELVE_DATA_CREDIT_WEIGHTS = Object.freeze({
   quote: 1,
   time_series: 1,
@@ -54,6 +61,65 @@ class TwelveDataCreditBudgetError extends Error {
     this.reason = reason;
     this.retryAfterMs = retryAfterMs;
   }
+}
+
+function acknowledged(value) {
+  return String(value || "").trim().toLowerCase() === "true";
+}
+
+function resolveTwelveDataGovernorRuntime(env = process.env) {
+  const mode = String(
+    env.TWELVE_DATA_CREDIT_COORDINATION_MODE ||
+      COORDINATION_MODES.DISABLED
+  )
+    .trim()
+    .toLowerCase();
+  const singleInstanceAcknowledged = acknowledged(
+    env.TWELVE_DATA_SINGLE_INSTANCE_ACK
+  );
+  const durableLedgerAcknowledged = acknowledged(
+    env.TWELVE_DATA_CREDIT_LEDGER_DURABLE_ACK
+  );
+  const configuredPath = String(
+    env.TWELVE_DATA_CREDIT_LEDGER_PATH || ""
+  ).trim();
+  const absoluteLedgerPath = Boolean(
+    configuredPath && path.isAbsolute(configuredPath)
+  );
+
+  let enabled = false;
+  let reason = "coordination_disabled";
+
+  if (mode === COORDINATION_MODES.SINGLE_INSTANCE) {
+    if (!singleInstanceAcknowledged) {
+      reason = "single_instance_not_acknowledged";
+    } else if (!absoluteLedgerPath) {
+      reason = "durable_ledger_path_required";
+    } else if (!durableLedgerAcknowledged) {
+      reason = "durable_ledger_not_acknowledged";
+    } else {
+      enabled = true;
+      reason = null;
+    }
+  } else if (
+    mode === COORDINATION_MODES.MULTI_INSTANCE ||
+    mode === COORDINATION_MODES.SHARED_ATOMIC
+  ) {
+    reason = "shared_atomic_coordinator_unavailable";
+  } else if (mode !== COORDINATION_MODES.DISABLED) {
+    reason = "coordination_mode_invalid";
+  }
+
+  return Object.freeze({
+    mode,
+    enabled,
+    reason,
+    storagePath: enabled ? configuredPath : null,
+    durableLedger: enabled && durableLedgerAcknowledged,
+    singleInstanceAcknowledged:
+      enabled && singleInstanceAcknowledged,
+    multiInstanceSafe: false,
+  });
 }
 
 class TwelveDataCreditGovernor {
@@ -268,15 +334,12 @@ class TwelveDataCreditGovernor {
   }
 }
 
-const activeGovernor = new TwelveDataCreditGovernor({
-  storagePath:
-    process.env.NODE_ENV === "test"
-      ? null
-      : path.resolve(
-        __dirname,
-        "../storage/provider-credits/twelve-data-ledger.json"
-      ),
-});
+const activeRuntime = resolveTwelveDataGovernorRuntime();
+const activeGovernor = activeRuntime.enabled
+  ? new TwelveDataCreditGovernor({
+    storagePath: activeRuntime.storagePath,
+  })
+  : null;
 
 function shouldBypassForDeterministicTests() {
   return (
@@ -297,19 +360,57 @@ async function reserveTwelveDataCredits(endpoint, options = {}) {
       deterministicTestBypass: true,
     });
   }
+  if (!activeRuntime.enabled || !activeGovernor) {
+    return Promise.reject(
+      new TwelveDataCreditBudgetError(activeRuntime.reason)
+    );
+  }
   return activeGovernor.reserve(credits, options);
 }
 
 function getTwelveDataCreditSnapshot() {
-  return activeGovernor.snapshot();
+  const accounting = activeGovernor
+    ? activeGovernor.snapshot().accounting
+    : {
+      minuteCreditsReserved: 0,
+      dayCreditsReserved: 0,
+      minuteCreditsRemaining:
+        TWELVE_DATA_PLAN_PRESETS[BASIC_PLAN_ID].creditsPerMinute,
+      dayCreditsRemaining:
+        TWELVE_DATA_PLAN_PRESETS[BASIC_PLAN_ID].creditsPerDay,
+      queueDepth: 0,
+      refusals: 0,
+    };
+
+  return {
+    planId: BASIC_PLAN_ID,
+    limits: {
+      creditsPerMinute:
+        TWELVE_DATA_PLAN_PRESETS[BASIC_PLAN_ID].creditsPerMinute,
+      creditsPerDay:
+        TWELVE_DATA_PLAN_PRESETS[BASIC_PLAN_ID].creditsPerDay,
+    },
+    coordination: {
+      mode: activeRuntime.mode,
+      enabled: activeRuntime.enabled,
+      durableLedger: activeRuntime.durableLedger,
+      singleInstanceAcknowledged:
+        activeRuntime.singleInstanceAcknowledged,
+      multiInstanceSafe: activeRuntime.multiInstanceSafe,
+      reason: activeRuntime.reason,
+    },
+    accounting,
+  };
 }
 
 module.exports = {
   BASIC_PLAN_ID,
+  COORDINATION_MODES,
   TWELVE_DATA_CREDIT_WEIGHTS,
   TWELVE_DATA_PLAN_PRESETS,
   TwelveDataCreditBudgetError,
   TwelveDataCreditGovernor,
   getTwelveDataCreditSnapshot,
+  resolveTwelveDataGovernorRuntime,
   reserveTwelveDataCredits,
 };

@@ -6,13 +6,18 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   BASIC_PLAN_ID,
+  COORDINATION_MODES,
   TWELVE_DATA_CREDIT_WEIGHTS,
   TWELVE_DATA_PLAN_PRESETS,
   TwelveDataCreditGovernor,
+  getTwelveDataCreditSnapshot,
+  reserveTwelveDataCredits,
+  resolveTwelveDataGovernorRuntime,
 } = require("../services/twelveDataCreditGovernor");
 
 async function main() {
   assert.equal(BASIC_PLAN_ID, "basic_internal");
+  assert.equal(COORDINATION_MODES.DISABLED, "disabled");
   assert.deepEqual(TWELVE_DATA_CREDIT_WEIGHTS, {
     quote: 1,
     time_series: 1,
@@ -34,6 +39,72 @@ async function main() {
       /disabled/
     );
   }
+
+  assert.deepEqual(
+    resolveTwelveDataGovernorRuntime({}),
+    {
+      mode: "disabled",
+      enabled: false,
+      reason: "coordination_disabled",
+      storagePath: null,
+      durableLedger: false,
+      singleInstanceAcknowledged: false,
+      multiInstanceSafe: false,
+    }
+  );
+  assert.equal(
+    resolveTwelveDataGovernorRuntime({
+      TWELVE_DATA_CREDIT_COORDINATION_MODE: "single_instance",
+    }).reason,
+    "single_instance_not_acknowledged"
+  );
+  assert.equal(
+    resolveTwelveDataGovernorRuntime({
+      TWELVE_DATA_CREDIT_COORDINATION_MODE: "single_instance",
+      TWELVE_DATA_SINGLE_INSTANCE_ACK: "true",
+      TWELVE_DATA_CREDIT_LEDGER_PATH: "relative/ledger.json",
+    }).reason,
+    "durable_ledger_path_required"
+  );
+  assert.equal(
+    resolveTwelveDataGovernorRuntime({
+      TWELVE_DATA_CREDIT_COORDINATION_MODE: "single_instance",
+      TWELVE_DATA_SINGLE_INSTANCE_ACK: "true",
+      TWELVE_DATA_CREDIT_LEDGER_PATH: "/durable/ledger.json",
+    }).reason,
+    "durable_ledger_not_acknowledged"
+  );
+  const safeSingleInstance = resolveTwelveDataGovernorRuntime({
+    TWELVE_DATA_CREDIT_COORDINATION_MODE: "single_instance",
+    TWELVE_DATA_SINGLE_INSTANCE_ACK: "true",
+    TWELVE_DATA_CREDIT_LEDGER_PATH: "/durable/ledger.json",
+    TWELVE_DATA_CREDIT_LEDGER_DURABLE_ACK: "true",
+  });
+  assert.equal(safeSingleInstance.enabled, true);
+  assert.equal(safeSingleInstance.storagePath, "/durable/ledger.json");
+  assert.equal(safeSingleInstance.multiInstanceSafe, false);
+  for (const mode of ["multi_instance", "shared_atomic"]) {
+    const posture = resolveTwelveDataGovernorRuntime({
+      TWELVE_DATA_CREDIT_COORDINATION_MODE: mode,
+    });
+    assert.equal(posture.enabled, false);
+    assert.equal(posture.reason, "shared_atomic_coordinator_unavailable");
+  }
+  assert.equal(
+    resolveTwelveDataGovernorRuntime({
+      TWELVE_DATA_CREDIT_COORDINATION_MODE: "unknown",
+    }).reason,
+    "coordination_mode_invalid"
+  );
+
+  const disabledSnapshot = getTwelveDataCreditSnapshot();
+  assert.equal(disabledSnapshot.coordination.enabled, false);
+  assert.equal(disabledSnapshot.coordination.mode, "disabled");
+  assert.equal(disabledSnapshot.coordination.multiInstanceSafe, false);
+  assert.doesNotMatch(
+    JSON.stringify(disabledSnapshot),
+    /ledger\.json|api.?key|token|secret|symbol/i
+  );
 
   let now = Date.parse("2026-08-28T10:00:00.000Z");
   const governor = new TwelveDataCreditGovernor({ now: () => now });
@@ -120,6 +191,12 @@ async function main() {
 
   process.env.NODE_ENV = "test";
   process.env.TWELVE_DATA_CREDIT_GOVERNOR_TEST_ENFORCE = "true";
+  await assert.rejects(
+    reserveTwelveDataCredits("quote"),
+    (error) =>
+      error.code === "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED" &&
+      error.reason === "coordination_disabled"
+  );
   process.env.TWELVE_DATA_API_KEY = Buffer.from([
     116, 101, 115, 116,
   ]).toString();
