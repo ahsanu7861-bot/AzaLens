@@ -24,12 +24,12 @@ jobs:
 
     steps:
       - name: Check out exact candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.expected_commit }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
 
@@ -59,7 +59,7 @@ jobs:
 
       - name: Upload staging evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: staging-health-${{ inputs.expected_commit }}
           path: backend/staging-health-report.json
