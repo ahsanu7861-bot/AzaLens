@@ -288,19 +288,21 @@ surfaces.
    Do **not** call it a confirmed accessibility failure without measured
    evidence.
 
-#### Unresolved boundaries carried forward unchanged
+#### Boundaries reconciled on 2026-08-29
 
-- **Derived-output attribution remains unanswered by Twelve Data.** The
-  guidelines are silent on output computed from provider data; silence is not
-  permission, and B7b makes no claim there.
+- **Derived-output attribution remains ambiguous for purely non-reconstructive
+  outputs.** Twelve Data requires attribution wherever its data is displayed
+  and permits non-reconstructive derived analytics, but the supplied provider
+  correspondence does not expressly waive attribution for an output that shows
+  no provider data. Silence is not permission, and B7b makes no broader claim.
 - **The closed-demo / internal-use exception remains unanswered.**
-- **Halal Terminal's exact 10 August attribution wording is not retained in
-  repository evidence**, and must not be guessed, paraphrased, or substituted
-  with Twelve Data's wording.
-- **Halal Terminal Starter-versus-Enterprise external-display permission remains
-  unanswered.**
-- **Mixed-provider surfaces remain blocked** from attribution completion until
-  Halal Terminal evidence exists.
+- **Halal Terminal's exact attribution wording is now retained below** from
+  Yassir's detailed reply received on 11 August 2026 at 12:48 AM; his later
+  message refers to it as the line sent on 10 August.
+- **Halal Terminal external display is evidenced for Enterprise, not Starter.**
+  Starter must not be treated as permission for client-facing redistribution.
+- **Mixed-provider surfaces remain blocked** until each displayed provider's
+  attribution is rendered under its own verified terms.
 - **B1 remains separate and unimplemented.**
 - **No production provider switch is authorized.**
 
@@ -417,10 +419,17 @@ design, under separate authorization.
 Halal Terminal offered AzaLens the Starter tier free for three months, providing
 2,500 tokens per month during the promotional period. The offer must be redeemed
 by 30 September 2026, and it continues automatically at the standard Starter
-price after the free period unless cancelled or changed. Ahsan plans to redeem
-it before that deadline. As of 2026-08-24 the offer is recorded as offered and
-not redeemed. The reserved redemption code is deliberately not recorded in this
+price after the free period unless cancelled or changed. As of 2026-08-29 the
+offer is recorded as offered and **not redeemed**. No commitment to redeem it is
+recorded. The reserved redemption code is deliberately not recorded in this
 repository.
+
+A later service notice received on 29 August stated that the free-token monthly
+reset had landed and the existing key worked normally again, and separately
+described Starter as the $19/month option that removes the free-tier monthly
+ceiling. That notice corroborates that AzaLens remains on free access and that
+the Starter promotion has not been redeemed; it does not change display rights
+or authorize a subscription.
 
 The application's internal safety budget stays at 30 while the commercial
 entitlement is 2,500. That divergence is a known, deliberate and unchanged state
@@ -433,19 +442,23 @@ Terminal stated that the attribution line it sent on 10 August 2026 must appear
 wherever screening results are displayed, and described this as a condition
 attached to redistribution before the workspace is opened to users.
 
-The exact approved wording must be preserved and used verbatim rather than
-paraphrased. It is deliberately not reproduced in this entry and must be
-retrieved from the 10 August message before implementation.
+The exact supplied wording is:
+
+> Company-level Shariah screening data is provided by Halal Terminal, using an
+> independent implementation of published AAOIFI Shari'ah Standard No. 21
+> screening criteria. Halal Terminal is not affiliated with or endorsed by
+> AAOIFI.
 
 This creates a product and UI requirement with likely visual-baseline impact,
 and implementation requires separate authorization.
 
-Whether the Starter tier itself permits external user-facing display and
-redistribution with attribution is unconfirmed. Enterprise is the tier Halal
-Terminal described as appropriate for custom methodology support before launch.
-Starter redistribution rights, Enterprise terms and custom methodology support
-are none of them approved, and none may be claimed on the strength of the
-attribution statement alone.
+Yassir's detailed reply states that **Enterprise** includes in-app display of
+Halal Terminal-derived screening results to end users, with the attribution
+above, while bulk re-export remains outside scope. The supplied evidence does
+not grant that external-display right to Starter. The three-month Starter offer
+is therefore an internal evaluation entitlement only unless Halal Terminal
+expressly confirms otherwise. No subscription or provider enablement is
+authorized by this record.
 
 **Finding 5 — the market-data delay disclosure rests on a source-code default.**
 `MARKET_DATA_DELAY_MINUTES` was absent from the supplied inventory, and its
@@ -684,6 +697,10 @@ historical financial statements; lower tiers return **six recent
 financial-statement periods**. Bogdan separately confirmed that the fundamentals
 required for debt and interest-ratio work are available on Venture.
 
+Bogdan's 27 August 2026 correspondence explicitly states: **"Index data is not
+available on any plan."** AzaLens must not design, market or budget Twelve Data
+as an index-data source.
+
 Six historical periods do **not** by themselves prove Shariah-methodology
 sufficiency. Methodological sufficiency remains subject to AzaLens's own Shariah
 and data-quality review, and nothing here anticipates that review's outcome.
@@ -706,13 +723,20 @@ global display right may be claimed.** Existing mounted landing copy describing
 worldwide coverage is flagged here as a copy question for a separately
 authorized decision; no wording was changed by this pass.
 
-**Finding TD-12 — trial and startup discount (offered, not taken).** Twelve Data
-offered a **12-day Unlimited trial** for validation, and a **20% startup
-discount** may be available subject to eligibility. The trial should begin only
-once an exact validation matrix and a runnable PR B test harness are ready, so
-that its twelve days are spent on evidence rather than on setup. A trial is
-**not** authorization for public commercial production. Neither the trial nor
-the discount was activated, applied for or accepted in this pass.
+**Finding TD-12 — trial completed; production remains disabled.** Twelve Data's
+**12-day Unlimited trial** was activated for private validation and completed
+under the B4 zero-storage evidence protocol. The final freeze recorded **171
+planned requests**, a conservative **306-credit** model, **268 dashboard
+credits**, and variance **-38**; it stored no raw payloads, passed credential and
+owner-only-permission checks, and left the repository clean. The variance is
+explained by provider trial/billing behaviour and is not a production saving:
+AAPL is a reduced-price trial symbol, while `/symbol_search` and `/stocks`
+incorrectly produced no dashboard increment and were later confirmed by Bogdan
+as a billing bug; each should cost one credit. `/logo` is one credit and
+`/profile` must be budgeted at ten credits per ordinary production symbol. The
+corrected nine-symbol Day 5 model is **108 credits**. Trial findings do not
+authorize public display, production activation or a subscription purchase.
+The startup discount remains unaccepted.
 
 **Finding TD-13 — PR B decision boundary, updated.** This supersedes the PR B
 boundary in Finding 8 of the production environment audit.
@@ -806,12 +830,13 @@ a future switch, the planning order changes:
   profile path already issues three requests per miss, and no retry, backoff,
   `Retry-After` handling or circuit breaker exists today, so B1 changes live
   request behaviour and must not be waved through as a small internal slice.
-- **No 12-day trial begins before the harness is ready** (Finding TD-12 and the
-  trial-readiness checklist in the retained planning report).
-- **No trial-derived data may be displayed through the AzaLens UI before
-  attribution is implemented**, per the trial-output boundary above.
+- **The 12-day trial is complete** under Finding TD-12; no further trial call is
+  implied or authorized.
+- **No trial-derived data may be displayed through the AzaLens UI unless its
+  licensing and attribution obligations are satisfied**, per the trial-output
+  boundary above.
 
-None of this authorizes B7, B1, a trial, a provider switch or any production
+None of this authorizes B1, another trial, a provider switch or any production
 change.
 
 **Finding P-B — the market-state contract cannot represent composite pricing,
@@ -846,6 +871,66 @@ to the proposed disclosure PR (planning reference **B6**), which is separately
 authorized, and explicitly not to the non-user-facing slices B1–B5. No
 production copy, runtime contract or baseline is changed in this pass.
 
+### B5c evidence reconciliation — recorded 2026-08-29
+
+**Canonical scope.** B5a merged in PR #45 at
+`8d8606544232e2620fd169a122a7456130056534`; B5b merged in PR #46 at
+`801d06389adf633c49b5346292f3a3c1f587a7d2`, tree
+`99250b97d2d8bdf54bdd7d4d673216b89699747a`. B5a added subscription-neutral
+pre-transport credit reservations, Basic presets of 8 credits/minute and
+800/day, bounded refusal behaviour, redacted accounting and offline tests. B5b
+made unsafe topology fail closed: multi-instance operation is refused until a
+shared atomic coordinator exists, while single-instance operation requires an
+explicit acknowledgement. Neither lifecycle bought or enabled Twelve Data.
+
+**Actual Render topology.** Sanitized Render dashboard evidence on 29 August
+2026 shows AzaLens Backend on the **Free** compute plan, autoscaling **off and
+unavailable**, and manual instance count fixed at **1**. A shared atomic Twelve
+Data coordinator is therefore not presently necessary. B5c distributed-ledger
+implementation is deferred until scaling is enabled or more than one backend
+instance is otherwise evidenced. This does not solve the separate Halal
+Terminal ledger-durability debt.
+
+**Provider correspondence.** Bogdan's detailed Twelve Data response was
+received on 24 August 2026 at 2:33 PM; his billing-bug confirmation was received
+on 28 August 2026 at 7:16 PM. Yassir's detailed Halal Terminal response was
+received on 11 August 2026 at 12:48 AM; the three-month Starter offer was
+received on 15 August 2026 at 5:19 AM and remains unredeemed. These timestamps
+are displayed local email timestamps with no timezone inferred.
+
+**Backup discovery-integrity audit.** A read-only authenticated audit of private
+Drive folder `1yE8o2yX_xpXdtY4_bzaURc6eUYrv0rmd` found **36 complete modern
+ZIP/sidecar pairs** and four older standalone ZIPs that predate the sidecar
+convention. Every modern ZIP was byte-read, SHA-256 hashed and matched to its
+directly read sidecar; no modern object was missing, orphaned, duplicated,
+mismatched or corrupted. In particular:
+
+- `AzaLens-2026-08-28-8d86065.zip`: Drive ID
+  `11PC4ObBiOMSLdriX-FBQHjmvNEGmbpWT`, 6,838,215 bytes, SHA-256
+  `29e1c15cb4c8608566b20d2f670ccbb8b67c711cf2adc65ec3d3f6541fef6a83`;
+- `AzaLens-2026-08-29-801d063.zip`: Drive ID
+  `1o_pSWEKCVfW4HijOAx9dU-nvp6iAQjAp`, 6,839,637 bytes, SHA-256
+  `b822d1a6348c1c9789a7619e4b08edf5d4e25f7f0a5e9dddd122b607613cf733`.
+
+The legacy filename-search path returned sidecars but **zero ZIPs**, including
+known-good ZIP IDs; complete direct-child listing and direct-ID reads found all
+ZIPs. Therefore filename search is not backup-existence evidence. Future backup
+verification must record both Drive IDs and use: complete direct-child listing,
+direct-ID metadata, authenticated ZIP byte readback, direct sidecar read and
+SHA-256 comparison. Preserve the established sidecar convention
+`<backup-without-.zip>.sha256`; 35 of the 36 audited modern pairs use it, while
+`801d063`'s `.zip.sha256` is a historical one-off and must not redefine the
+convention. Earlier
+`+2 objects` claims cannot establish unchanged pre-existing objects unless their
+listing method is recoverable; today's full byte audit establishes current
+integrity without retroactively inventing that provenance.
+
+**Boundaries left open deliberately.** Attribution remains mandatory for all
+displayed Twelve Data content; a waiver for purely non-reconstructive derived
+outputs is not evidenced. Halal Terminal Starter is not external-display
+authority. No provider purchase, default switch, production enablement or
+distributed-coordinator build follows from this record.
+
 ---
 
 ## PART 2 — FIX (correctness and truth, after Phase 0)
@@ -856,13 +941,13 @@ production copy, runtime contract or baseline is changed in this pass.
 | 2.2 | **Run the full 22-suite backend CI locally on this Mac** for `92d483c` — the recorded pass came from another environment; Rule 7 requires local confirmation | Blocked on a local run only | 7, 8 | None |
 | 2.3 | **Scanner rate-limit double-count decision**: `/api/scanner` is on the strict limiter *and* counted by the global limiter (audit items 3–4). Either exempt scanner from global, or move scanner off strict. Recommendation: keep scanner on strict (it is provider-backed), add scanner paths to the global exemption list, and exclude `GET /policy` from strict | Partially Verified | 8, 17 | None |
 | 2.4 | **Unmount `/api/portfolio/intelligence`** until a page uses it — it is unauthenticated, unused, and spends ~5 tokens per holding per cold call; when re-mounted, make its withheld state honest (currently degrades to "Unknown") | Live and unused (audit N2, item 11-A) | 13, 17, 23 | Saves tokens |
-| 2.5 | **Minimal API access control before any public link circulates.** The unauthenticated-stranger exposure recorded as audit N1 is closed: the production closed-demo gate fronts the protected `/api` routes, and a production request without valid closed-demo access receives HTTP 401. **The cost-control weakness behind this item is not closed.** The gate is an access control, not a durable spend control. Anyone holding valid closed-demo access may initiate permitted analysis requests, and the Halal Terminal usage ledger resolves to non-durable storage on Render's ephemeral filesystem, where a deployment or restart may erase recorded usage. The application therefore does not durably enforce a calendar-month token ceiling — see Finding 3 under the production environment audit, which also records the three-month Starter promotion of 2,500 tokens per month that Halal Terminal offered and that Ahsan plans to redeem, a commercial entitlement distinct from the application's internal safety budget. Restricting access reduces exposure; it does not resolve the underlying weakness. A server-side app-token header is the cheap pre-accounts step; durable spend enforcement is a separate one | Partly closed (unauthenticated exposure closed; durable spend enforcement not built) | 17, 23 | None |
+| 2.5 | **Minimal API access control before any public link circulates.** The unauthenticated-stranger exposure recorded as audit N1 is closed: the production closed-demo gate fronts the protected `/api` routes, and a production request without valid closed-demo access receives HTTP 401. **The cost-control weakness behind this item is not closed.** The gate is an access control, not a durable spend control. Anyone holding valid closed-demo access may initiate permitted analysis requests, and the Halal Terminal usage ledger resolves to non-durable storage on Render's ephemeral filesystem, where a deployment or restart may erase recorded usage. The application therefore does not durably enforce a calendar-month token ceiling — see Finding 3 under the production environment audit, which also records the offered-but-not-redeemed three-month Starter promotion of 2,500 tokens per month, a commercial entitlement distinct from the application's internal safety budget. Restricting access reduces exposure; it does not resolve the underlying weakness. A server-side app-token header is the cheap pre-accounts step; durable spend enforcement is a separate one | Partly closed (unauthenticated exposure closed; durable spend enforcement not built) | 17, 23 | None |
 | 2.6 | **Remove obsolete `/api/explanation`.** The frontend already reads the gated explanation from `/api/analyze`; the standalone route had no consumer, duplicated the full provider pipeline, and misreported a valid Shariah-withheld outcome as HTTP 500 | Implemented locally; deployment pending | 5, 13, 17 | Saves tokens |
 | 2.7 | Delete `diag/proxy-capture` (local **and** origin) after saving the three captured proxy log lines outside the repo (open item 2); prune the other stale branches and the `legacy-platform` remote | Pending | 7 | None |
 | 2.8 | `trust proxy = 3` topology watch: correct today, silently wrong if Render changes its edge (open item 7). Add a startup log of the observed hop count to `/ops/metrics` for periodic eyeballing | Verified, fragile | 8 | None |
 | 2.9 | Review/remove the leftover `alpha-lens-ai` Vercel project (open item 5) — harmless (doesn't own the domain) but an attack/typo-confusion surface | Unverifiable from repo | 3, 23 | None |
 | 2.10 | Reconcile `design/*.ts` with `index.css` (two conflicting token sources; audit V9) — resolved by Design Phase 1 | Stale files | 7 | None |
-| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6). **Halal Terminal is decided on the attribution question:** it stated on 10 August 2026 that its attribution line must appear wherever screening results are displayed, as a condition attached to redistribution — recorded as Finding 4 under the production environment audit. Whether Starter permits that redistribution is unconfirmed. **Twelve Data is now decided on the attribution question (2026-08-24):** it stated in writing that attribution is required wherever its data is displayed, with wording, logo and link requirements governed by its attribution guidelines — recorded as Finding TD-6. The exact wording must be taken from that document, not paraphrased, and implementation requires separate authorization. **This was a present gap, not future PR B work (Finding P-A); it is now closed for the history chart (2026-08-26):** history is already Twelve Data in production, and B7-0/B7a/B7b shipped the provenance contract, the reviewed registry and the rendered chart attribution, verified at the code, CI and deployed-asset levels — see the B7 durable release record. **Still open:** derived analytics and the other Twelve Data-sourced surfaces (technical evidence, scanner, watchlist) carry no attribution; derived-output treatment is unanswered by the provider; and Halal Terminal's exact wording and external-display permission remain unresolved, so mixed-provider surfaces stay blocked. This closes an implementation gap, not a legal-compliance question. Finnhub remains undecided | Partly decided (Halal Terminal and Twelve Data stated; Finnhub undecided) | 12, 17 | None |
+| 2.11 | Provider-attribution licensing check (Finnhub, Twelve Data, Halal Terminal): decide hide-vs-attribute per their terms (audit N6). **Halal Terminal is decided for Enterprise:** Yassir's exact wording is retained in Finding 4 and must appear wherever screening results are displayed; the supplied evidence does not grant external display under Starter. **Twelve Data is decided for displayed provider content:** attribution is required wherever its data is displayed, with wording, logo and link requirements governed by its guidelines. B7-0/B7a/B7b closed the history-chart implementation gap. **Still open:** derived analytics and other Twelve Data-sourced surfaces carry no attribution; attribution for purely non-reconstructive outputs remains ambiguous and is not waived; mixed-provider surfaces must render each provider's verified attribution; Finnhub remains undecided. | Partly decided (Halal Terminal Enterprise and displayed Twelve Data content decided; non-reconstructive derived outputs and Finnhub unresolved) | 12, 17 | None |
 | 2.12 | Watchlist server-side size cap (audit N7) | Not Built | 17, 23 | None |
 | 2.13 | **Correct invalid-input semantics on `/api/analyze`.** Invalid ticker input reportedly reaches HTTP 500 instead of a client-error response. Reproduce hermetically and fix separately without changing Shariah gating or verdict behavior | Newly observed; unverified | 7, 8 | None |
 
