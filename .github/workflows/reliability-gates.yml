@@ -24,10 +24,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -60,10 +60,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -74,7 +74,7 @@ jobs:
       # no commit of ours involved. 2.111.0 is the version Slice 1 was verified
       # against locally. Bump deliberately, with a re-run, never implicitly.
       - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2
         with:
           version: 2.111.0
 
@@ -155,10 +155,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -206,7 +206,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build immutable source artifacts
         run: |
@@ -222,12 +222,12 @@ jobs:
             release/manifest.json release/*.tar.gz
 
       - name: Attest artifact provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3.0.0
         with:
           subject-path: release/*.tar.gz
 
       - name: Upload versioned release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: azalens-release-${{ github.sha }}
           path: release/
@@ -244,10 +244,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -269,7 +269,7 @@ jobs:
 
       - name: Upload browser failure evidence
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-failure-evidence
           path: |
@@ -324,7 +324,7 @@ jobs:
 
       - name: Upload landing review candidates
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: landing-visual-candidates
           path: frontend/candidate-artifacts
@@ -333,7 +333,7 @@ jobs:
 
       - name: Upload methodology and purification review candidates
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: methodology-and-purification-visual-candidates
           path: frontend/methodology-candidate-artifacts
@@ -342,7 +342,7 @@ jobs:
 
       - name: Upload Technical review candidates
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: analysis-technical-visual-candidates
           path: frontend/technical-candidate-artifacts
