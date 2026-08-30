@@ -17,13 +17,33 @@ export default defineConfig({
    * makes "the run wrote a baseline" indistinguishable from "the run compared
    * against one".
    *
-   * Under "none" the same missing baseline is a hard failure that writes
-   * nothing, while the candidate is still emitted to the gitignored output
-   * directory for review. Nothing else changes: the mismatch path never
-   * consults this setting, and `npm run test:visual:update` still overrides it
-   * from the command line for authorised local rebaselining.
+   * Under "none" the three paths are:
+   *
+   *   - baseline present, pixels within tolerance -> pass, nothing written;
+   *   - baseline present, pixels outside tolerance -> fail, with the actual and
+   *     diff images written to the gitignored `test-results/` output directory
+   *     only; the accepted `*-snapshots/` PNG is never touched;
+   *   - baseline missing -> hard failure. `toHaveScreenshot` returns before it
+   *     even captures a screenshot (expect.js: the `updateSnapshots === "none"
+   *     && !hasSnapshot` early return precedes `_expectScreenshot`), so this
+   *     path produces no image of any kind.
+   *
+   * Review candidates are therefore *not* a Playwright by-product. They come
+   * from the separate explicit helpers — `npm run visual:candidates` and the
+   * methodology/technical candidate specs — which call `page.screenshot()` into
+   * gitignored `*-candidate-artifacts/` directories and never call
+   * `toHaveScreenshot`.
+   *
+   * This value is unconditional because `process.env.CI` was never the risk:
+   * the installed resolver is
+   * `takeFirst(configCLIOverrides.updateSnapshots, userConfig.updateSnapshots,
+   * "missing")`, so a bare `-u` on the command line outranks whatever is
+   * written here, under CI or not. `globalSetup` below closes that hole by
+   * inspecting the *resolved* mode before any worker starts; accepting a
+   * baseline requires AZALENS_ACCEPT_BASELINES=1 on Linux.
    */
-  updateSnapshots: process.env.CI ? "none" : "missing",
+  updateSnapshots: "none",
+  globalSetup: "./e2e/globalSetup.ts",
   expect: {
     timeout: 15_000,
     toHaveScreenshot: {

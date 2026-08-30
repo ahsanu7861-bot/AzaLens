@@ -262,10 +262,17 @@ jobs:
       - name: Run browser and accessibility tests
         run: npm run test:e2e
 
+      # The log is captured for the marker gate below. `tee` keeps the normal
+      # CI log stream intact, `pipefail` keeps Playwright's exit status (a
+      # failing visual run still fails this step), and $RUNNER_TEMP puts the
+      # file outside the worktree so it cannot dirty the no-write proof.
       - name: Run visual regression tests
         env:
           REVIEW_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: npm run test:visual
+          VISUAL_LOG: ${{ runner.temp }}/visual-run.log
+        run: |
+          set -euo pipefail
+          npm run test:visual 2>&1 | tee "$VISUAL_LOG"
 
       - name: Upload browser failure evidence
         if: failure()
@@ -280,8 +287,10 @@ jobs:
 
       # Six reviewed Linux landing baselines are committed, and ordinary visual
       # CI above compares against them with snapshot writing disabled:
-      # playwright.config.ts sets `updateSnapshots: "none"` under CI, so a
-      # missing or mismatched baseline fails without ever being written.
+      # playwright.config.ts sets `updateSnapshots: "none"` unconditionally and
+      # e2e/globalSetup.ts refuses to start a run whose *resolved* mode says
+      # otherwise, so a missing or mismatched baseline fails without ever being
+      # written.
       #
       # This step runs either way and proves that held — that the run modified
       # no committed snapshot path, left the worktree clean, and created no
@@ -314,6 +323,46 @@ jobs:
             exit 1
           fi
           echo "No baseline written; worktree clean; no Darwin baseline."
+
+      # A second, independent proof. The step above is a *filesystem* proof: it
+      # inspects the worktree after the fact. This one is a *log* proof: it
+      # fails if Playwright ever reported writing a snapshot, a missing
+      # baseline, a mismatch, or a command-line update request — including on
+      # paths that would write outside the worktree, or that a later step could
+      # have tidied away. Until this existed the five markers were only ever
+      # checked by hand, run by run.
+      - name: Prove the visual log contains no snapshot-write marker
+        if: always()
+        env:
+          VISUAL_LOG: ${{ runner.temp }}/visual-run.log
+        run: |
+          set -euo pipefail
+          if [ ! -f "$VISUAL_LOG" ]; then
+            echo "::error::Visual log $VISUAL_LOG is missing; snapshot-write marker enforcement could not run."
+            exit 1
+          fi
+          # Fixed strings, matched with grep -F -e so that the leading dashes of
+          # --update-snapshots are data and not options. None contains $, a
+          # backslash or a backtick, so double quotes expand to the literals.
+          markers=(
+            "writing actual"
+            "doesn't exist"
+            "did not match"
+            "--update-snapshots"
+            "Writing missing snapshot"
+          )
+          found=no
+          for marker in "${markers[@]}"; do
+            if grep -F -q -e "$marker" "$VISUAL_LOG"; then
+              echo "::error::Snapshot-write marker found in the visual log: $marker"
+              grep -F -n -e "$marker" "$VISUAL_LOG"
+              found=yes
+            fi
+          done
+          if [ "$found" = yes ]; then
+            exit 1
+          fi
+          echo "Visual log contains none of the five snapshot-write markers: no snapshot was written, none was missing, none mismatched, and no command-line update was requested."
 
       # Review-only candidates. This path never calls toHaveScreenshot, so it
       # cannot write a baseline; it writes six prefixed PNGs plus a manifest into

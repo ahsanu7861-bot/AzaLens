@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build && node scripts/checkCspHashes.mjs",
     "test:e2e": "playwright test --grep-invert @visual",
     "test:visual": "playwright test --grep @visual",
-    "test:visual:update": "playwright test --grep @visual --update-snapshots",
+    "test:visual:accept-linux": "AZALENS_ACCEPT_BASELINES=1 playwright test --grep @visual --update-snapshots=changed",
     "test:contrast": "node scripts/checkContrast.mjs",
     "test:design-tokens": "node scripts/checkDesignTokens.mjs",
     "test:performance": "node scripts/checkPerformanceBudget.mjs",
