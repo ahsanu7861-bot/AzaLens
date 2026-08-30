@@ -25,27 +25,11 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://azalens.com/azalens-social-preview.png" />
     <link rel="canonical" href="https://azalens.com/" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="preload"
-      as="style"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap"
-    />
-    <!-- Deferred fonts: no inline onload (CSP would need 'unsafe-hashes').
-         src/lib/fonts.ts flips media print->all; keep data-deferred-font in sync. -->
-    <link
-      data-deferred-font
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap"
-      rel="stylesheet"
-      media="print"
-    />
-    <noscript>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap"
-        rel="stylesheet"
-      />
-    </noscript>
+    <!-- Fonts are self-hosted. src/fonts.css declares every face against
+         WOFF2 files in public/fonts, so there is no font host to preconnect
+         to, nothing to defer, and no scriptless fallback to keep in sync.
+         Byte identity lives in public/fonts/PROVENANCE.json and is enforced
+         by `npm run test:fonts`. -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />

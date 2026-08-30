@@ -1,0 +1,355 @@
+{
+  "description": "Provenance for the WOFF2 files and OFL licences vendored into frontend/public/fonts. The sha256 values below are the identity of the committed bytes and are enforced by frontend/scripts/checkLocalFonts.mjs. The Google URLs are historical provenance only; nothing in the build, test or runtime path fetches them.",
+  "sourceCss": {
+    "requestUrl": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "userAgentCategory": "Desktop Chrome (modern; elicits the WOFF2 variable-font subsets)",
+    "fetchedUtc": "2026-08-30",
+    "httpStatus": 200,
+    "contentType": "text/css; charset=utf-8",
+    "bytes": 22404,
+    "sha256": "71705f749d7c925ce7ee46a2c71699f459a4cce597a9f0e16f412bce204a0665",
+    "note": "Google serves these families as internally variable fonts but exposes them through repeated discrete single-weight @font-face declarations. frontend/src/fonts.css reproduces those discrete declarations exactly; it must never collapse them into a ranged face."
+  },
+  "fonts": [
+    {
+      "path": "frontend/public/fonts/inter-v20-latin.woff2",
+      "family": "Inter",
+      "subset": "latin",
+      "version": "v20",
+      "sourceUrl": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2",
+      "fetchedUtc": "2026-08-30",
+      "bytes": 48256,
+      "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+      "fontStyle": "normal",
+      "declaredWeights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+      "fvarAxes": [
+        {
+          "tag": "wght",
+          "min": 100,
+          "default": 400,
+          "max": 900
+        }
+      ],
+      "statSummary": {
+        "version": "1.1",
+        "axisTags": [
+          "opsz",
+          "wght",
+          "ital"
+        ],
+        "axisValueCount": 11,
+        "elidedAxisValues": [
+          {
+            "axisTag": "opsz",
+            "value": 14
+          },
+          {
+            "axisTag": "wght",
+            "value": 400
+          },
+          {
+            "axisTag": "ital",
+            "value": 0
+          }
+        ]
+      },
+      "embeddedVersion": "Version 4.001;git-66647c0bb",
+      "embeddedLicenseUrl": "https://openfontlicense.org",
+      "embeddedLicenseText": null,
+      "embeddedCopyright": "Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)",
+      "embeddedFamilyName": "Inter",
+      "embeddedFamilyNote": null,
+      "identityNote": "The sha256 recorded here is the immutable identity of the committed bytes. The gstatic sourceUrl is provenance only: it is mutable, unversioned in practice, and is never re-fetched at build or test time."
+    },
+    {
+      "path": "frontend/public/fonts/inter-v20-latin-ext.woff2",
+      "family": "Inter",
+      "subset": "latin-ext",
+      "version": "v20",
+      "sourceUrl": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2",
+      "fetchedUtc": "2026-08-30",
+      "bytes": 85068,
+      "sha256": "34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956",
+      "fontStyle": "normal",
+      "declaredWeights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+      "fvarAxes": [
+        {
+          "tag": "wght",
+          "min": 100,
+          "default": 400,
+          "max": 900
+        }
+      ],
+      "statSummary": {
+        "version": "1.1",
+        "axisTags": [
+          "opsz",
+          "wght",
+          "ital"
+        ],
+        "axisValueCount": 11,
+        "elidedAxisValues": [
+          {
+            "axisTag": "opsz",
+            "value": 14
+          },
+          {
+            "axisTag": "wght",
+            "value": 400
+          },
+          {
+            "axisTag": "ital",
+            "value": 0
+          }
+        ]
+      },
+      "embeddedVersion": "Version 4.001;git-66647c0bb",
+      "embeddedLicenseUrl": "https://openfontlicense.org",
+      "embeddedLicenseText": null,
+      "embeddedCopyright": "Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)",
+      "embeddedFamilyName": "Inter",
+      "embeddedFamilyNote": null,
+      "identityNote": "The sha256 recorded here is the immutable identity of the committed bytes. The gstatic sourceUrl is provenance only: it is mutable, unversioned in practice, and is never re-fetched at build or test time."
+    },
+    {
+      "path": "frontend/public/fonts/jetbrains-mono-v24-latin.woff2",
+      "family": "JetBrains Mono",
+      "subset": "latin",
+      "version": "v24",
+      "sourceUrl": "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2",
+      "fetchedUtc": "2026-08-30",
+      "bytes": 31432,
+      "sha256": "83c005d49d8a6a50474c73a5a36ac0468076e9c4a29da7bdb14995d80560a5be",
+      "fontStyle": "normal",
+      "declaredWeights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+      "fvarAxes": [
+        {
+          "tag": "wght",
+          "min": 400,
+          "default": 400,
+          "max": 800
+        }
+      ],
+      "statSummary": {
+        "version": "1.1",
+        "axisTags": [
+          "wght",
+          "ital"
+        ],
+        "axisValueCount": 6,
+        "elidedAxisValues": [
+          {
+            "axisTag": "wght",
+            "value": 400
+          },
+          {
+            "axisTag": "wght",
+            "value": 400
+          },
+          {
+            "axisTag": "ital",
+            "value": 0
+          }
+        ]
+      },
+      "embeddedVersion": "Version 2.211",
+      "embeddedLicenseUrl": "https://scripts.sil.org/OFL",
+      "embeddedLicenseText": null,
+      "embeddedCopyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)",
+      "embeddedFamilyName": "JetBrains Mono",
+      "embeddedFamilyNote": null,
+      "identityNote": "The sha256 recorded here is the immutable identity of the committed bytes. The gstatic sourceUrl is provenance only: it is mutable, unversioned in practice, and is never re-fetched at build or test time."
+    },
+    {
+      "path": "frontend/public/fonts/jetbrains-mono-v24-latin-ext.woff2",
+      "family": "JetBrains Mono",
+      "subset": "latin-ext",
+      "version": "v24",
+      "sourceUrl": "https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx7cwhsk.woff2",
+      "fetchedUtc": "2026-08-30",
+      "bytes": 11624,
+      "sha256": "db5ff4db83e580426280e9337a58dc57d3a83784a1b03ad80914651594441d52",
+      "fontStyle": "normal",
+      "declaredWeights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+      "fvarAxes": [
+        {
+          "tag": "wght",
+          "min": 400,
+          "default": 400,
+          "max": 800
+        }
+      ],
+      "statSummary": {
+        "version": "1.1",
+        "axisTags": [
+          "wght",
+          "ital"
+        ],
+        "axisValueCount": 6,
+        "elidedAxisValues": [
+          {
+            "axisTag": "wght",
+            "value": 400
+          },
+          {
+            "axisTag": "wght",
+            "value": 400
+          },
+          {
+            "axisTag": "ital",
+            "value": 0
+          }
+        ]
+      },
+      "embeddedVersion": "Version 2.211",
+      "embeddedLicenseUrl": "https://scripts.sil.org/OFL",
+      "embeddedLicenseText": null,
+      "embeddedCopyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)",
+      "embeddedFamilyName": "JetBrains Mono",
+      "embeddedFamilyNote": null,
+      "identityNote": "The sha256 recorded here is the immutable identity of the committed bytes. The gstatic sourceUrl is provenance only: it is mutable, unversioned in practice, and is never re-fetched at build or test time."
+    },
+    {
+      "path": "frontend/public/fonts/space-grotesk-v22-latin.woff2",
+      "family": "Space Grotesk",
+      "subset": "latin",
+      "version": "v22",
+      "sourceUrl": "https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPbF4Cw.woff2",
+      "fetchedUtc": "2026-08-30",
+      "bytes": 22288,
+      "sha256": "0640890476fc1198ab4de571fb658de443c4d85b66466ec09534a8737ab1ce9d",
+      "fontStyle": "normal",
+      "declaredWeights": [
+        600,
+        700
+      ],
+      "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+      "fvarAxes": [
+        {
+          "tag": "wght",
+          "min": 300,
+          "default": 300,
+          "max": 700
+        }
+      ],
+      "statSummary": {
+        "version": "1.1",
+        "axisTags": [
+          "wght"
+        ],
+        "axisValueCount": 4,
+        "elidedAxisValues": [
+          {
+            "axisTag": "wght",
+            "value": 400
+          }
+        ]
+      },
+      "embeddedVersion": "Version 2.000",
+      "embeddedLicenseUrl": "https://scripts.sil.org/OFL",
+      "embeddedLicenseText": null,
+      "embeddedCopyright": "Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk)",
+      "embeddedFamilyName": "Space Grotesk Light",
+      "embeddedFamilyNote": "Embedded name ID 1 is \"Space Grotesk Light\", which differs from the CSS font-family \"Space Grotesk\". Web matching is controlled by the CSS font-family descriptor in frontend/src/fonts.css, not by the internal name, so this difference is expected and does not affect rendering.",
+      "identityNote": "The sha256 recorded here is the immutable identity of the committed bytes. The gstatic sourceUrl is provenance only: it is mutable, unversioned in practice, and is never re-fetched at build or test time."
+    },
+    {
+      "path": "frontend/public/fonts/space-grotesk-v22-latin-ext.woff2",
+      "family": "Space Grotesk",
+      "subset": "latin-ext",
+      "version": "v22",
+      "sourceUrl": "https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPb94C-s0.woff2",
+      "fetchedUtc": "2026-08-30",
+      "bytes": 18940,
+      "sha256": "952dddb45d2f96f71cbf3b7f510b24379afc3c89ea02fcf89d377b45d62c0166",
+      "fontStyle": "normal",
+      "declaredWeights": [
+        600,
+        700
+      ],
+      "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+      "fvarAxes": [
+        {
+          "tag": "wght",
+          "min": 300,
+          "default": 300,
+          "max": 700
+        }
+      ],
+      "statSummary": {
+        "version": "1.1",
+        "axisTags": [
+          "wght"
+        ],
+        "axisValueCount": 4,
+        "elidedAxisValues": [
+          {
+            "axisTag": "wght",
+            "value": 400
+          }
+        ]
+      },
+      "embeddedVersion": "Version 2.000",
+      "embeddedLicenseUrl": "https://scripts.sil.org/OFL",
+      "embeddedLicenseText": null,
+      "embeddedCopyright": "Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk)",
+      "embeddedFamilyName": "Space Grotesk Light",
+      "embeddedFamilyNote": "Embedded name ID 1 is \"Space Grotesk Light\", which differs from the CSS font-family \"Space Grotesk\". Web matching is controlled by the CSS font-family descriptor in frontend/src/fonts.css, not by the internal name, so this difference is expected and does not affect rendering.",
+      "identityNote": "The sha256 recorded here is the immutable identity of the committed bytes. The gstatic sourceUrl is provenance only: it is mutable, unversioned in practice, and is never re-fetched at build or test time."
+    }
+  ],
+  "licenses": [
+    {
+      "path": "frontend/public/fonts/licenses/Inter-OFL-1.1.txt",
+      "family": "Inter",
+      "sourceUrl": "https://raw.githubusercontent.com/rsms/inter/master/LICENSE.txt",
+      "fetchedUtc": "2026-08-30",
+      "bytes": 4380,
+      "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
+      "license": "SIL Open Font License 1.1"
+    },
+    {
+      "path": "frontend/public/fonts/licenses/JetBrains-Mono-OFL-1.1.txt",
+      "family": "JetBrains Mono",
+      "sourceUrl": "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/OFL.txt",
+      "fetchedUtc": "2026-08-30",
+      "bytes": 4399,
+      "sha256": "a76abf002c49097d146e86740a3105a5d00450b1592e820a1109a8c5680cd697",
+      "license": "SIL Open Font License 1.1"
+    },
+    {
+      "path": "frontend/public/fonts/licenses/Space-Grotesk-OFL-1.1.txt",
+      "family": "Space Grotesk",
+      "sourceUrl": "https://raw.githubusercontent.com/floriankarsten/space-grotesk/master/OFL.txt",
+      "fetchedUtc": "2026-08-30",
+      "bytes": 4495,
+      "sha256": "564ce565c371c5e5bbf286006565a7c9aa55a9f56e7ca58d56e05d649dd61a72",
+      "license": "SIL Open Font License 1.1"
+    }
+  ]
+}
