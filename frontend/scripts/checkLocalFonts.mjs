@@ -10,9 +10,17 @@ import { readFile, readdir, stat } from "node:fs/promises";
 
   1. The bytes. A WOFF2 replaced by a different cut of the same family renders
      differently but still loads, so identity is pinned by sha256 in
-     public/fonts/PROVENANCE.json and re-verified here against the files on
-     disk. The gstatic URLs in that file are provenance only — nothing fetches
-     them, and this check never touches the network.
+     font-provenance/PROVENANCE.json and re-verified here against the files
+     on disk. The gstatic URLs in that file are provenance only — nothing
+     fetches them, and this check never touches the network.
+
+     The manifest deliberately lives OUTSIDE public/. Vite copies everything
+     under public/ into dist/ verbatim, so while it sat next to the faces it
+     was the one and only string in the production build that named a Google
+     host. It is inert static metadata, but a provenance URL shipped to
+     browsers is indistinguishable, to any later audit of the build output,
+     from a runtime font dependency. The licences stay under public/fonts
+     because OFL 1.1 requires the licence to travel with the fonts.
 
   2. The declarations. Google serves these families as internally variable
      fonts but exposes them through repeated DISCRETE single-weight @font-face
@@ -36,8 +44,9 @@ import { readFile, readdir, stat } from "node:fs/promises";
   If a future face legitimately needs another descriptor, add it to
   EXPECTED_PROPERTIES rather than loosening the parser.
 
-  Read set: this check reads ONLY public/fonts/PROVENANCE.json, the nine files
-  that manifest declares, src/fonts.css, src/index.css and index.html. Accepted
+  Read set: this check reads ONLY font-provenance/PROVENANCE.json, the nine
+  files that manifest declares, src/fonts.css, src/index.css and index.html.
+  Accepted
   Playwright baselines are never read and are never a source of truth for font
   identity — that is asserted below.
 
@@ -47,7 +56,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 const root = new URL("../", import.meta.url);
 const rel = (p) => new URL(p, root);
 
-const PROVENANCE_PATH = "public/fonts/PROVENANCE.json";
+const PROVENANCE_PATH = "font-provenance/PROVENANCE.json";
 const FONTS_CSS_PATH = "src/fonts.css";
 const INDEX_CSS_PATH = "src/index.css";
 const INDEX_HTML_PATH = "index.html";
@@ -312,7 +321,9 @@ const fontBasenames = fontEntries.map((e) => String(e.path).split("/").pop());
 const licenseBasenames = licenseEntries.map((e) => String(e.path).split("/").pop());
 await assertDirectoryContents(
   "public/fonts/",
-  [...fontBasenames, "PROVENANCE.json", "licenses"],
+  // PROVENANCE.json is deliberately absent here: it lives in
+  // font-provenance/ so Vite never copies it into dist/.
+  [...fontBasenames, "licenses"],
   "font",
 );
 await assertDirectoryContents("public/fonts/licenses/", licenseBasenames, "licence");

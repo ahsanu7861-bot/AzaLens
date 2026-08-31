@@ -3,6 +3,12 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
 
+import {
+  assertRequestPolicy,
+  installRequestPolicy,
+  reportRequestAudit,
+} from "./requestPolicy";
+
 import { MODEL_DRIVEN_CLAIM_PATTERNS } from "../scripts/modelClaimPatterns.mjs";
 
 const themes = ["night", "day"] as const;
@@ -241,53 +247,25 @@ test.describe("@visual landing page", () => {
 
       /*
        * The landing page calls no analysis API, and this asserts that rather
-       * than assuming it. Fonts are the one intended third party: index.html
-       * loads the Google Fonts stylesheet, and the existing analysis baselines
-       * were captured with it, so blocking it here would render the captures in
-       * fallback type and stop them representing production.
+       * than assuming it.
        *
-       * Everything else off-site is aborted and recorded, and any request that
-       * looks like an analysis endpoint or a market-data provider fails the run
-       * outright — a visual job must never be able to spend provider budget or
-       * capture provider-backed data.
+       * There is no longer any intended third party. This block previously
+       * carried a `FONT_HOSTS` allowlist admitting fonts.googleapis.com and
+       * fonts.gstatic.com, on the stated grounds that index.html loaded the
+       * Google Fonts stylesheet and the accepted baselines were captured with
+       * it. F1 vendored all six WOFF2 faces into public/fonts and removed that
+       * stylesheet, so the allowlist outlived its reason and became a hole:
+       * had anything reintroduced a Google font fetch, this spec would have
+       * permitted it and the capture would still have passed.
+       *
+       * Both font hosts are now ordinary forbidden external origins. Local
+       * `/fonts/*.woff2` requests need no allowance of their own — they are
+       * same-origin to the Vite server — but the shared policy classifies them
+       * separately so a run can report which faces the browser actually
+       * fetched. Provider-shaped requests remain a distinct, separately
+       * reported category: a visual job must never spend provider budget.
        */
-      const FONT_HOSTS = ["https://fonts.googleapis.com/", "https://fonts.gstatic.com/"];
-      const PROVIDER_PATTERNS = [
-        /\/api\//i,
-        /finnhub/i,
-        /twelvedata/i,
-        /alphavantage/i,
-        /yahoo/i,
-        /yfinance/i,
-      ];
-
-      const blockedRequests: string[] = [];
-      const providerRequests: string[] = [];
-
-      await page.route("**/*", async (route) => {
-        const url = route.request().url();
-
-        if (PROVIDER_PATTERNS.some((pattern) => pattern.test(url))) {
-          providerRequests.push(url);
-          await route.abort();
-          return;
-        }
-
-        const allowed =
-          url.startsWith("http://127.0.0.1:") ||
-          url.startsWith("http://localhost:") ||
-          url.startsWith("data:") ||
-          url.startsWith("blob:") ||
-          FONT_HOSTS.some((host) => url.startsWith(host));
-
-        if (!allowed) {
-          blockedRequests.push(url);
-          await route.abort();
-          return;
-        }
-
-        await route.continue();
-      });
+      const audit = await installRequestPolicy(page);
 
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.goto("/");
@@ -299,14 +277,7 @@ test.describe("@visual landing page", () => {
 
       await assertLandingIsCapturable(page, theme);
 
-      expect(
-        providerRequests,
-        "a visual job must never call an analysis or market-data endpoint",
-      ).toEqual([]);
-      expect(
-        blockedRequests,
-        "the landing page must not reach an unexpected third party",
-      ).toEqual([]);
+      assertRequestPolicy(audit, "landing page");
 
       await page.evaluate(async () => {
         await document.fonts.ready;
@@ -393,6 +364,11 @@ test.describe("@visual landing page", () => {
           );
         }
       }
+
+      // Re-asserted after the captures: a request made while the shutter was
+      // open is still a request this job must never have made.
+      reportRequestAudit(audit, "landing page");
+      assertRequestPolicy(audit, "landing page (after captures)");
     });
   }
 });

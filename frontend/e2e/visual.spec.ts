@@ -19,8 +19,33 @@ import {
   mockHealthyAnalysis,
 } from "./fixtures/analysis";
 import { captureMethodologyCandidate } from "./methodologyCandidates";
+import {
+  assertRequestPolicy,
+  installRequestPolicy,
+  reportRequestAudit,
+} from "./requestPolicy";
 
 const themes = ["night", "day"] as const;
+
+/*
+ * The exact request patterns `mockHealthyAnalysis` fulfils, declared here so
+ * the shared request policy can classify them as deliberate rather than
+ * inferring intent from the mere existence of a route.
+ *
+ * They are matched on path, not on origin, on purpose. `VITE_API_BASE_URL` is
+ * unset in CI and in the isolated verification container, so `src/services/api.ts`
+ * falls back to `https://api.azalens.com` and these three calls are addressed
+ * to that host. Playwright fulfils them inside the browser process, so nothing
+ * leaves the machine — but they are the only cross-origin URLs this spec may
+ * even name, and anything else pointed at that host is classified as provider
+ * traffic and refused.
+ */
+const ANALYSIS_FIXTURES = [
+  /\/auth\/demo\/status(\?|$)/,
+  /\/api\/analyze\/AAPL(\?|$)/,
+  /\/history\/AAPL(\?|$)/,
+];
+
 const technicalCandidateDir = join(
   process.cwd(),
   "technical-candidate-artifacts",
@@ -182,6 +207,26 @@ test.describe("@visual analysis workspace", () => {
           selectedTheme: theme,
         },
       );
+      /*
+       * Catch-all request enforcement. This spec covers 14 of the 24 accepted
+       * comparisons and, before F2, enforced nothing: any request the fixture
+       * did not mock went straight to the real network, and a reintroduced
+       * Google Fonts fetch or a live provider call would have been captured
+       * into a baseline without a word of complaint.
+       *
+       * Installed BEFORE `mockHealthyAnalysis` deliberately. Playwright matches
+       * routes in reverse registration order, so the three fixture routes
+       * registered next take priority and this handler only ever sees traffic
+       * nobody mocked — which it refuses unless it is same-origin to the local
+       * Vite server.
+       *
+       * Nothing about the capture changes: no route this fixture already
+       * fulfilled is altered, and every screenshot name, option, threshold,
+       * viewport and comparison below is untouched.
+       */
+      const audit = await installRequestPolicy(page, {
+        fixtures: ANALYSIS_FIXTURES,
+      });
       await mockHealthyAnalysis(page);
       await page.emulateMedia({
         reducedMotion: "reduce",
@@ -230,6 +275,7 @@ test.describe("@visual analysis workspace", () => {
       await expect(
         guidance.getByText("Limitations", { exact: true }),
       ).toBeVisible();
+      assertRequestPolicy(audit, "analysis workspace");
       await page.evaluate(async () => {
         await document.fonts.ready;
       });
@@ -508,6 +554,15 @@ test.describe("@visual analysis workspace", () => {
           );
         }
       }
+
+      /*
+       * Re-asserted after every capture and every tab interaction. The first
+       * call proved enforcement was live before the page was photographed;
+       * this one covers the requests the Technical and Shariah panels make on
+       * mount, which happen after it.
+       */
+      reportRequestAudit(audit, "analysis workspace");
+      assertRequestPolicy(audit, "analysis workspace (after captures)");
     });
   }
 });
