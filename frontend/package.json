@@ -13,6 +13,7 @@
     "test:design-tokens": "node scripts/checkDesignTokens.mjs",
     "test:performance": "node scripts/checkPerformanceBudget.mjs",
     "test:csp": "node scripts/checkCspPolicy.mjs",
+    "test:fonts": "node scripts/checkLocalFonts.mjs",
     "test:csp-hashes": "node scripts/checkCspHashes.mjs",
     "lint": "oxlint",
     "test": "vitest run && node scripts/checkBrandAssets.mjs",

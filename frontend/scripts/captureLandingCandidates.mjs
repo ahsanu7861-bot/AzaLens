@@ -60,8 +60,65 @@ const CAPTURES = [
   { name: "landing-verdict-mobile", theme: "night", project: "mobile", scope: "verdict" },
 ];
 
-const FONT_HOSTS = ["https://fonts.googleapis.com/", "https://fonts.gstatic.com/"];
-const PROVIDER_PATTERNS = [/\/api\//i, /finnhub/i, /twelvedata/i, /alphavantage/i, /yahoo/i, /yfinance/i];
+/*
+ * Request policy for candidate capture. It mirrors e2e/requestPolicy.ts, which
+ * is the owner of this contract for the Playwright specs; it is restated here
+ * rather than imported because this script is plain `.mjs` run by node, not by
+ * Playwright's TypeScript loader.
+ *
+ * The `FONT_HOSTS` allowlist that used to sit here, admitting
+ * fonts.googleapis.com and fonts.gstatic.com, is gone. It existed because
+ * index.html loaded the Google Fonts stylesheet; F1 vendored all six WOFF2
+ * faces into public/fonts and removed it, so the allowlist survived only as a
+ * hole through which a reintroduced font fetch could have reached a candidate
+ * a reviewer was asked to trust. Both hosts are now ordinary forbidden
+ * external origins; local /fonts/*.woff2 requests are permitted because they
+ * are same-origin to this script's own dev server.
+ */
+const GOOGLE_FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
+const PROVIDER_PATTERNS = [
+  /finnhub/i,
+  /twelvedata/i,
+  /twelve-data/i,
+  /alphavantage/i,
+  /alpha-vantage/i,
+  /yahoo/i,
+  /yfinance/i,
+  /halalterminal/i,
+  /halal-terminal/i,
+  /musaffa/i,
+  /polygon\.io/i,
+  /registry\.npmjs\.org/i,
+  /api\.azalens\.com/i,
+];
+const API_PATH = /^\/(api|auth|history)(\/|$)/;
+const LOCAL_HOSTS = new Set([HOST, "127.0.0.1", "localhost", "[::1]", "::1"]);
+
+/*
+ * Fail closed: every request must match a category decided in advance, and
+ * anything matching none is refused and reported. Categories mirror
+ * e2e/requestPolicy.ts exactly.
+ */
+function classifyRequest(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return "external";
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "inert";
+  if (API_PATH.test(parsed.pathname)) return "provider";
+  if (PROVIDER_PATTERNS.some((pattern) => pattern.test(url))) return "provider";
+  if (GOOGLE_FONT_HOSTS.includes(parsed.hostname)) return "googleFonts";
+  if (LOCAL_HOSTS.has(parsed.hostname)) {
+    return /^\/fonts\/[A-Za-z0-9._-]+\.woff2$/.test(parsed.pathname)
+      ? "localFont"
+      : "local";
+  }
+  return "external";
+}
+
+const ALLOWED_CATEGORIES = new Set(["inert", "local", "localFont"]);
 
 const PROJECTS = {
   desktop: devices["Desktop Chrome"],
@@ -119,36 +176,38 @@ async function capture(browser, spec) {
   const page = await context.newPage();
 
   /*
-   * Fonts are the one intended third party: index.html loads the Google Fonts
-   * stylesheet, and blocking it would render candidates in fallback type, so
-   * they would not represent what a visitor sees. Anything that looks like an
-   * analysis endpoint or a market-data provider is recorded and aborted — a
-   * candidate capture must never spend provider budget.
+   * There is no intended third party. The landing page calls no analysis
+   * endpoint and every font it needs is served from this script's own dev
+   * server, so anything leaving the origin is recorded and aborted — a
+   * candidate capture must never spend provider budget, and a candidate
+   * rendered against a remote font is not evidence about this repository.
+   *
+   * Positive sentinels are recorded alongside the refusals, because an empty
+   * refusal list is also what a policy that never ran would produce.
    */
-  const providerRequests = [];
+  const blockedRequests = [];
+  const observed = { total: 0, documents: 0, routeHandlerRuns: 0, localFontPaths: new Set() };
+
+  page.on("request", (request) => {
+    observed.total += 1;
+    if (request.resourceType() === "document") observed.documents += 1;
+    if (classifyRequest(request.url()) === "localFont") {
+      observed.localFontPaths.add(new URL(request.url()).pathname);
+    }
+  });
+
   await page.route("**/*", async (route) => {
+    observed.routeHandlerRuns += 1;
     const url = route.request().url();
+    const category = classifyRequest(url);
 
-    if (PROVIDER_PATTERNS.some((pattern) => pattern.test(url))) {
-      providerRequests.push(url);
-      await route.abort();
+    if (ALLOWED_CATEGORIES.has(category)) {
+      await route.continue();
       return;
     }
 
-    const allowed =
-      url.startsWith(`http://${HOST}:`) ||
-      url.startsWith("http://localhost:") ||
-      url.startsWith("data:") ||
-      url.startsWith("blob:") ||
-      FONT_HOSTS.some((host) => url.startsWith(host));
-
-    if (!allowed) {
-      providerRequests.push(url);
-      await route.abort();
-      return;
-    }
-
-    await route.continue();
+    blockedRequests.push(`${route.request().method()} ${url} [${category}]`);
+    await route.abort();
   });
 
   await page.goto("/", { waitUntil: "load" });
@@ -274,7 +333,13 @@ async function capture(browser, spec) {
     screenshotScale: "css",
     bytes: bytes.length,
     sha256: sha256(bytes),
-    blockedRequests: providerRequests,
+    blockedRequests,
+    requestAudit: {
+      routeHandlerRuns: observed.routeHandlerRuns,
+      totalRequests: observed.total,
+      documentRequests: observed.documents,
+      localFontPaths: [...observed.localFontPaths].sort(),
+    },
   };
 }
 
@@ -347,6 +412,30 @@ try {
     throw new Error(
       `Provider or unexpected third-party requests during capture: ${blocked.join(", ")}`,
     );
+  }
+
+  /*
+   * Sentinels, asserted before the empty refusal list above is believed. A
+   * policy that was never installed, or a page that never loaded, produces the
+   * same empty list as a clean run.
+   */
+  for (const entry of captures) {
+    const audit = entry.requestAudit;
+    if (audit.routeHandlerRuns < 1) {
+      throw new Error(`${entry.filename}: the request policy never executed.`);
+    }
+    if (audit.totalRequests < 1) {
+      throw new Error(`${entry.filename}: no browser request was observed at all.`);
+    }
+    if (audit.documentRequests < 1) {
+      throw new Error(`${entry.filename}: no document request was observed.`);
+    }
+    if (audit.localFontPaths.length < 1) {
+      throw new Error(
+        `${entry.filename}: no local /fonts/*.woff2 request was observed, so this ` +
+          "candidate may have rendered in fallback type.",
+      );
+    }
   }
   if (captures.length !== CAPTURES.length) {
     throw new Error(

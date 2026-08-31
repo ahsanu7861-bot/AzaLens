@@ -5,10 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Router from "./app/Router";
 import { ThemeProvider } from "./app/providers/ThemeProvider";
 import { applyLocalSettings, readLocalSettings } from "./app/preferences";
-import { activateDeferredFonts } from "./lib/fonts";
 import "./index.css";
 
-activateDeferredFonts();
 applyLocalSettings(readLocalSettings());
 
 const queryClient = new QueryClient({

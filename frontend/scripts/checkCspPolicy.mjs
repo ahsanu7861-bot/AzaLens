@@ -49,10 +49,23 @@ const FORBIDDEN_KEYWORDS = [
 
 const REQUIRED_SOURCES = {
   "connect-src": ["'self'", "https://api.azalens.com"],
-  "style-src": ["'self'", "https://fonts.googleapis.com"],
-  "font-src": ["'self'", "https://fonts.gstatic.com"],
+  "style-src": ["'self'"],
+  "font-src": ["'self'"],
   "script-src": ["'self'"],
 };
+
+// Fonts are self-hosted from public/fonts. These hosts must not reappear in a
+// production font-loading surface: any reappearance means a face is being
+// fetched from Google again, which reintroduces the third-party dependency and
+// the network variability that offline visual verification exists to remove.
+const FORBIDDEN_FONT_HOSTS = [
+  "fonts.googleapis.com",
+  "fonts.gstatic.com",
+];
+
+// Directives that exist to load styles and fonts. Unrelated directives are not
+// searched for these hosts, so an unrelated future allowance is not misread.
+const FONT_LOADING_DIRECTIVES = ["style-src", "font-src"];
 
 const failures = [];
 
@@ -69,8 +82,9 @@ const html = await readFile(
 // 1. index.html must contain no inline event handlers.
 // ------------------------------------------------------------------
 // A CSP cannot allow these without 'unsafe-hashes', which would relax
-// script-src for the whole site. The deferred font stylesheet used to rely on
-// onload="this.media='all'"; src/lib/fonts.ts replaces it.
+// script-src for the whole site. The deferred Google Fonts stylesheet used to
+// rely on onload="this.media='all'"; fonts are now self-hosted and declared
+// statically in src/fonts.css, so nothing needs activating at all.
 
 const inlineHandlers = [
   ...html.matchAll(/\son([a-z]+)\s*=\s*["'][^"']*["']/gi),
@@ -83,18 +97,30 @@ if (inlineHandlers.length > 0) {
   );
 }
 
-// The replacement must actually be wired up, or fonts silently never activate.
-if (!/\sdata-deferred-font\b/.test(html)) {
-  failures.push(
-    "index.html has no data-deferred-font link. src/lib/fonts.ts activates " +
-      "fonts by that attribute; without it the site loads with fallback fonts.",
-  );
+// ------------------------------------------------------------------
+// 1b. index.html must not reach a Google Fonts host.
+// ------------------------------------------------------------------
+// Fonts are self-hosted by src/fonts.css. There is no deferred stylesheet to
+// activate any more and no scriptless fallback to keep in sync, so the old
+// data-deferred-font contract is gone. What replaces it is the absence of the
+// hosts: a preconnect, preload, stylesheet link or fallback pointing at Google
+// would quietly restore the third-party font fetch.
+
+for (const host of FORBIDDEN_FONT_HOSTS) {
+  if (html.includes(host)) {
+    failures.push(
+      `index.html references ${host}. Fonts are self-hosted from ` +
+        "public/fonts via src/fonts.css; no Google Fonts host belongs in the " +
+        "production document. Run `npm run test:fonts` for the full contract.",
+    );
+  }
 }
 
-if (!/<noscript>/.test(html)) {
+if (/\sdata-deferred-font\b/.test(html)) {
   failures.push(
-    "index.html lost its <noscript> font fallback, so users without " +
-      "JavaScript would get no custom fonts at all.",
+    "index.html still carries a data-deferred-font link. The deferred Google " +
+      "Fonts loader (src/lib/fonts.ts) was removed when fonts became " +
+      "self-hosted; nothing activates that attribute any more.",
   );
 }
 
@@ -177,6 +203,19 @@ if (reportOnly) {
       "CSP connect-src no longer allows https://api.azalens.com — every API " +
         "call from the browser would be blocked.",
     );
+  }
+
+  for (const directive of FONT_LOADING_DIRECTIVES) {
+    const sources = directives.get(directive) ?? [];
+    for (const host of FORBIDDEN_FONT_HOSTS) {
+      if (sources.some((source) => source.includes(host))) {
+        failures.push(
+          `CSP ${directive} still allows ${host}. Fonts are self-hosted; ` +
+            "leaving the host allowed means a reintroduced Google font fetch " +
+            "would load silently instead of being reported as a violation.",
+        );
+      }
+    }
   }
 
   if ((directives.get("object-src") ?? [])[0] !== "'none'") {
