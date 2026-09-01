@@ -277,12 +277,37 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      # Both browser phases run inside a fresh Linux network namespace that has
+      # loopback and nothing else, so an outbound request is impossible rather
+      # than merely detected. Dependencies and Chromium were installed above,
+      # outside isolation, because those genuinely need the network.
+      #
+      # .github/scripts/run-offline.sh owns the whole privilege chain
+      # (sudo -> unshare --net -> setpriv back to the runner UID -> env ->
+      # command): only namespace creation and `ip link set lo up` are
+      # privileged, the suite itself runs as the ordinary runner user, so
+      # test-results/, playwright-report/ and the candidate directories stay
+      # runner-owned and the no-write proof below is unaffected.
+      #
+      # The wrapper writes the run to the log with `tee`, takes the isolated
+      # command's status from PIPESTATUS[0] rather than tee's, and fails closed
+      # if the log is missing or any namespace / loopback / route / UID /
+      # command sentinel is absent.
+      #
+      # fontLoading.spec.ts is untagged, so its positive local-font proof (six
+      # WOFF2 URLs, 200, font/woff2, manifest-matching sha256) runs under
+      # test:e2e — which is why the e2e phase is isolated too, not just the
+      # visual one. The browser-side request audit stays exactly as it was: the
+      # namespace proves external traffic was impossible, the audit proves what
+      # the application attempted.
       - name: Run browser and accessibility tests
-        run: npm run test:e2e
+        env:
+          E2E_LOG: ${{ runner.temp }}/e2e-run.log
+        run: |
+          set -euo pipefail
+          "$GITHUB_WORKSPACE/.github/scripts/run-offline.sh" e2e "$E2E_LOG" npm run test:e2e
 
-      # The log is captured for the marker gate below. `tee` keeps the normal
-      # CI log stream intact, `pipefail` keeps Playwright's exit status (a
-      # failing visual run still fails this step), and $RUNNER_TEMP puts the
+      # The log is captured for the marker gate below. $RUNNER_TEMP puts the
       # file outside the worktree so it cannot dirty the no-write proof.
       - name: Run visual regression tests
         env:
@@ -290,7 +315,7 @@ jobs:
           VISUAL_LOG: ${{ runner.temp }}/visual-run.log
         run: |
           set -euo pipefail
-          npm run test:visual 2>&1 | tee "$VISUAL_LOG"
+          "$GITHUB_WORKSPACE/.github/scripts/run-offline.sh" visual "$VISUAL_LOG" npm run test:visual
 
       - name: Upload browser failure evidence
         if: failure()
