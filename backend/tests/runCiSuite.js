@@ -31,6 +31,7 @@ const deterministicSuites = [
   "testOwnerOnlyRouteContainment.js",
   "testPartialIndicatorFailure.js",
   "testPrivatePersonalEntitlement.js",
+  "testPrivatePersonalBoundaries.js",
   "testPhase45Stability.js",
   "testRemovedRoutesContract.js",
   "testPortfolioRouterFactory.js",

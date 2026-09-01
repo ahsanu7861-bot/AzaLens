@@ -183,6 +183,7 @@ async function positiveControl(resolvedEnvironment) {
     ...completeEnvironment(resolvedEnvironment),
     CLOSED_DEMO_ENABLED: "true",
     PRIVATE_PERSONAL_PROVIDER_MODE: "true",
+    TRUSTED_FRONTEND_ORIGINS: "https://azalens.com",
   };
 
   const run = await boot(env, port);

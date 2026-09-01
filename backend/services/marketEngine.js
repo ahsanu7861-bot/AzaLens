@@ -9,6 +9,7 @@ const {
 const {
   buildCacheKey,
   getCache,
+  getCacheWithMetadata,
   setCache
 } = require("../utils/cache");
 
@@ -753,8 +754,8 @@ async function getHistoryUnobserved(
     // Cache Check
     // ==============================================
 
-    const cachedResult =
-      getCache(cacheKey);
+    const cachedEntry = getCacheWithMetadata(cacheKey);
+    const cachedResult = cachedEntry?.data;
 
     if (cachedResult) {
       const bars =
@@ -836,6 +837,7 @@ async function getHistoryUnobserved(
           historyProvenance({
             ...cachedResult,
             cache: "HIT",
+            cacheAgeSeconds: cachedEntry.ageSeconds,
             interval: normalizedInterval
           }),
 
@@ -869,6 +871,12 @@ async function getHistoryUnobserved(
       return {
         ...pendingResult,
         cache: "COALESCED",
+        provenance: historyProvenance({
+          ...pendingResult,
+          cache: "COALESCED",
+          cacheAgeSeconds: 0,
+          interval: normalizedInterval
+        }),
         dataQuality:
           buildHistoricalQuality(
             pendingResult.bars,

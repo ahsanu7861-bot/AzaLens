@@ -47,7 +47,7 @@ function historyProvenance(result, retrievedAt = new Date().toISOString()) {
     provider: "TwelveData",
     sourceTimestamp: result?.metadata?.latestDate || result?.dataQuality?.latestHistoricalDate || null,
     retrievalTimestamp: retrievedAt,
-    cache: { state: result?.cache || (available ? "MISS" : "UNAVAILABLE"), ageSeconds: null },
+    cache: { state: result?.cache || (available ? "MISS" : "UNAVAILABLE"), ageSeconds: Number.isFinite(result?.cacheAgeSeconds) ? result.cacheAgeSeconds : (result?.cache === "MISS" ? 0 : null) },
     interval: result?.interval || "1day",
     displayEntitlement: "NON_DISPLAY_DERIVED_ANALYTICS_ONLY",
     brokerVerificationRequired: true,

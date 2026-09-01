@@ -53,6 +53,7 @@ const GATE_ON = {
   PRIVATE_PERSONAL_PROVIDER_MODE: "true",
   CLOSED_DEMO_ACCESS_CODE: "not-a-real-code",
   CLOSED_DEMO_SIGNING_SECRET: "0".repeat(32),
+  TRUSTED_FRONTEND_ORIGINS: "https://azalens.com",
 };
 
 const results = [];

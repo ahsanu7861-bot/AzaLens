@@ -59,6 +59,7 @@ const {
   middleware: closedDemoGate,
   registerClosedDemoRoutes
 } = require("./middleware/closedDemoGate");
+const { installPrivatePersonalResponseBoundary, privatePersonalMode } = require("./contracts/privatePersonalBoundary");
 // ============================
 // Routes
 // ============================
@@ -88,6 +89,9 @@ const portfolioRoutes = createPortfolioRouter({
 const PORT = process.env.PORT || 5000;
 const environmentConfig =
   getEnvironmentConfig(process.env);
+const privatePersonalProviderMode = privatePersonalMode(process.env);
+const configuredTrustedFrontendOrigins = String(process.env.TRUSTED_FRONTEND_ORIGINS || "")
+  .split(",").map((entry) => entry.trim()).filter(Boolean);
 
 // ============================
 // CORS Allowlist
@@ -115,6 +119,10 @@ function isAllowedCorsOrigin(origin) {
     // No Origin header: curl, CI, health checks, server-to-server
     // calls. Not a browser cross-origin request - nothing to check.
     return true;
+  }
+
+  if (privatePersonalProviderMode) {
+    return configuredTrustedFrontendOrigins.includes(origin);
   }
 
   if (
@@ -149,6 +157,7 @@ function isAllowedCorsOrigin(origin) {
 
 app.use(requestObservability);
 app.use(express.json());
+app.use(installPrivatePersonalResponseBoundary);
 app.use(
   cors({
     credentials: true,

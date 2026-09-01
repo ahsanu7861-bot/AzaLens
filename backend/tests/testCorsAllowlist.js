@@ -64,6 +64,7 @@ const PRODUCTION_FIXTURE = {
   TWELVE_DATA_PROFILE_ENABLED: "false",
   CLOSED_DEMO_ACCESS_CODE: "not-a-real-code",
   CLOSED_DEMO_SIGNING_SECRET: "0".repeat(32),
+  TRUSTED_FRONTEND_ORIGINS: "https://azalens.com",
 };
 
 async function bootServer(appEnv) {
@@ -237,6 +238,7 @@ async function run() {
   try {
     await assertRejected(prod.baseUrl, "http://localhost:5173");
     await assertAllowed(prod.baseUrl, "https://azalens.com");
+    await assertRejected(prod.baseUrl, "https://azalens-git-untrusted-ahsan-khan2.vercel.app");
 
     console.log(
       "Production CORS allowlist: all assertions passed."

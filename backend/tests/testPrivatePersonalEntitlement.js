@@ -65,10 +65,13 @@ const production = {
   CLOSED_DEMO_ENABLED: "true",
   CLOSED_DEMO_ACCESS_CODE: "owner-only-fixture",
   CLOSED_DEMO_SIGNING_SECRET: "s".repeat(40),
+  TRUSTED_FRONTEND_ORIGINS: "https://azalens.com",
 };
 assert.equal(validateEnvironment(production).valid, false);
 assert.match(validateEnvironment(production).errors.join(" "), /PRIVATE_PERSONAL_PROVIDER_MODE=true/);
 assert.equal(validateEnvironment({ ...production, PRIVATE_PERSONAL_PROVIDER_MODE: "true" }).valid, true);
+assert.equal(validateEnvironment({ ...production, PRIVATE_PERSONAL_PROVIDER_MODE: "true", TRUSTED_FRONTEND_ORIGINS: "" }).valid, false);
+assert.equal(validateEnvironment({ ...production, PRIVATE_PERSONAL_PROVIDER_MODE: "true", TRUSTED_FRONTEND_ORIGINS: "https://*.vercel.app" }).valid, false);
 
 process.env.PRIVATE_PERSONAL_PROVIDER_MODE = "true";
 process.env.TWELVE_DATA_API_KEY = "fixture";

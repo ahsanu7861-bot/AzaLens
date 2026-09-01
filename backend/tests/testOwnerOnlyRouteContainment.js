@@ -10,6 +10,7 @@ process.env.CLOSED_DEMO_ENABLED = "true";
 process.env.CLOSED_DEMO_ACCESS_CODE = "owner-fixture-only";
 process.env.CLOSED_DEMO_SIGNING_SECRET = "s".repeat(40);
 process.env.PRIVATE_PERSONAL_PROVIDER_MODE = "true";
+process.env.TRUSTED_FRONTEND_ORIGINS = "https://owner.example";
 process.env.FINNHUB_API_KEY = "fixture";
 process.env.TWELVE_DATA_API_KEY = "fixture";
 process.env.QUOTE_PROVIDER = "finnhub";
@@ -33,7 +34,7 @@ axios.get = async () => { providerCalls += 1; throw new Error("provider boundary
       "/api/analyze/AAPL", "/api/search?q=apple", "/stock/AAPL",
       "/history/AAPL", "/rsi/AAPL", "/api/scanner",
     ]) {
-      const response = await fetch(`http://127.0.0.1:${port}${path}`);
+      const response = await fetch(`http://127.0.0.1:${port}${path}`, { headers: { Origin: "https://owner.example" } });
       assert.equal(response.status, 401, `${path} must be owner-only`);
       const body = await response.json();
       assert.equal(body.code, "CLOSED_DEMO_ACCESS_REQUIRED");
