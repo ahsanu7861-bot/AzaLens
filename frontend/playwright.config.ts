@@ -53,7 +53,10 @@ export default defineConfig({
       threshold: 0.2,
     },
   },
-  reporter: process.env.CI ? "github" : "list",
+  reporter: [
+    [process.env.CI ? "github" : "list"],
+    ["./e2e/visualComparisonReporter.ts"],
+  ],
   projects: [
     {
       name: "desktop-chromium",
