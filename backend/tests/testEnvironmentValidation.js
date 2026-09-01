@@ -54,6 +54,7 @@ const GATE_ON = {
   CLOSED_DEMO_ACCESS_CODE: "not-a-real-code",
   CLOSED_DEMO_SIGNING_SECRET: "0".repeat(32),
   TRUSTED_FRONTEND_ORIGINS: "https://azalens.com",
+  TWELVE_DATA_CREDIT_COORDINATION_MODE: "shared_atomic",
 };
 
 const results = [];

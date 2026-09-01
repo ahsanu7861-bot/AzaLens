@@ -4,6 +4,7 @@ const {
   getReleaseVersion,
 } = require("../config/releaseVersion");
 const {
+  getCapabilityProviders,
   getProviderConfigurationProblems,
   getProviderSelectionSnapshot,
   getRequiredProviderKeys,
@@ -782,9 +783,13 @@ function buildReadinessSnapshot({
   ).every((keyName) => Boolean(String(env[keyName] || "").trim()));
   const marketProvidersConfigured =
     providerConfigurationValid && marketProviderKeysPresent;
+  const historyProvider = getCapabilityProviders(env).history;
+  const coordinatorReady = historyProvider !== "twelve_data" ||
+    require("../services/twelveDataCreditGovernor")
+      .resolveTwelveDataGovernorRuntime(env).enabled;
   const ready =
     !strictReadiness ||
-    marketProvidersConfigured;
+    (marketProvidersConfigured && coordinatorReady);
 
   /*
     The published value stays a single aggregate word. It distinguishes "a key
@@ -794,7 +799,7 @@ function buildReadinessSnapshot({
   */
   const marketProvidersState = !providerConfigurationValid
     ? "misconfigured"
-    : marketProviderKeysPresent
+    : marketProviderKeysPresent && coordinatorReady
       ? "configured"
       : "incomplete";
 

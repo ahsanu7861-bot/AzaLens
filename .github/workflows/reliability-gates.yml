@@ -138,6 +138,10 @@ jobs:
         working-directory: backend
         run: npm run test:rls-coverage
 
+      - name: Prove atomic Twelve Data credit reservations
+        working-directory: backend
+        run: node tests/testTwelveDataCreditRpc.js
+
       - name: Prove the migrations reverse cleanly
         run: bash scripts/verifyMigrationReversibility.sh
 

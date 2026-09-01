@@ -55,6 +55,7 @@ assert.equal("data" in derived, false);
 assert.doesNotMatch(JSON.stringify(derived), /"open"|"high"|"low"|"volume"/);
 
 const production = {
+  TWELVE_DATA_CREDIT_COORDINATION_MODE: "shared_atomic",
   APP_ENV: "production",
   FINNHUB_API_KEY: "fixture",
   TWELVE_DATA_API_KEY: "fixture",

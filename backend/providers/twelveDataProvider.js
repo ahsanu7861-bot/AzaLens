@@ -502,6 +502,10 @@ async function getHistoricalData(
           : error.response?.status === 429
           ? "TWELVE_DATA_RATE_LIMIT"
           : "TWELVE_DATA_REQUEST_FAILED",
+      reason:
+        error.code === "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED"
+          ? error.reason
+          : null,
       httpStatus:
         error.response?.status || null
     };
