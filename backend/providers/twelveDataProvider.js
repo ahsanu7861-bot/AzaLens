@@ -248,6 +248,19 @@ async function getHistoricalData(
   const normalizedInterval =
     normalizeInterval(interval);
 
+  const privatePersonalMode = ["1", "true", "yes", "on"].includes(
+    String(process.env.PRIVATE_PERSONAL_PROVIDER_MODE || "").trim().toLowerCase()
+  );
+
+  if (privatePersonalMode && normalizedInterval && normalizedInterval !== "1day") {
+    return {
+      success: false, provider: "TwelveData", symbol: normalizedSymbol,
+      interval: normalizedInterval,
+      error: "Twelve Data Basic permits only 1day end-of-day history in private-personal mode.",
+      code: "TWELVE_DATA_BASIC_INTRADAY_NOT_ENTITLED"
+    };
+  }
+
   const API_KEY =
     process.env.TWELVE_DATA_API_KEY;
 

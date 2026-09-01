@@ -305,6 +305,7 @@ async function searchListedEquities(query, limit = 12) {
     const response = await axios.get(`${FINNHUB_BASE_URL}/search`, {
       params: {
         q: normalizedQuery,
+        exchange: "US",
         token: getApiKey()
       },
       timeout: REQUEST_TIMEOUT_MS
@@ -484,6 +485,18 @@ async function getFinnhubCompanyProfile(symbol) {
     if (!profile || Object.keys(profile).length === 0) {
       return { success: false, provider: "Finnhub", symbol: normalizedSymbol,
         data: null, error: "Company profile unavailable." };
+    }
+    const country = String(profile.country || "").trim().toUpperCase();
+    const exchange = String(profile.exchange || "").trim().toUpperCase();
+    if ((country && country !== "US") || /\bOTC\b|OTCM|OTCQ|PINK/.test(exchange)) {
+      return {
+        success: false,
+        provider: "Finnhub",
+        symbol: normalizedSymbol,
+        data: null,
+        code: "LISTING_NOT_AVAILABLE_PRIVATE_PERSONAL",
+        error: "OTC and international equities are unavailable in private-personal mode."
+      };
     }
     return {
       success: true,

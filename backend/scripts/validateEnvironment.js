@@ -169,6 +169,29 @@ function validateEnvironment(env = process.env) {
     );
   }
 
+  let privatePersonalMode = false;
+  try {
+    privatePersonalMode = parseFlag(env.PRIVATE_PERSONAL_PROVIDER_MODE);
+  } catch {
+    errors.push("PRIVATE_PERSONAL_PROVIDER_MODE is not a valid boolean.");
+  }
+
+  const personalCredentialsConfigured = Boolean(
+    String(env.FINNHUB_API_KEY || "").trim() ||
+    String(env.TWELVE_DATA_API_KEY || "").trim()
+  );
+
+  if (
+    GATE_REQUIRED_ENVIRONMENTS.has(config.environment) &&
+    personalCredentialsConfigured &&
+    (!privatePersonalMode || !closedDemoEnabled)
+  ) {
+    errors.push(
+      "Personal-provider credentials in production or staging require " +
+      "PRIVATE_PERSONAL_PROVIDER_MODE=true and owner-only CLOSED_DEMO_ENABLED=true."
+    );
+  }
+
   if (
     closedDemoEnabled &&
     String(env.CLOSED_DEMO_ACCESS_CODE || "").trim().length < 8

@@ -4,7 +4,8 @@ const crypto = require("node:crypto");
 
 const { parseFlag } = require("../config/environment");
 
-const COOKIE_NAME = "azalens_demo_access";
+const COOKIE_NAME = "azalens_owner_access";
+const OWNER_SUBJECT = "owner";
 const MAX_AGE_SECONDS = 12 * 60 * 60;
 
 /*
@@ -51,9 +52,9 @@ function safeEqual(left, right) {
 }
 
 function token(secret, expiresAt) {
-  const payload = String(expiresAt);
+  const payload = `${OWNER_SUBJECT}:${expiresAt}`;
   const signature = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-  return `${payload}.${signature}`;
+  return `${expiresAt}.${OWNER_SUBJECT}.${signature}`;
 }
 
 function parseCookies(header = "") {
@@ -69,10 +70,10 @@ function authorized(req, env = process.env) {
   if (!enabled(env)) return true;
   const { secret } = credentials(env);
   const value = parseCookies(req.headers.cookie)[COOKIE_NAME];
-  const [expiresRaw, signature] = String(value || "").split(".");
+  const [expiresRaw, subject, signature] = String(value || "").split(".");
   const expiresAt = Number(expiresRaw);
-  return Number.isFinite(expiresAt) && expiresAt > Date.now() &&
-    safeEqual(signature || "", token(secret, expiresAt).split(".")[1]);
+  return subject === OWNER_SUBJECT && Number.isFinite(expiresAt) && expiresAt > Date.now() &&
+    safeEqual(signature || "", token(secret, expiresAt).split(".")[2]);
 }
 
 function middleware(req, res, next) {
@@ -80,7 +81,7 @@ function middleware(req, res, next) {
   return res.status(401).json({
     success: false,
     code: "CLOSED_DEMO_ACCESS_REQUIRED",
-    message: "AzaLens is currently available by invitation during development.",
+    message: "This private-personal AzaLens workspace is accessible only to its owner.",
     requestId: req.requestId,
   });
 }

@@ -50,6 +50,7 @@ const PROVIDER_KEYS = {
 */
 const GATE_ON = {
   CLOSED_DEMO_ENABLED: "true",
+  PRIVATE_PERSONAL_PROVIDER_MODE: "true",
   CLOSED_DEMO_ACCESS_CODE: "not-a-real-code",
   CLOSED_DEMO_SIGNING_SECRET: "0".repeat(32),
 };

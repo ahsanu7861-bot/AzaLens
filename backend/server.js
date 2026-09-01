@@ -370,6 +370,24 @@ app.get("/history/:symbol", async (req, res) => {
         interval
       );
 
+    if (
+      result?.provider === "TwelveData" &&
+      ["1", "true", "yes", "on"].includes(
+        String(process.env.PRIVATE_PERSONAL_PROVIDER_MODE || "").trim().toLowerCase()
+      )
+    ) {
+      return res.status(result.success ? 403 : 503).json({
+        success: false,
+        code: result.success ? "RAW_PROVIDER_DATA_NOT_DISPLAY_ENTITLED" : result.code,
+        error: result.success
+          ? "Raw Twelve Data OHLCV is unavailable for display under the Basic private-personal entitlement. AzaLens uses it only for non-reconstructive backend analytics."
+          : result.error,
+        symbol: result.symbol,
+        interval: result.interval,
+        provenance: result.provenance,
+      });
+    }
+
     res.json(result);
   } catch (error) {
     console.error("Historical Data Route Error:", error);

@@ -67,8 +67,10 @@ export default function CompanyOverview({
         ? "text-positive"
         : "text-critical";
   const sourceLabel =
-    priceContext?.analysisPriceSource ||
-    (market?.provider ? `${market.provider} quote` : "Market data unavailable");
+    market?.provenance?.underlyingState === "REALTIME_CONSOLIDATION_UNVERIFIED"
+      ? "Real-time provider quote · consolidation unverified"
+      : priceContext?.analysisPriceSource ||
+        (market?.provider ? `${market.provider} quote` : "Market data unavailable");
   const statistics = [
     {
       label: "Previous Close",
@@ -147,6 +149,12 @@ export default function CompanyOverview({
         </div>
 
         <div className="h-px bg-stroke" />
+
+        {market?.provenance?.brokerVerificationRequired ? (
+          <p className="rounded-xl border border-caution/25 bg-caution/10 px-4 py-3 text-sm leading-6 text-ink-muted">
+            AzaLens is a screening and thesis tool, not an execution venue. Verify the executable price in your broker before acting.
+          </p>
+        ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {statistics.map((stat) => (

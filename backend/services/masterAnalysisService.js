@@ -203,6 +203,10 @@ function buildSharedHistorySummary(
       history?.dataQuality ||
       null,
 
+    provenance:
+      history?.provenance ||
+      null,
+
     performance:
       history?.performance ||
       null

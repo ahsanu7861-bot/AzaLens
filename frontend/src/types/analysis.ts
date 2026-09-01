@@ -267,6 +267,26 @@ export interface HistoricalBar {
   volume: number
 }
 
+export type MarketDataProvenanceState =
+  | "REALTIME_CONSOLIDATION_UNVERIFIED"
+  | "REALTIME_LIMITED_VENUE"
+  | "EOD_CONSOLIDATED"
+  | "CACHE"
+  | "UNAVAILABLE"
+
+export interface MarketDataProvenance {
+  state: MarketDataProvenanceState
+  underlyingState: MarketDataProvenanceState
+  provider: string
+  sourceTimestamp: string | null
+  retrievalTimestamp: string
+  cache: { state: string; ageSeconds: number | null }
+  interval: string | null
+  displayEntitlement: string
+  brokerVerificationRequired: boolean
+  limitations: string[]
+}
+
 export interface HistoryResponse {
   success: boolean
   symbol: string
@@ -331,6 +351,7 @@ export interface AnalysisResponse {
     market: {
       success?: boolean
       provider?: string
+      provenance?: MarketDataProvenance
       symbol?: string
       data?: {
         symbol?: string
