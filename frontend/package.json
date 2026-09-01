@@ -14,6 +14,7 @@
     "test:performance": "node scripts/checkPerformanceBudget.mjs",
     "test:csp": "node scripts/checkCspPolicy.mjs",
     "test:fonts": "node scripts/checkLocalFonts.mjs",
+    "test:fonts:dist": "node scripts/checkLocalFonts.mjs --dist",
     "test:csp-hashes": "node scripts/checkCspHashes.mjs",
     "lint": "oxlint",
     "test": "vitest run && node scripts/checkBrandAssets.mjs",

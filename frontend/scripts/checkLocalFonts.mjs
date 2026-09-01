@@ -32,6 +32,16 @@ import { readFile, readdir, stat } from "node:fs/promises";
      the specific regression this check exists to make impossible, so a ranged
      or multi-valued font-weight is rejected outright.
 
+  3. The authored requests. The discrete declarations above only matter
+     because src/index.css asks for weights that are not among them:
+     .az-rail-tooltip and .az-workspace-tab request 650, and .az-eyebrow
+     requests 750. Those three rules ARE the reason a ranged face would change
+     rendering, so the whole argument in (2) evaporates silently if someone
+     retunes them to 600/700 or deletes them. Point 2 pinned the answer; this
+     pins the question. The contract is expressed as selector -> exact weight
+     and checked structurally, not by counting the digits 650 and 750
+     somewhere in the file.
+
   Parsing note: src/fonts.css is parsed with a small total parser, not a
   permissive regex sweep. It walks the whole file and fails on ANY content it
   does not recognise, so a malformed or half-edited stylesheet cannot produce a
@@ -44,13 +54,19 @@ import { readFile, readdir, stat } from "node:fs/promises";
   If a future face legitimately needs another descriptor, add it to
   EXPECTED_PROPERTIES rather than loosening the parser.
 
-  Read set: this check reads ONLY font-provenance/PROVENANCE.json, the nine
-  files that manifest declares, src/fonts.css, src/index.css and index.html.
-  Accepted
-  Playwright baselines are never read and are never a source of truth for font
-  identity — that is asserted below.
+  Read set, source mode: this check reads ONLY
+  font-provenance/PROVENANCE.json, the nine files that manifest declares,
+  src/fonts.css, src/index.css and index.html. Accepted Playwright baselines
+  are never read and are never a source of truth for font identity — that is
+  asserted below.
 
-  Run with: npm run test:fonts
+  Read set, build-output mode (--dist): the manifest, plus every file under
+  dist/. That mode returns before the closed-read-set assertion for exactly
+  that reason; the assertion describes source mode, which is the mode whose
+  conclusions a baseline could otherwise contaminate.
+
+  Run with: npm run test:fonts       source contract, no build required
+            npm run test:fonts:dist  deployable output, build required
 */
 
 const root = new URL("../", import.meta.url);
@@ -60,6 +76,40 @@ const PROVENANCE_PATH = "font-provenance/PROVENANCE.json";
 const FONTS_CSS_PATH = "src/fonts.css";
 const INDEX_CSS_PATH = "src/index.css";
 const INDEX_HTML_PATH = "index.html";
+
+/*
+  Two modes, one contract.
+
+  Default (no arguments) is the SOURCE contract: everything below runs against
+  committed source and public/ assets, needs no build, and is what CI runs
+  before `npm run build`.
+
+  `--dist` is the DEPLOYABLE-OUTPUT contract: it requires a completed build and
+  asserts that dist/ carries the six vendored faces byte-for-byte, the three
+  OFL licences, no provenance manifest, and not one byte naming a Google font
+  host. It deliberately does NOT fall back to a source-only pass when dist/ is
+  absent: "scan it if it happens to be there" is fail-open, and a skipped scan
+  is indistinguishable in a green log from a clean one.
+
+  An unrecognised argument is refused rather than ignored, so a typo in a
+  workflow cannot silently downgrade the gate to source mode.
+*/
+const DIST_DIR = "dist";
+const USAGE =
+  "usage: node scripts/checkLocalFonts.mjs [--dist]\n" +
+  "  (no argument)  verify the source font contract (no build required)\n" +
+  "  --dist         verify the built output under frontend/dist (build required)";
+
+function parseMode(argv) {
+  if (argv.length === 0) return "source";
+  if (argv.length === 1 && argv[0] === "--dist") return "dist";
+  console.error(
+    `Local font check: unrecognised argument(s) ${JSON.stringify(argv)}.\n${USAGE}`,
+  );
+  process.exit(1);
+}
+
+const MODE = parseMode(process.argv.slice(2));
 
 // The exact CSS response the vendored faces were cut from.
 const EXPECTED_SOURCE_CSS_SHA256 =
@@ -93,8 +143,35 @@ const EXPECTED_PROPERTIES = [
 
 const FORBIDDEN_FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
 
+/*
+  Byte strings that must not survive into deployable output. The two hosts are
+  the runtime dependency F1 removed. data-deferred-font is the attribute the
+  deleted loader used to mark a stylesheet it would activate later; its return
+  in dist/ would mean a deferred external font request shipped to browsers even
+  if index.html in source looked clean.
+*/
+const FORBIDDEN_OUTPUT_MARKERS = [...FORBIDDEN_FONT_HOSTS, "data-deferred-font"];
+
 const failures = [];
 const fail = (message) => failures.push(message);
+
+/*
+  One exit path for both modes. A function rather than a trailing block because
+  build-output mode reaches its verdict in the middle of this file, and because
+  a pass should exit 0 deliberately rather than by falling off the end of a
+  module.
+*/
+function finish(summary, header) {
+  if (failures.length > 0) {
+    console.error(`${header}\n`);
+    for (const failure of failures) {
+      console.error(`  - ${failure}`);
+    }
+    process.exit(1);
+  }
+  console.log(summary);
+  process.exit(0);
+}
 
 // Every path this check reads, recorded so the closed read set is provable.
 const readPaths = [];
@@ -109,6 +186,8 @@ async function readBytes(path) {
 
 const sha256 = (buffer) => createHash("sha256").update(buffer).digest("hex");
 const squash = (value) => value.replace(/\s+/g, " ").trim();
+
+class CssParseError extends Error {}
 
 // ------------------------------------------------------------------
 // A total parser for src/fonts.css.
@@ -202,6 +281,20 @@ try {
 
 const fontEntries = Array.isArray(provenance.fonts) ? provenance.fonts : [];
 const licenseEntries = Array.isArray(provenance.licenses) ? provenance.licenses : [];
+
+/*
+  Build-output mode shares the manifest above and nothing else: the source
+  contract below reasons about committed files, this one about the bytes Vite
+  emitted into dist/. Branching here rather than at the end of the file is what
+  keeps the closed-read-set proof at the bottom an honest description of source
+  mode.
+*/
+if (MODE === "dist") {
+  finish(
+    await runDistContract(fontEntries, licenseEntries),
+    "Built font output check failed:",
+  );
+}
 
 if (fontEntries.length !== EXPECTED_FONT_FILE_COUNT) {
   fail(
@@ -524,6 +617,112 @@ if (/\sdata-deferred-font\b/.test(indexHtml)) {
   );
 }
 
+/*
+  The three authored rules that give the discrete-weight contract its point.
+
+  Expressed as selector -> exact weight rather than as a count of occurrences,
+  because "the file still contains 650 twice" is satisfied by two unrelated
+  rules while .az-workspace-tab quietly drops to 600. Each entry is checked
+  against the parsed rule whose selector list contains that exact selector:
+  the rule must exist, must be unique, and must declare font-weight exactly
+  once, with exactly this value.
+*/
+const PROTECTED_WEIGHT_RULES = [
+  { selector: ".az-rail-tooltip", weight: "650" },
+  { selector: ".az-workspace-tab", weight: "650" },
+  { selector: ".az-eyebrow", weight: "750" },
+];
+const PROTECTED_WEIGHT_VALUES = new Set(
+  PROTECTED_WEIGHT_RULES.map((rule) => rule.weight),
+);
+
+let indexCssRules = [];
+try {
+  indexCssRules = parseStyleRules(indexCss);
+} catch (error) {
+  if (error instanceof CssParseError) {
+    fail(
+      `${INDEX_CSS_PATH} did not parse: ${error.message}. The 650/750 rule ` +
+        "contract cannot be verified against a file this check cannot read, so " +
+        "it fails closed rather than assuming the rules survived.",
+    );
+  } else {
+    throw error;
+  }
+}
+
+// The rules that legitimately own a 650 or 750 request, by identity.
+const protectedRules = new Set();
+
+for (const { selector, weight } of PROTECTED_WEIGHT_RULES) {
+  const matches = indexCssRules.filter((rule) => rule.selectors.includes(selector));
+
+  if (matches.length === 0) {
+    fail(
+      `${INDEX_CSS_PATH} declares no rule for the selector ${selector}, which ` +
+        `the font contract pins at font-weight ${weight}. Against the discrete ` +
+        `faces in ${FONTS_CSS_PATH} that request resolves to the 700 face; ` +
+        "removing the rule is a rendering change, and removing it silently is " +
+        "how the discrete-weight argument stops being about anything.",
+    );
+    continue;
+  }
+  if (matches.length > 1) {
+    fail(
+      `${INDEX_CSS_PATH} declares ${matches.length} rules whose selector list ` +
+        `contains ${selector}; exactly one is expected, so the intended ` +
+        `font-weight ${weight} is ambiguous. Blocks found at offsets ` +
+        `${matches.map((rule) => rule.offset).join(", ")}.`,
+    );
+    continue;
+  }
+
+  const rule = matches[0];
+  protectedRules.add(rule);
+  const values = rule.declarations.get("font-weight") ?? [];
+
+  if (values.length === 0) {
+    fail(
+      `${INDEX_CSS_PATH} rule ${selector} no longer declares font-weight; ` +
+        `expected exactly one "font-weight: ${weight}".`,
+    );
+  } else if (values.length > 1) {
+    fail(
+      `${INDEX_CSS_PATH} rule ${selector} declares font-weight ${values.length} ` +
+        `times (${values.join(", ")}); exactly one declaration of ${weight} is ` +
+        "expected, because a duplicate makes the effective weight depend on " +
+        "declaration order rather than on this contract.",
+    );
+  } else if (values[0] !== weight) {
+    fail(
+      `${INDEX_CSS_PATH} rule ${selector} declares font-weight ` +
+        `${JSON.stringify(values[0])}; expected exactly "${weight}". This is ` +
+        "the authored request the discrete-face contract exists to serve; " +
+        "changing it is a rendering change and must be a reviewed one.",
+    );
+  }
+}
+
+/*
+  Completeness. A new 650 or 750 request somewhere else in the file is not
+  wrong, but it is unreviewed: it renders against the discrete faces exactly as
+  these three do, and it is not covered by the contract above. Fail, and say so,
+  rather than let the covered set drift away from the actual set.
+*/
+for (const rule of indexCssRules) {
+  for (const value of rule.declarations.get("font-weight") ?? []) {
+    if (!PROTECTED_WEIGHT_VALUES.has(value)) continue;
+    if (protectedRules.has(rule)) continue;
+    fail(
+      `${INDEX_CSS_PATH} declares font-weight: ${value} on ` +
+        `${JSON.stringify(rule.prelude)} (block at offset ${rule.offset}), which ` +
+        "the 650/750 contract does not cover. Against the discrete faces this " +
+        "resolves to the 700 face; if that is intended, add the selector to " +
+        "PROTECTED_WEIGHT_RULES so it is pinned rather than incidental.",
+    );
+  }
+}
+
 // ------------------------------------------------------------------
 // 5. The read set is closed: no baseline informs font identity.
 // ------------------------------------------------------------------
@@ -541,16 +740,294 @@ if (baselineLike.length > 0) {
 
 // ------------------------------------------------------------------
 
-if (failures.length > 0) {
-  console.error("Local font check failed:\n");
-  for (const failure of failures) {
-    console.error(`  - ${failure}`);
-  }
-  process.exit(1);
-}
-
-console.log(
+finish(
   `[fonts] ${fontEntries.length} WOFF2 files and ${licenseEntries.length} OFL ` +
     `licences verified by sha256; ${faces.length} discrete @font-face blocks ` +
-    "checked; no external font host.",
+    `checked; ${PROTECTED_WEIGHT_RULES.length} authored 650/750 rules intact; ` +
+    "no external font host.",
+  "Local font check failed:",
 );
+
+// ==================================================================
+// Helpers declared below and used above. Function declarations hoist, so the
+// order here is about reading order, not evaluation order: the two contracts
+// stay at the top where the assertions are, and their machinery sits out of
+// the way underneath.
+// ==================================================================
+
+/*
+  A structural reader for src/index.css.
+
+  It is not a CSS engine and does not need to be. It finds every brace-balanced
+  block, descends into at-rule bodies that contain further blocks (@media,
+  @keyframes, @theme), and returns the leaf blocks with their selector list and
+  their declarations. That is enough to answer "does THIS selector declare THIS
+  font-weight", which a regex over the whole file cannot answer without being
+  fooled by an unrelated rule.
+
+  It throws on unbalanced braces, and the caller fails closed on a throw: a
+  file this cannot read is a file whose 650/750 rules cannot be verified.
+*/
+
+function parseDeclarations(body) {
+  const declarations = new Map();
+  for (const chunk of body.split(";")) {
+    if (chunk.trim() === "") continue;
+    const colon = chunk.indexOf(":");
+    if (colon === -1) continue;
+    const property = chunk.slice(0, colon).trim().toLowerCase();
+    const value = squash(chunk.slice(colon + 1));
+    if (!declarations.has(property)) declarations.set(property, []);
+    declarations.get(property).push(value);
+  }
+  return declarations;
+}
+
+function parseStyleRules(rawCss) {
+  const css = stripComments(rawCss);
+  const rules = [];
+
+  const walk = (text, base) => {
+    let i = 0;
+    let start = 0;
+    while (i < text.length) {
+      const character = text[i];
+      if (character === "}") {
+        throw new CssParseError(`unbalanced "}" at offset ${base + i}`);
+      }
+      if (character !== "{") {
+        i += 1;
+        continue;
+      }
+
+      const prelude = squash(text.slice(start, i));
+      let depth = 1;
+      let j = i + 1;
+      while (j < text.length && depth > 0) {
+        if (text[j] === "{") depth += 1;
+        else if (text[j] === "}") depth -= 1;
+        j += 1;
+      }
+      if (depth !== 0) {
+        throw new CssParseError(
+          `unterminated block for ${JSON.stringify(prelude)} at offset ${base + i}`,
+        );
+      }
+
+      const body = text.slice(i + 1, j - 1);
+      if (body.includes("{")) {
+        // An at-rule wrapper such as @media or @keyframes: the rules that
+        // matter are inside it, not the wrapper itself.
+        walk(body, base + i + 1);
+      } else {
+        rules.push({
+          prelude,
+          selectors: prelude
+            .split(",")
+            .map((part) => part.trim())
+            .filter((part) => part !== ""),
+          declarations: parseDeclarations(body),
+          offset: base + i,
+        });
+      }
+
+      i = j;
+      start = j;
+    }
+  };
+
+  walk(css, 0);
+  return rules;
+}
+
+/*
+  The deployable-output contract.
+
+  Four independent questions about dist/, each of which has to be answered
+  positively rather than by the absence of an error:
+
+    1. does a completed build exist at all;
+    2. does any byte anywhere under it name a Google font host or the deleted
+       deferred-font loader;
+    3. does the provenance manifest, which records the gstatic URLs the faces
+       were cut from, stay out of it;
+    4. does dist/fonts hold exactly the six declared faces and three declared
+       licences, byte-for-byte identical to the manifest's sha256 values.
+
+  Every file is read as bytes and scanned as bytes. Nothing is skipped by
+  extension: a forbidden host string is exactly as deployable inside a .map, a
+  .webmanifest, or a file type this check has never heard of, and an
+  extension allowlist is the kind of quiet exemption this gate exists to
+  prevent.
+
+  It reads only. It never writes, never deletes, and never touches the network.
+*/
+async function runDistContract(fontEntries, licenseEntries) {
+  const distPath = `${DIST_DIR}/`;
+
+  let info;
+  try {
+    info = await stat(rel(distPath));
+  } catch {
+    fail(
+      `${DIST_DIR}/ does not exist. Build-output mode verifies the bytes a ` +
+        "browser would actually receive, so it requires a completed build: run " +
+        "`npm run build` first. This mode never falls back to a source-only " +
+        "pass, because a scan that silently did not happen is indistinguishable " +
+        "in a green log from a scan that found nothing.",
+    );
+    return "";
+  }
+  if (!info.isDirectory()) {
+    fail(`${DIST_DIR} exists but is not a directory.`);
+    return "";
+  }
+
+  // 1. Enumerate every regular file, depth first, in a stable order.
+  const files = [];
+  const walk = async (relativeDir) => {
+    const entries = await readdir(rel(`${DIST_DIR}/${relativeDir}`), {
+      withFileTypes: true,
+    });
+    for (const entry of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
+      const relativePath = relativeDir === "" ? entry.name : `${relativeDir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        await walk(relativePath);
+      } else if (entry.isFile()) {
+        files.push(relativePath);
+      } else {
+        fail(
+          `${DIST_DIR}/${relativePath} is neither a regular file nor a ` +
+            "directory. Deployable output must contain only files and " +
+            "directories; a symlink or device node cannot be scanned honestly.",
+        );
+      }
+    }
+  };
+  await walk("");
+
+  if (files.length === 0) {
+    fail(
+      `${DIST_DIR}/ exists but contains no files, so the scan below would ` +
+        "pass vacuously. Build the frontend before running this mode.",
+    );
+    return "";
+  }
+
+  // 2. No forbidden byte string, anywhere.
+  const markers = FORBIDDEN_OUTPUT_MARKERS.map((text) => ({
+    text,
+    bytes: Buffer.from(text, "latin1"),
+  }));
+  let scannedBytes = 0;
+  for (const relativePath of files) {
+    const bytes = await readFile(rel(`${DIST_DIR}/${relativePath}`));
+    scannedBytes += bytes.length;
+    for (const marker of markers) {
+      const at = bytes.indexOf(marker.bytes);
+      if (at !== -1) {
+        fail(
+          `${DIST_DIR}/${relativePath} contains the forbidden string ` +
+            `"${marker.text}" at byte offset ${at}. Fonts are self-hosted; no ` +
+            "Google font host and no deferred-font loader may reach deployable " +
+            "output, whether as a runtime dependency or as inert metadata a " +
+            "later audit of the build cannot tell apart from one.",
+        );
+      }
+    }
+  }
+
+  // 3. The provenance manifest must not ship.
+  for (const relativePath of files) {
+    const segments = relativePath.split("/");
+    if (segments[segments.length - 1] === "PROVENANCE.json" || segments.includes("font-provenance")) {
+      fail(
+        `${DIST_DIR}/${relativePath} ships the provenance manifest. It lives in ` +
+          "font-provenance/ precisely so Vite never copies it into " +
+          `${DIST_DIR}/: it records the gstatic URLs the faces were cut from, ` +
+          "and a provenance URL shipped to browsers is indistinguishable, to any " +
+          "later audit of the build output, from a runtime font dependency.",
+      );
+    }
+  }
+
+  // 4. dist/fonts holds exactly the declared inventory, byte-for-byte.
+  if (fontEntries.length !== EXPECTED_FONT_FILE_COUNT) {
+    fail(
+      `${PROVENANCE_PATH} declares ${fontEntries.length} font files; expected ` +
+        `${EXPECTED_FONT_FILE_COUNT}. The built inventory below is checked ` +
+        "against that manifest, so an unexpected manifest invalidates it.",
+    );
+  }
+  if (licenseEntries.length !== EXPECTED_LICENCE_COUNT) {
+    fail(
+      `${PROVENANCE_PATH} declares ${licenseEntries.length} licence files; ` +
+        `expected ${EXPECTED_LICENCE_COUNT}, one per family.`,
+    );
+  }
+
+  const distOf = (entry) => String(entry.path).replace(/^frontend\/public\//, "");
+
+  const expectedFontPaths = fontEntries.map(distOf).sort();
+  const expectedLicencePaths = licenseEntries.map(distOf).sort();
+  const observedFontPaths = files
+    .filter((path) => path.startsWith("fonts/") && !path.startsWith("fonts/licenses/"))
+    .sort();
+  const observedLicencePaths = files
+    .filter((path) => path.startsWith("fonts/licenses/"))
+    .sort();
+
+  const compareInventory = (label, expected, observed) => {
+    const extra = observed.filter((path) => !expected.includes(path));
+    const missing = expected.filter((path) => !observed.includes(path));
+    if (extra.length > 0) {
+      fail(
+        `${DIST_DIR}/ contains undeclared ${label} file(s): ` +
+          `${extra.join(", ")}. Only the files ${PROVENANCE_PATH} declares may ` +
+          "be served.",
+      );
+    }
+    if (missing.length > 0) {
+      fail(
+        `${DIST_DIR}/ is missing declared ${label} file(s): ` +
+          `${missing.join(", ")}. The build did not carry the vendored assets ` +
+          "into deployable output.",
+      );
+    }
+  };
+  compareInventory("font", expectedFontPaths, observedFontPaths);
+  compareInventory("licence", expectedLicencePaths, observedLicencePaths);
+
+  let verifiedAssets = 0;
+  for (const entry of [...fontEntries, ...licenseEntries]) {
+    const relativePath = distOf(entry);
+    if (!files.includes(relativePath)) continue;
+    const bytes = await readFile(rel(`${DIST_DIR}/${relativePath}`));
+    if (bytes.length !== entry.bytes) {
+      fail(
+        `${DIST_DIR}/${relativePath} is ${bytes.length} bytes; ` +
+          `${PROVENANCE_PATH} declares ${entry.bytes}.`,
+      );
+      continue;
+    }
+    const digest = sha256(bytes);
+    if (digest !== entry.sha256) {
+      fail(
+        `${DIST_DIR}/${relativePath} has sha256 ${digest}; ${PROVENANCE_PATH} ` +
+          `declares ${entry.sha256}. The build must serve the committed bytes, ` +
+          "not a re-encoded or substituted copy of them.",
+      );
+      continue;
+    }
+    verifiedAssets += 1;
+  }
+
+  return (
+    `[fonts:dist] ${files.length} files (${scannedBytes} bytes) under ` +
+    `${DIST_DIR}/ scanned byte-for-byte; 0 occurrences of ` +
+    `${FORBIDDEN_OUTPUT_MARKERS.join(", ")}; no provenance manifest shipped; ` +
+    `${verifiedAssets} declared assets (${expectedFontPaths.length} WOFF2, ` +
+    `${expectedLicencePaths.length} OFL licences) match ${PROVENANCE_PATH} by ` +
+    "sha256."
+  );
+}

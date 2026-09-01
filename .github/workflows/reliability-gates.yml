@@ -182,10 +182,28 @@ jobs:
       - name: Verify Content Security Policy declaration
         run: npm run test:csp
 
+      # The self-hosted font contract: six WOFF2 files at their recorded
+      # sha256, three OFL licences, exactly twenty discrete @font-face blocks,
+      # no ranged weight, no Google font host, and the three authored 650/750
+      # rules those discrete faces exist to serve. It reads source and public/
+      # only, so it runs before the build and fails in seconds rather than
+      # after one.
+      - name: Verify local font source contract
+        run: npm run test:fonts
+
       # `npm run build` also runs scripts/checkCspHashes.mjs, which fails the
       # build if the inline theme script no longer matches its pinned hash.
       - name: Build frontend
         run: npm run build
+
+      # The same contract against the bytes a browser actually receives.
+      # Separate from the source check above because it requires a completed
+      # build: it scans every file under dist/ for a Google font host, proves
+      # the provenance manifest did not ship, and re-verifies the six faces
+      # and three licences against PROVENANCE.json by sha256. It fails loudly
+      # if dist/ is absent rather than skipping.
+      - name: Verify built output has no external font hosts
+        run: npm run test:fonts:dist
 
       - name: Enforce frontend performance budgets
         run: npm run test:performance
