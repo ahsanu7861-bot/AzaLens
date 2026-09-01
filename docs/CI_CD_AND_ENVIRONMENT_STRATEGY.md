@@ -100,6 +100,15 @@ match`, `--update-snapshots` and `Writing missing snapshot` — failing the job 
 any is present. Before this, those five markers were only ever checked by hand
 on individual runs.
 
+The visual command also enables `e2e/visualComparisonReporter.ts`. The reporter
+observes completed `toHaveScreenshot` matcher steps and keys each by Playwright
+project plus requested snapshot name. It fails the run unless that observed set
+is exactly the 24 accepted comparisons: 14 analysis, six landing and four
+methodology. Retries are set-idempotent, while a missing assertion, renamed
+snapshot, unexpected project or additional comparison fails closed. A passing
+run emits `VISUAL_COMPARISON_PROOF=exact-set:24/24`; test-case totals alone are
+not treated as comparison-level evidence.
+
 ## Migration safety
 
 Migrations live in `backend/migrations` and use
