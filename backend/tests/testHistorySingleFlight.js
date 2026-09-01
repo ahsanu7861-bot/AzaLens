@@ -94,9 +94,18 @@ async function testIdenticalRequestsCoalesceAndCache() {
     ["COALESCED", "COALESCED", "MISS"]
   );
   assert.ok(results.every((result) => result.provider === "TwelveData"));
+  const coalesced = results.filter((result) => result.cache === "COALESCED");
+  assert.ok(coalesced.every((result) => result.provenance.state === "CACHE"));
+  assert.ok(coalesced.every((result) => result.provenance.cache.state === "COALESCED"));
+  assert.ok(coalesced.every((result) => result.provenance.cache.ageSeconds === 0));
 
   const cached = await getHistory("EXM", "1day");
   assert.equal(cached.cache, "HIT");
+  assert.equal(cached.provenance.state, "CACHE");
+  assert.equal(cached.provenance.cache.state, "HIT");
+  assert.ok(Number.isFinite(cached.provenance.cache.ageSeconds));
+  assert.equal(cached.provenance.sourceTimestamp, results[0].provenance.sourceTimestamp);
+  assert.ok(Date.parse(cached.provenance.retrievalTimestamp) >= Date.parse(results[0].provenance.retrievalTimestamp));
   assert.equal(calls, 1, "a cache hit must buy no provider request");
 }
 

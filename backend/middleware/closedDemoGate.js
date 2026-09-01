@@ -4,7 +4,8 @@ const crypto = require("node:crypto");
 
 const { parseFlag } = require("../config/environment");
 
-const COOKIE_NAME = "azalens_demo_access";
+const COOKIE_NAME = "azalens_owner_access";
+const OWNER_SUBJECT = "owner";
 const MAX_AGE_SECONDS = 12 * 60 * 60;
 
 /*
@@ -51,36 +52,59 @@ function safeEqual(left, right) {
 }
 
 function token(secret, expiresAt) {
-  const payload = String(expiresAt);
+  const payload = `${OWNER_SUBJECT}:${expiresAt}`;
   const signature = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-  return `${payload}.${signature}`;
+  return `${expiresAt}.${OWNER_SUBJECT}.${signature}`;
 }
 
 function parseCookies(header = "") {
-  return Object.fromEntries(
-    String(header).split(";").map((part) => part.trim()).filter((part) => part.includes("=")).map((part) => {
-      const index = part.indexOf("=");
-      return [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
-    }),
-  );
+  try {
+    return Object.fromEntries(
+      String(header).split(";").map((part) => part.trim()).filter((part) => part.includes("=")).map((part) => {
+        const index = part.indexOf("=");
+        return [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
+      }),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function trustedOrigins(env = process.env) {
+  return String(env.TRUSTED_FRONTEND_ORIGINS || "")
+    .split(",").map((origin) => origin.trim()).filter(Boolean);
+}
+
+function trustedOwnerRequest(req, env = process.env) {
+  const origin = String(req.headers.origin || "").trim();
+  if (!origin || origin === "null" || req.headers["sec-fetch-site"] === "cross-site") return false;
+  try {
+    if (new URL(origin).origin !== origin) return false;
+  } catch {
+    return false;
+  }
+  return trustedOrigins(env).includes(origin);
 }
 
 function authorized(req, env = process.env) {
   if (!enabled(env)) return true;
   const { secret } = credentials(env);
   const value = parseCookies(req.headers.cookie)[COOKIE_NAME];
-  const [expiresRaw, signature] = String(value || "").split(".");
+  const [expiresRaw, subject, signature] = String(value || "").split(".");
   const expiresAt = Number(expiresRaw);
-  return Number.isFinite(expiresAt) && expiresAt > Date.now() &&
-    safeEqual(signature || "", token(secret, expiresAt).split(".")[1]);
+  return subject === OWNER_SUBJECT && Number.isFinite(expiresAt) && expiresAt > Date.now() &&
+    safeEqual(signature || "", token(secret, expiresAt).split(".")[2]);
 }
 
 function middleware(req, res, next) {
+  if (enabled() && !trustedOwnerRequest(req)) {
+    return res.status(403).json({ success: false, code: "OWNER_ORIGIN_REQUIRED", message: "A trusted owner origin is required." });
+  }
   if (authorized(req)) return next();
   return res.status(401).json({
     success: false,
     code: "CLOSED_DEMO_ACCESS_REQUIRED",
-    message: "AzaLens is currently available by invitation during development.",
+    message: "This private-personal AzaLens workspace is accessible only to its owner.",
     requestId: req.requestId,
   });
 }
@@ -94,6 +118,9 @@ function registerClosedDemoRoutes(app) {
 
   app.post("/auth/demo/unlock", (req, res) => {
     if (!enabled()) return res.json({ success: true, enabled: false, authorized: true });
+    if (!trustedOwnerRequest(req)) {
+      return res.status(403).json({ success: false, code: "OWNER_ORIGIN_REQUIRED", message: "A trusted owner origin is required." });
+    }
     const { code, secret } = credentials();
     if (!safeEqual(req.body?.accessCode || "", code)) {
       return res.status(401).json({ success: false, message: "That access code is not valid." });
@@ -110,4 +137,4 @@ function registerClosedDemoRoutes(app) {
   });
 }
 
-module.exports = { authorized, credentials, enabled, middleware, registerClosedDemoRoutes };
+module.exports = { authorized, credentials, enabled, middleware, registerClosedDemoRoutes, trustedOrigins, trustedOwnerRequest };

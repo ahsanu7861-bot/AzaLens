@@ -55,8 +55,16 @@ const PRODUCTION_FIXTURE = {
   SUPABASE_PUBLISHABLE_KEY: "sb_publishable_notarealkey000000000",
   SUPABASE_SECRET_KEY: "sb_secret_notarealkey000000000",
   CLOSED_DEMO_ENABLED: "true",
+  PRIVATE_PERSONAL_PROVIDER_MODE: "true",
+  QUOTE_PROVIDER: "finnhub",
+  PROFILE_PROVIDER: "finnhub",
+  SEARCH_PROVIDER: "finnhub",
+  HISTORY_PROVIDER: "twelve_data",
+  FUNDAMENTALS_PROVIDER: "finnhub",
+  TWELVE_DATA_PROFILE_ENABLED: "false",
   CLOSED_DEMO_ACCESS_CODE: "not-a-real-code",
   CLOSED_DEMO_SIGNING_SECRET: "0".repeat(32),
+  TRUSTED_FRONTEND_ORIGINS: "https://azalens.com",
 };
 
 async function bootServer(appEnv) {
@@ -67,9 +75,21 @@ async function bootServer(appEnv) {
 
   setOrDeleteEnv("APP_ENV", appEnv);
 
+  for (const [key, value] of Object.entries({
+    QUOTE_PROVIDER: "finnhub",
+    PROFILE_PROVIDER: "finnhub",
+    SEARCH_PROVIDER: "finnhub",
+    HISTORY_PROVIDER: "twelve_data",
+    FUNDAMENTALS_PROVIDER: "finnhub",
+    TWELVE_DATA_PROFILE_ENABLED: "false",
+  })) {
+    previousFixture[key] = process.env[key];
+    process.env[key] = value;
+  }
+
   if (appEnv === "production") {
     for (const [key, value] of Object.entries(PRODUCTION_FIXTURE)) {
-      previousFixture[key] = process.env[key];
+      if (!(key in previousFixture)) previousFixture[key] = process.env[key];
       process.env[key] = value;
     }
   }
@@ -218,6 +238,7 @@ async function run() {
   try {
     await assertRejected(prod.baseUrl, "http://localhost:5173");
     await assertAllowed(prod.baseUrl, "https://azalens.com");
+    await assertRejected(prod.baseUrl, "https://azalens-git-untrusted-ahsan-khan2.vercel.app");
 
     console.log(
       "Production CORS allowlist: all assertions passed."

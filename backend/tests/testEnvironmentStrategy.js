@@ -61,8 +61,10 @@ const production = validateEnvironment({
   TWELVE_DATA_API_KEY: "x",
   OBSERVABILITY_METRICS_TOKEN: "x",
   CLOSED_DEMO_ENABLED: "true",
+  PRIVATE_PERSONAL_PROVIDER_MODE: "true",
   CLOSED_DEMO_ACCESS_CODE: "not-a-real-code",
   CLOSED_DEMO_SIGNING_SECRET: "0".repeat(32),
+  TRUSTED_FRONTEND_ORIGINS: "https://azalens.com",
   ...SUPABASE_PRODUCTION,
 });
 assert.equal(production.valid, true, production.errors.join(" | "));

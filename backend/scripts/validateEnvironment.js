@@ -169,6 +169,43 @@ function validateEnvironment(env = process.env) {
     );
   }
 
+  const trustedOrigins = String(env.TRUSTED_FRONTEND_ORIGINS || "")
+    .split(",").map((origin) => origin.trim()).filter(Boolean);
+  if (GATE_REQUIRED_ENVIRONMENTS.has(config.environment) && closedDemoEnabled) {
+    if (trustedOrigins.length === 0) errors.push("Owner-only mode requires TRUSTED_FRONTEND_ORIGINS with explicit exact origins.");
+    for (const origin of trustedOrigins) {
+      try {
+        if (origin.includes("*") || new URL(origin).origin !== origin || !origin.startsWith("https://")) throw new Error();
+      } catch {
+        errors.push("TRUSTED_FRONTEND_ORIGINS entries must be exact HTTPS origins without paths or wildcards.");
+        break;
+      }
+    }
+  }
+
+  let privatePersonalMode = false;
+  try {
+    privatePersonalMode = parseFlag(env.PRIVATE_PERSONAL_PROVIDER_MODE);
+  } catch {
+    errors.push("PRIVATE_PERSONAL_PROVIDER_MODE is not a valid boolean.");
+  }
+
+  const personalCredentialsConfigured = Boolean(
+    String(env.FINNHUB_API_KEY || "").trim() ||
+    String(env.TWELVE_DATA_API_KEY || "").trim()
+  );
+
+  if (
+    GATE_REQUIRED_ENVIRONMENTS.has(config.environment) &&
+    personalCredentialsConfigured &&
+    (!privatePersonalMode || !closedDemoEnabled)
+  ) {
+    errors.push(
+      "Personal-provider credentials in production or staging require " +
+      "PRIVATE_PERSONAL_PROVIDER_MODE=true and owner-only CLOSED_DEMO_ENABLED=true."
+    );
+  }
+
   if (
     closedDemoEnabled &&
     String(env.CLOSED_DEMO_ACCESS_CODE || "").trim().length < 8

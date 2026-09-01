@@ -9,6 +9,7 @@ const {
 const {
   buildCacheKey,
   getCache,
+  getCacheWithMetadata,
   setCache
 } = require("../utils/cache");
 
@@ -17,6 +18,10 @@ const {
 } = require(
   "../utils/observability"
 );
+const {
+  historyProvenance,
+  quoteProvenance
+} = require("../contracts/marketDataProvenance");
 
 /*
   History caching is shared by both supported market-data providers. Keep the
@@ -504,11 +509,24 @@ async function getMarketDataUnobserved(symbol) {
       getCompanyProfile(normalizedSymbol)
     ]);
 
+    if (profileResult?.code === "LISTING_NOT_AVAILABLE_PRIVATE_PERSONAL") {
+      return {
+        success: false,
+        provider: result?.provider || "Finnhub",
+        symbol: normalizedSymbol,
+        error: profileResult.error,
+        code: profileResult.code,
+        provenance: quoteProvenance({ success: false, cache: result?.cache }),
+        limitations: [profileResult.error],
+      };
+    }
+
     const companyProfile = profileResult?.success
       ? profileResult.data
       : null;
     const mergedResult = {
       ...result,
+      provenance: quoteProvenance(result),
       data: result?.data ? {
         ...result.data,
         company: companyProfile?.name || result.data.company || null,
@@ -736,8 +754,8 @@ async function getHistoryUnobserved(
     // Cache Check
     // ==============================================
 
-    const cachedResult =
-      getCache(cacheKey);
+    const cachedEntry = getCacheWithMetadata(cacheKey);
+    const cachedResult = cachedEntry?.data;
 
     if (cachedResult) {
       const bars =
@@ -815,6 +833,14 @@ async function getHistoryUnobserved(
             "HIT"
           ),
 
+        provenance:
+          historyProvenance({
+            ...cachedResult,
+            cache: "HIT",
+            cacheAgeSeconds: cachedEntry.ageSeconds,
+            interval: normalizedInterval
+          }),
+
         performance: {
           durationMs:
             Date.now() -
@@ -845,6 +871,12 @@ async function getHistoryUnobserved(
       return {
         ...pendingResult,
         cache: "COALESCED",
+        provenance: historyProvenance({
+          ...pendingResult,
+          cache: "COALESCED",
+          cacheAgeSeconds: 0,
+          interval: normalizedInterval
+        }),
         dataQuality:
           buildHistoricalQuality(
             pendingResult.bars,
@@ -999,6 +1031,13 @@ async function getHistoryUnobserved(
             "MISS"
           ),
 
+        provenance:
+          historyProvenance({
+            ...normalizedResult,
+            cache: "MISS",
+            interval: normalizedInterval
+          }),
+
         performance: {
           durationMs:
             Date.now() -
@@ -1058,11 +1097,15 @@ async function getHistory(
   interval = "1day"
 ) {
   const startedAt = Date.now();
-  const result =
+  const rawResult =
     await getHistoryUnobserved(
       symbol,
       interval
     );
+
+  const result = rawResult?.provenance || getCapabilityProviders().history !== "twelve_data"
+    ? rawResult
+    : { ...rawResult, provenance: historyProvenance(rawResult) };
 
   recordProviderResult({
     provider:

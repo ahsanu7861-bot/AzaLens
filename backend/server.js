@@ -59,6 +59,7 @@ const {
   middleware: closedDemoGate,
   registerClosedDemoRoutes
 } = require("./middleware/closedDemoGate");
+const { installPrivatePersonalResponseBoundary, privatePersonalMode } = require("./contracts/privatePersonalBoundary");
 // ============================
 // Routes
 // ============================
@@ -88,6 +89,9 @@ const portfolioRoutes = createPortfolioRouter({
 const PORT = process.env.PORT || 5000;
 const environmentConfig =
   getEnvironmentConfig(process.env);
+const privatePersonalProviderMode = privatePersonalMode(process.env);
+const configuredTrustedFrontendOrigins = String(process.env.TRUSTED_FRONTEND_ORIGINS || "")
+  .split(",").map((entry) => entry.trim()).filter(Boolean);
 
 // ============================
 // CORS Allowlist
@@ -115,6 +119,10 @@ function isAllowedCorsOrigin(origin) {
     // No Origin header: curl, CI, health checks, server-to-server
     // calls. Not a browser cross-origin request - nothing to check.
     return true;
+  }
+
+  if (privatePersonalProviderMode) {
+    return configuredTrustedFrontendOrigins.includes(origin);
   }
 
   if (
@@ -149,6 +157,7 @@ function isAllowedCorsOrigin(origin) {
 
 app.use(requestObservability);
 app.use(express.json());
+app.use(installPrivatePersonalResponseBoundary);
 app.use(
   cors({
     credentials: true,
@@ -369,6 +378,24 @@ app.get("/history/:symbol", async (req, res) => {
         symbol,
         interval
       );
+
+    if (
+      result?.provider === "TwelveData" &&
+      ["1", "true", "yes", "on"].includes(
+        String(process.env.PRIVATE_PERSONAL_PROVIDER_MODE || "").trim().toLowerCase()
+      )
+    ) {
+      return res.status(result.success ? 403 : 503).json({
+        success: false,
+        code: result.success ? "RAW_PROVIDER_DATA_NOT_DISPLAY_ENTITLED" : result.code,
+        error: result.success
+          ? "Raw Twelve Data OHLCV is unavailable for display under the Basic private-personal entitlement. AzaLens uses it only for non-reconstructive backend analytics."
+          : result.error,
+        symbol: result.symbol,
+        interval: result.interval,
+        provenance: result.provenance,
+      });
+    }
 
     res.json(result);
   } catch (error) {

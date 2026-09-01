@@ -82,7 +82,8 @@ function setCache(key, data, ttlMinutes = 30) {
 
   cache.set(key, {
     data,
-    expiresAt
+    expiresAt,
+    ttlMs: ttlMinutes * 60 * 1000
   });
 }
 
@@ -92,6 +93,10 @@ function setCache(key, data, ttlMinutes = 30) {
  * @returns {any|null}
  */
 function getCache(key) {
+  return getCacheWithMetadata(key)?.data || null;
+}
+
+function getCacheWithMetadata(key) {
   const item = cache.get(key);
 
   if (!item) {
@@ -104,7 +109,10 @@ function getCache(key) {
     return null;
   }
 
-  return item.data;
+  return {
+    data: item.data,
+    ageSeconds: Math.max(0, (Date.now() - (item.expiresAt - item.ttlMs)) / 1000),
+  };
 }
 
 /**
@@ -135,6 +143,7 @@ module.exports = {
   buildCacheKey,
   setCache,
   getCache,
+  getCacheWithMetadata,
   clearCache,
   clearAllCache,
   listCacheKeys

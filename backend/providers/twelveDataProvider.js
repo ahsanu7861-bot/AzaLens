@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { safeProviderErrorSummary } = require("../contracts/privatePersonalBoundary");
 
 const {
   buildCacheKey
@@ -248,6 +249,19 @@ async function getHistoricalData(
   const normalizedInterval =
     normalizeInterval(interval);
 
+  const privatePersonalMode = ["1", "true", "yes", "on"].includes(
+    String(process.env.PRIVATE_PERSONAL_PROVIDER_MODE || "").trim().toLowerCase()
+  );
+
+  if (privatePersonalMode && normalizedInterval && normalizedInterval !== "1day") {
+    return {
+      success: false, provider: "TwelveData", symbol: normalizedSymbol,
+      interval: normalizedInterval,
+      error: "Twelve Data Basic permits only 1day end-of-day history in private-personal mode.",
+      code: "TWELVE_DATA_BASIC_INTRADAY_NOT_ENTITLED"
+    };
+  }
+
   const API_KEY =
     process.env.TWELVE_DATA_API_KEY;
 
@@ -316,9 +330,13 @@ async function getHistoricalData(
       getProviderError(data);
 
     if (providerError) {
+      const safeError = safeProviderErrorSummary({
+        response: { status: Number(data?.code) || null, data },
+        message: providerError,
+      });
       console.error(
         `[TwelveData] ${normalizedSymbol} ${normalizedInterval}:`,
-        providerError
+        safeError
       );
 
       return {
@@ -326,7 +344,7 @@ async function getHistoricalData(
         provider: "TwelveData",
         symbol: normalizedSymbol,
         interval: normalizedInterval,
-        error: providerError,
+        error: safeError.message,
         code:
           data?.code === 429
             ? "TWELVE_DATA_RATE_LIMIT"
@@ -463,12 +481,12 @@ async function getHistoricalData(
       }
     };
   } catch (error) {
-    const responseData =
-      error.response?.data;
+    const responseData = error.response?.data;
+    const safeError = safeProviderErrorSummary(error);
 
     console.error(
       `[TwelveData] Request failed for ${normalizedSymbol} ${normalizedInterval}:`,
-      responseData || error.message
+      safeError
     );
 
     return {
@@ -477,9 +495,7 @@ async function getHistoricalData(
       symbol: normalizedSymbol,
       interval: normalizedInterval,
       error:
-        responseData?.message ||
-        error.message ||
-        "Twelve Data request failed.",
+        safeError.message,
       code:
         error.code === "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED"
           ? error.code
@@ -657,10 +673,11 @@ function describeBodyError(data) {
   }
 
   const code = Number(data?.code);
+  const safeMessage = safeProviderErrorSummary({ response: { status: code, data }, message }).message;
 
   if (code === 429) {
     return {
-      message,
+      message: safeMessage,
       code: "TWELVE_DATA_RATE_LIMIT",
       httpStatus: 429
     };
@@ -668,14 +685,14 @@ function describeBodyError(data) {
 
   if (code === 401 || code === 403) {
     return {
-      message,
+      message: safeMessage,
       code: "TWELVE_DATA_UNAUTHORIZED",
       httpStatus: code
     };
   }
 
   return {
-    message,
+    message: safeMessage,
     code: "TWELVE_DATA_PROVIDER_ERROR",
     httpStatus: Number.isFinite(code) ? code : null
   };

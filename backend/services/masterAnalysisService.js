@@ -193,14 +193,16 @@ function buildSharedHistorySummary(
         : closePrices.length,
 
     latestHistoricalClose:
-      Number.isFinite(
-        latestHistoricalClose
-      )
+      Number.isFinite(latestHistoricalClose)
         ? latestHistoricalClose
         : null,
 
     dataQuality:
       history?.dataQuality ||
+      null,
+
+    provenance:
+      history?.provenance ||
       null,
 
     performance:
@@ -222,19 +224,8 @@ function buildPriceContext(
       market?.data?.price
     );
 
-  const historicalClose =
-    Number(
-      sharedHistory
-        ?.latestHistoricalClose
-    );
-
   const livePriceAvailable =
     Number.isFinite(livePrice);
-
-  const historicalCloseAvailable =
-    Number.isFinite(
-      historicalClose
-    );
 
   return {
     livePrice:
@@ -242,38 +233,20 @@ function buildPriceContext(
         ? livePrice
         : null,
 
-    latestHistoricalClose:
-      historicalCloseAvailable
-        ? historicalClose
-        : null,
-
     livePriceAvailable,
-
-    historicalCloseAvailable,
-
-    pricesMatch:
-      livePriceAvailable &&
-      historicalCloseAvailable
-        ? livePrice ===
-          historicalClose
-        : null,
 
     analysisPrice:
       livePriceAvailable
         ? livePrice
-        : historicalCloseAvailable
-          ? historicalClose
-          : null,
+        : null,
 
     analysisPriceSource:
       livePriceAvailable
         ? "Live Market Price"
-        : historicalCloseAvailable
-          ? "Latest Historical Close"
-          : null,
+        : null,
 
     note:
-      "Live price may differ from the latest completed daily historical close during an active market session."
+      "Execution price must be verified in the broker; no historical close is substituted for an unavailable provider quote."
   };
 }
 

@@ -8,9 +8,10 @@ The landing page (`/`) remains public. When the closed-demo gate is enabled, the
 CLOSED_DEMO_ENABLED=true
 CLOSED_DEMO_ACCESS_CODE=<a private code of at least 8 characters>
 CLOSED_DEMO_SIGNING_SECRET=<a random secret of at least 32 characters>
+PRIVATE_PERSONAL_PROVIDER_MODE=true
 ```
 
-Do not commit either secret. Generate the signing secret in your hosting dashboard or password manager. Disable the gate with `CLOSED_DEMO_ENABLED=false` only after provider display rights are confirmed.
+Do not commit either secret. Generate the signing secret in your hosting dashboard or password manager. The access code is the owner's credential and must never be shared. Production and staging refuse to boot with personal-provider credentials unless both private-personal mode and the owner gate are enabled.
 
 ## Capability-based providers
 
