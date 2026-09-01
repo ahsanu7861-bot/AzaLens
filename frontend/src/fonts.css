@@ -29,7 +29,7 @@
   and no external font host anywhere. Run it with `npm run test:fonts`.
 
   Byte identity, unicode-range values and provenance for every file live in
-  public/fonts/PROVENANCE.json.
+  font-provenance/PROVENANCE.json.
 */
 
 /* Inter 400 — latin */
