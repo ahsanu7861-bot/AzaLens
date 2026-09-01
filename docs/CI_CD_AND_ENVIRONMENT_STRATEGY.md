@@ -64,7 +64,7 @@ does not recognise fails closed.
 guard refuses any platform other than `linux`, including when `-u` is on the
 command line. A macOS/Darwin baseline can never satisfy Linux CI, so producing
 one is forbidden, not merely discouraged; CI additionally fails if any
-`*-darwin.png` appears anywhere under `frontend/`.
+`*-darwin.png` appears anywhere under `frontend/`, excluding `node_modules/`.
 
 **Candidate capture is separate from acceptance.** `npm run visual:candidates`
 and the methodology/technical candidate specs call `page.screenshot()` into the

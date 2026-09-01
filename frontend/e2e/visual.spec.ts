@@ -12,13 +12,16 @@ import {
   readdirSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import {
   FIXTURE_NOW,
   mockHealthyAnalysis,
 } from "./fixtures/analysis";
-import { captureMethodologyCandidate } from "./methodologyCandidates";
+import {
+  captureMethodologyCandidate,
+  resolveCandidateRunDir,
+} from "./methodologyCandidates";
 import {
   assertRequestPolicy,
   installRequestPolicy,
@@ -46,7 +49,7 @@ const ANALYSIS_FIXTURES = [
   /\/history\/AAPL(\?|$)/,
 ];
 
-const technicalCandidateDir = join(
+const technicalCandidateRoot = join(
   process.cwd(),
   "technical-candidate-artifacts",
 );
@@ -78,15 +81,31 @@ function git(...args: string[]) {
   }).trim();
 }
 
-function finishTechnicalManifest() {
-  const sidecars = readdirSync(technicalCandidateDir)
+function finishTechnicalManifest(runDir: string) {
+  /*
+   * Current run directory only; a sibling run's records are never read, so
+   * stale evidence cannot reach the count or the provenance comparison below.
+   */
+  const sidecars = readdirSync(runDir)
     .filter((name) => /^candidate--analysis-technical-.*\.json$/.test(name))
     .sort();
 
-  if (sidecars.length !== expectedTechnicalCandidates.length) return;
+  /*
+   * Too few is the ordinary mid-run state. Too many means the run directory
+   * holds records this run did not write, which is precisely the condition the
+   * isolation exists to surface, so it fails loudly instead of returning.
+   */
+  if (sidecars.length > expectedTechnicalCandidates.length) {
+    throw new Error(
+      `Technical run directory ${runDir} holds ${sidecars.length} candidate ` +
+        `sidecars but exactly ${expectedTechnicalCandidates.length} are ` +
+        `expected: ${sidecars.join(", ")}.`,
+    );
+  }
+  if (sidecars.length < expectedTechnicalCandidates.length) return;
 
   const candidates = sidecars.map((name) =>
-    JSON.parse(readFileSync(join(technicalCandidateDir, name), "utf8")),
+    JSON.parse(readFileSync(join(runDir, name), "utf8")),
   );
   const names = candidates.map((candidate) => candidate.filename).sort();
   expect(names).toEqual(expectedTechnicalCandidates);
@@ -104,7 +123,7 @@ function finishTechnicalManifest() {
   }
 
   writeFileSync(
-    join(technicalCandidateDir, "candidate-manifest.json"),
+    join(runDir, "candidate-manifest.json"),
     `${JSON.stringify(
       {
         kind: "analysis-technical-visual-candidates",
@@ -112,6 +131,7 @@ function finishTechnicalManifest() {
           "Review evidence only. These are not accepted baselines. " +
           "Baseline acceptance requires separate authorization.",
         generatedAt: new Date().toISOString(),
+        runId: basename(runDir),
         source,
         screenshotScale: "css",
         expectedCandidateCount: expectedTechnicalCandidates.length,
@@ -160,10 +180,11 @@ async function captureTechnicalCandidate({
     expect(dimensions.height).not.toBe(expectedCssDimensions.height * devicePixelRatio);
   }
 
-  mkdirSync(technicalCandidateDir, { recursive: true });
-  writeFileSync(join(technicalCandidateDir, filename), bytes);
+  const runDir = resolveCandidateRunDir(technicalCandidateRoot);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, filename), bytes);
   writeFileSync(
-    join(technicalCandidateDir, filename.replace(/\.png$/, ".json")),
+    join(runDir, filename.replace(/\.png$/, ".json")),
     `${JSON.stringify(
       {
         filename,
@@ -186,7 +207,7 @@ async function captureTechnicalCandidate({
       2,
     )}\n`,
   );
-  finishTechnicalManifest();
+  finishTechnicalManifest(runDir);
 }
 
 test.describe("@visual analysis workspace", () => {
