@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "test": "npm run test:ci",
     "test:ci": "node tests/runCiSuite.js",
+    "test:owner-identity": "node tests/testSupabaseAccessToken.js && node tests/testPerRequestSupabaseClientIsolation.js && node tests/testAuthenticatedRouteContainment.js",
     "test:environment": "node tests/testEnvironmentStrategy.js",
     "check:environment": "node scripts/validateEnvironment.js",
     "check:migrations": "node scripts/checkMigrations.js",
@@ -55,6 +56,7 @@
   "author": "Ahsan Ullah",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "2.89.0",
     "axios": "^1.18.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
