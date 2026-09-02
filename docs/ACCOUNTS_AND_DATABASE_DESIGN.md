@@ -1,11 +1,18 @@
 # Accounts, database and authentication — design
 
-Status: **Slices 1 and 2 built; dormant owner-identity prerequisite built** — migrations 001 and 002 with row-level
+Status: **Slices 1 and 2 built; owner-session activation implemented pending deployment** — migrations 001 and 002 with row-level
 security and their two database tests, plus environment validation, the
-Supabase-scoped CSP and privilege containment. The backend token verifier,
-per-request user client and unmounted `requireUser` middleware now exist, but no
-production route uses them and no frontend session flow exists. Everything else
-in the account design remains design-only.
+Supabase-scoped CSP and privilege containment. The backend now applies the
+closed-demo lock before a verified, exact-owner Supabase session on every product
+and provider route. The browser supports only owner email/password sign-in and
+sign-out and attaches the current access token through one API client. Ledger and
+multi-user behavior remain design-only.
+
+Activation is a separate operational gate: public Supabase signup must be disabled;
+the backend must receive server-only `PRIVATE_OWNER_USER_ID`; the frontend must
+receive only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`; and those
+values must be independently verified before deployment. The owner UUID and all
+secret/provider keys are forbidden from the frontend bundle.
 Revision 4 — incorporates 15 review corrections, 4 refinements, 4 final-review
 fixes, and the Slice 1 implementation findings. See the change logs at the end.
 Covers roadmap item 3.3, plus the part of the parked durable-storage work

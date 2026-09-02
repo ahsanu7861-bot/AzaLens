@@ -184,6 +184,7 @@ async function positiveControl(resolvedEnvironment) {
     ...completeEnvironment(resolvedEnvironment),
     CLOSED_DEMO_ENABLED: "true",
     PRIVATE_PERSONAL_PROVIDER_MODE: "true",
+    PRIVATE_OWNER_USER_ID: "11111111-1111-4111-8111-111111111111",
     TRUSTED_FRONTEND_ORIGINS: "https://azalens.com",
   };
 

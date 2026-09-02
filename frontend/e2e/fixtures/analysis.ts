@@ -412,6 +412,17 @@ export const historyResponse = {
 } satisfies HistoryResponse;
 
 export async function mockHealthyAnalysis(page: Page) {
+  await page.addInitScript(() => {
+    const accessToken = "fixtureheader.fixturepayload.fixturesignature";
+    window.localStorage.setItem("sb-aaaaaaaaaaaaaaaaaaaa-auth-token", JSON.stringify({
+      access_token: accessToken,
+      refresh_token: "fixture-refresh-token",
+      expires_at: 4_102_444_800,
+      expires_in: 3_600,
+      token_type: "bearer",
+      user: { id: "11111111-1111-4111-8111-111111111111", aud: "authenticated", role: "authenticated" },
+    }));
+  });
   // Browser journeys exercise the UI in an isolated Vite test server.
   // Authorize the gate at its public status contract instead of storing or
   // teaching CI a production access code.
@@ -432,6 +443,9 @@ export async function mockHealthyAnalysis(page: Page) {
   await page.route(
     "**/api/analyze/AAPL**",
     async (route) => {
+      if (route.request().headers()["authorization"] !== "Bearer fixtureheader.fixturepayload.fixturesignature") {
+        return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ code: "AUTH_REQUIRED" }) });
+      }
       await route.fulfill({
         status: 200,
         contentType: "application/json",

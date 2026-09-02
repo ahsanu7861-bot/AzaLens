@@ -5,6 +5,8 @@ const { once } = require("node:events");
 const axios = require("axios");
 
 const ORIGIN = "https://owner.example";
+const OWNER_ID = "11111111-1111-4111-8111-111111111111";
+const OWNER_TOKEN = "fixture.owner.token";
 Object.assign(process.env, {
   APP_ENV: "test", NODE_ENV: "test", CLOSED_DEMO_ENABLED: "true",
   CLOSED_DEMO_ACCESS_CODE: "owner-fixture-only", CLOSED_DEMO_SIGNING_SECRET: "s".repeat(40),
@@ -13,7 +15,23 @@ Object.assign(process.env, {
   QUOTE_PROVIDER: "finnhub", PROFILE_PROVIDER: "finnhub", SEARCH_PROVIDER: "finnhub",
   HISTORY_PROVIDER: "twelve_data", FUNDAMENTALS_PROVIDER: "finnhub",
   TWELVE_DATA_PROFILE_ENABLED: "false", FEATURE_SCANNER_ENABLED: "true",
+  PRIVATE_OWNER_USER_ID: OWNER_ID,
+  SUPABASE_URL: "https://xhxlgalaytuqdnmmwypv.supabase.co",
+  SUPABASE_PUBLISHABLE_KEY: "sb_publishable_notarealkey000000000",
+  SUPABASE_SECRET_KEY: "sb_secret_notarealkey000000000",
 });
+
+const verifierPath = require.resolve("../auth/verifySupabaseAccessToken");
+const clientPath = require.resolve("../services/createUserSupabaseClient");
+require.cache[verifierPath] = { id: verifierPath, filename: verifierPath, loaded: true, exports: {
+  createSupabaseAccessTokenVerifier: () => async (token) => {
+    if (token !== OWNER_TOKEN) throw Object.assign(new Error("invalid fixture token"), { code: "AUTH_TOKEN_INVALID" });
+    return { userId: OWNER_ID };
+  },
+} };
+require.cache[clientPath] = { id: clientPath, filename: clientPath, loaded: true, exports: {
+  createUserSupabaseClient: () => Object.freeze({ fixture: true }),
+} };
 
 const SENTINELS = [910001.123, 920002.234, 930003.345, 940004.456, 950005.567];
 const sentinelStrings = [...new Set(Array.from({ length: 100 }, (_, index) =>
@@ -52,12 +70,13 @@ function assertNoSentinels(value, label) {
   assert.doesNotMatch(serialized, /lastCandle|latestHistoricalClose|todayVolume|averageVolume30|"bars"|"[tohlcv]":\[/);
 }
 
-async function request(baseUrl, path, { cookie, origin = ORIGIN, method = "GET", body, secFetchSite } = {}) {
+async function request(baseUrl, path, { cookie, origin = ORIGIN, method = "GET", body, secFetchSite, authenticated = true, token = OWNER_TOKEN } = {}) {
   const headers = {};
   if (origin !== undefined) headers.Origin = origin;
   if (cookie) headers.Cookie = cookie;
   if (secFetchSite) headers["Sec-Fetch-Site"] = secFetchSite;
   if (body) headers["Content-Type"] = "application/json";
+  if (authenticated) headers.Authorization = `Bearer ${token}`;
   const response = await fetch(`${baseUrl}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   let data = null;
   try { data = await response.json(); } catch {}
@@ -87,6 +106,13 @@ async function request(baseUrl, path, { cookie, origin = ORIGIN, method = "GET",
     const unlocked = await request(baseUrl, "/auth/demo/unlock", { method: "POST", body: { accessCode: "owner-fixture-only" } });
     assert.equal(unlocked.response.status, 200);
     const cookie = unlocked.response.headers.get("set-cookie").split(";")[0];
+    for (const auth of [{ authenticated: false, code: "AUTH_REQUIRED" }, { token: "invalid.auth.token", code: "AUTH_TOKEN_INVALID" }]) {
+      const before = transportCalls;
+      const denied = await request(baseUrl, "/api/analyze/AAPL", { cookie, ...auth });
+      assert.equal(denied.response.status, 401);
+      assert.equal(denied.data.code, auth.code);
+      assert.equal(transportCalls, before, "authentication rejection must precede provider transport");
+    }
     const malformedCookie = await request(baseUrl, "/stock/AAPL", { cookie: "azalens_owner_access=%E0%A4%A" });
     assert.equal(malformedCookie.response.status, 401);
 

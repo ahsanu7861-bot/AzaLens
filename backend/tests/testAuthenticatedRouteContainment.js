@@ -18,6 +18,7 @@ Object.assign(process.env, {
   CLOSED_DEMO_ACCESS_CODE: "owner-fixture-only",
   CLOSED_DEMO_SIGNING_SECRET: "s".repeat(40),
   TRUSTED_FRONTEND_ORIGINS: ORIGIN,
+  PRIVATE_OWNER_USER_ID: USER_A,
 });
 
 let verificationCalls = 0;
@@ -109,15 +110,32 @@ function duplicateAuthorization(port, cookie) {
     assert.equal(override.data.code, "USER_ID_NOT_ACCEPTED");
     assert.equal(verificationCalls, beforeOverride, "caller-supplied identity is rejected before verification/client creation");
 
-    const responses = await Promise.all(Array.from({ length: 100 }, (_, index) =>
-      jsonRequest(base, "/fixture", { cookie, token: index % 2 ? TOKEN_B : TOKEN_A })
+    const nonOwner = await jsonRequest(base, "/fixture", { cookie, token: TOKEN_B });
+    assert.equal(nonOwner.response.status, 403);
+    assert.equal(nonOwner.data.code, "OWNER_IDENTITY_REQUIRED");
+
+    const responses = await Promise.all(Array.from({ length: 100 }, () =>
+      jsonRequest(base, "/fixture", { cookie, token: TOKEN_A })
     ));
-    responses.forEach(({ response, data }, index) => {
+    responses.forEach(({ response, data }) => {
       assert.equal(response.status, 200);
-      assert.equal(data.userId, index % 2 ? USER_B : USER_A);
-      assert.equal(data.client, index % 2 ? "B" : "A");
+      assert.equal(data.userId, USER_A);
+      assert.equal(data.client, "A");
     });
     assert.equal(clientCalls, 100);
+
+    const beforeDeep = verificationCalls;
+    let deep = {};
+    for (let index = 0; index < 20; index += 1) deep = { nested: deep };
+    const exhausted = await jsonRequest(base, "/fixture", { method: "POST", cookie, token: TOKEN_A, body: deep });
+    assert.equal(exhausted.response.status, 400);
+    assert.equal(exhausted.data.code, "IDENTITY_INPUT_LIMIT_EXCEEDED");
+    assert.equal(verificationCalls, beforeDeep);
+
+    const wide = await jsonRequest(base, "/fixture", { method: "POST", cookie, token: TOKEN_A, body: { values: Array(2_100).fill(0) } });
+    assert.equal(wide.response.status, 400);
+    assert.equal(wide.data.code, "IDENTITY_INPUT_LIMIT_EXCEEDED");
+    assert.equal(verificationCalls, beforeDeep);
 
     const hostile = await jsonRequest(base, "/fixture", { cookie, token: "bad.token.value" });
     assert.equal(hostile.response.status, 401);
@@ -127,11 +145,11 @@ function duplicateAuthorization(port, cookie) {
     assert.equal(logs.length, 0);
 
     const serverSource = require("node:fs").readFileSync(require.resolve("../server"), "utf8");
-    assert.doesNotMatch(serverSource, /require\([^)]*requireUser[^)]*\)/);
-    assert.doesNotMatch(serverSource, /createRequireUser\s*\(/);
+    assert.match(serverSource, /\], \.\.\.ownerRouteBoundary\)/);
+    assert.ok(serverSource.indexOf("closedDemoGate, createRequireUser()") > -1);
 
     console.error = originalError;
-    console.log("Owner-first containment, strict bearer parsing, 100-request identity isolation, safe errors and dormant routing passed; provider calls: 0.");
+    console.log("Owner-first containment, exact owner identity, bounded scanning, strict bearer parsing, 100-request isolation and safe errors passed; provider calls: 0.");
   } finally {
     console.error = originalError;
     server.close();

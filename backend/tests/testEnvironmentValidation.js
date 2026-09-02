@@ -55,6 +55,7 @@ const GATE_ON = {
   CLOSED_DEMO_SIGNING_SECRET: "0".repeat(32),
   TRUSTED_FRONTEND_ORIGINS: "https://azalens.com",
   TWELVE_DATA_CREDIT_COORDINATION_MODE: "shared_atomic",
+  PRIVATE_OWNER_USER_ID: "11111111-1111-4111-8111-111111111111",
 };
 
 const results = [];

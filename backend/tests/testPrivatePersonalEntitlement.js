@@ -67,6 +67,7 @@ const production = {
   CLOSED_DEMO_ACCESS_CODE: "owner-only-fixture",
   CLOSED_DEMO_SIGNING_SECRET: "s".repeat(40),
   TRUSTED_FRONTEND_ORIGINS: "https://azalens.com",
+  PRIVATE_OWNER_USER_ID: "11111111-1111-4111-8111-111111111111",
 };
 assert.equal(validateEnvironment(production).valid, false);
 assert.match(validateEnvironment(production).errors.join(" "), /PRIVATE_PERSONAL_PROVIDER_MODE=true/);

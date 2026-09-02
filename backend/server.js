@@ -59,6 +59,7 @@ const {
   middleware: closedDemoGate,
   registerClosedDemoRoutes
 } = require("./middleware/closedDemoGate");
+const { createRequireUser } = require("./middleware/requireUser");
 const { installPrivatePersonalResponseBoundary, privatePersonalMode } = require("./contracts/privatePersonalBoundary");
 // ============================
 // Routes
@@ -184,6 +185,10 @@ app.use(globalLimiter);
 
 registerClosedDemoRoutes(app);
 
+const ownerRouteBoundary = privatePersonalProviderMode
+  ? [closedDemoGate, createRequireUser()]
+  : [closedDemoGate];
+
 // Protect every provider-backed/product-data route, including legacy routes.
 app.use([
   "/api",
@@ -200,7 +205,7 @@ app.use([
   "/rvol",
   "/volume-spike",
   "/candlestick"
-], closedDemoGate);
+], ...ownerRouteBoundary);
 
 // ============================
 // API Routes

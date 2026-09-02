@@ -11,6 +11,7 @@ const deterministicSuites = [
   "testSupabaseAccessToken.js",
   "testPerRequestSupabaseClientIsolation.js",
   "testAuthenticatedRouteContainment.js",
+  "testOwnerSessionActivation.js",
   "testAnalysisTrustService.js",
   "testConfluenceActionability.js",
   "testCorsAllowlist.js",

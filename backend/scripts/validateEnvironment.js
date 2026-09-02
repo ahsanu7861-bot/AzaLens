@@ -36,6 +36,8 @@ const REQUIRED_BY_ENVIRONMENT = {
   production: ["OBSERVABILITY_METRICS_TOKEN"],
 };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 /*
   The full required-secret list for an environment under a given provider
   selection. Names only - no value is read, compared or returned.
@@ -218,6 +220,15 @@ function validateEnvironment(env = process.env) {
       "Personal-provider credentials in production or staging require " +
       "PRIVATE_PERSONAL_PROVIDER_MODE=true and owner-only CLOSED_DEMO_ENABLED=true."
     );
+  }
+
+  if (GATE_REQUIRED_ENVIRONMENTS.has(config.environment) && privatePersonalMode) {
+    const ownerUserId = String(env.PRIVATE_OWNER_USER_ID || "").trim();
+    if (!UUID_PATTERN.test(ownerUserId)) {
+      errors.push(
+        "PRIVATE_PERSONAL_PROVIDER_MODE requires PRIVATE_OWNER_USER_ID as an exact UUID in production and staging."
+      );
+    }
   }
 
   if (
