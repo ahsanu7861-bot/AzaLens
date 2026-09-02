@@ -56,6 +56,7 @@ const SUPABASE_STAGING = {
   the hole rather than the contract.
 */
 const production = validateEnvironment({
+  TWELVE_DATA_CREDIT_COORDINATION_MODE: "shared_atomic",
   APP_ENV: "production",
   FINNHUB_API_KEY: "x",
   TWELVE_DATA_API_KEY: "x",

@@ -12,6 +12,10 @@ const { sql } = require("./helpers/localSupabase");
 */
 
 const EXPECTED = {
+  twelve_data_credit_ledger: {
+    policies: [],
+    updatableColumns: [],
+  },
   profiles: {
     policies: ["SELECT", "UPDATE"],
     updatableColumns: ["display_name"],
@@ -213,6 +217,36 @@ check(
   "anon has zero table privileges in public",
   anonGrants.length === 0,
   anonGrants.join(", ")
+);
+
+const coordinatorTableGrants = rows(`
+  select grantee || ':' || privilege_type
+    from information_schema.role_table_grants
+   where table_schema = 'public'
+     and table_name = 'twelve_data_credit_ledger'
+     and grantee in ('anon', 'authenticated', 'service_role')
+   order by 1
+`);
+check(
+  "credit ledger has zero direct client or service-role table grants",
+  coordinatorTableGrants.length === 0,
+  coordinatorTableGrants.join(", ")
+);
+
+const coordinatorExecutors = rows(`
+  select r.rolname
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   cross join (values ('anon'), ('authenticated'), ('service_role')) as r(rolname)
+   where n.nspname = 'public'
+     and p.proname = 'reserve_twelve_data_credits'
+     and has_function_privilege(r.rolname, p.oid, 'EXECUTE')
+   order by 1
+`);
+check(
+  "credit reservation RPC is executable only by service_role",
+  coordinatorExecutors.join(",") === "service_role",
+  coordinatorExecutors.join(", ")
 );
 
 // ------------------------------------------------------------

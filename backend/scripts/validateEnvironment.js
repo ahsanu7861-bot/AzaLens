@@ -12,6 +12,7 @@ const {
   getProviderConfigurationProblems,
   getRequiredProviderKeys,
 } = require("../providers/marketDataProvider");
+const { resolveTwelveDataGovernorRuntime } = require("../services/twelveDataCreditGovernor");
 
 /*
   Secrets required regardless of which market-data providers are selected.
@@ -96,6 +97,19 @@ function validateEnvironment(env = process.env) {
 
   for (const problem of providerProblems) {
     errors.push(`${problem.code}: ${problem.message}`);
+  }
+
+  if (
+    ["production", "staging"].includes(config.environment) &&
+    getCapabilityProviders(env).history === "twelve_data"
+  ) {
+    const governor = resolveTwelveDataGovernorRuntime(env);
+    if (!governor.enabled || !governor.multiInstanceSafe) {
+      errors.push(
+        "Twelve Data history requires TWELVE_DATA_CREDIT_COORDINATION_MODE=shared_atomic " +
+        "and a usable service-role Supabase coordinator."
+      );
+    }
   }
 
   if (

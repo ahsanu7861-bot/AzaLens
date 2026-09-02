@@ -54,6 +54,7 @@ const PRODUCTION_FIXTURE = {
   SUPABASE_URL: "https://jexphwidcfbgxpthgwum.supabase.co",
   SUPABASE_PUBLISHABLE_KEY: "sb_publishable_notarealkey000000000",
   SUPABASE_SECRET_KEY: "sb_secret_notarealkey000000000",
+  TWELVE_DATA_CREDIT_COORDINATION_MODE: "shared_atomic",
   CLOSED_DEMO_ENABLED: "true",
   PRIVATE_PERSONAL_PROVIDER_MODE: "true",
   QUOTE_PROVIDER: "finnhub",

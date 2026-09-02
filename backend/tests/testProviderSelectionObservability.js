@@ -156,6 +156,9 @@ async function run() {
         env: {
           FINNHUB_API_KEY: "selection-observability-finnhub-key",
           TWELVE_DATA_API_KEY: "selection-observability-twelve-key",
+          TWELVE_DATA_CREDIT_COORDINATION_MODE: "shared_atomic",
+          SUPABASE_URL: "https://example.invalid",
+          SUPABASE_SECRET_KEY: "selection-observability-secret",
         },
         strict: true,
       })
@@ -191,6 +194,9 @@ async function run() {
     const KEYS = {
       FINNHUB_API_KEY: "selection-observability-finnhub-key",
       TWELVE_DATA_API_KEY: "selection-observability-twelve-key",
+      TWELVE_DATA_CREDIT_COORDINATION_MODE: "shared_atomic",
+      SUPABASE_URL: "https://example.invalid",
+      SUPABASE_SECRET_KEY: "selection-observability-secret",
     };
 
     const readinessCases = [

@@ -409,6 +409,9 @@ async function run() {
         NODE_ENV: "production",
         FINNHUB_API_KEY: "configured",
         TWELVE_DATA_API_KEY: "configured",
+        TWELVE_DATA_CREDIT_COORDINATION_MODE: "shared_atomic",
+        SUPABASE_URL: "https://example.invalid",
+        SUPABASE_SECRET_KEY: "configured",
         SHARIAH_DATA_MODE: "offline",
       },
     });

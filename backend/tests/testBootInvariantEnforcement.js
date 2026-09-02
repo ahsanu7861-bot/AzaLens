@@ -71,6 +71,7 @@ function completeEnvironment(resolvedEnvironment) {
     SUPABASE_URL: `https://${projectRef}.supabase.co`,
     SUPABASE_PUBLISHABLE_KEY: FAKE_PUBLISHABLE,
     SUPABASE_SECRET_KEY: FAKE_SECRET,
+    TWELVE_DATA_CREDIT_COORDINATION_MODE: "shared_atomic",
     SHARIAH_DATA_MODE: "offline",
     CLOSED_DEMO_ACCESS_CODE: FAKE_ACCESS_CODE,
     CLOSED_DEMO_SIGNING_SECRET: FAKE_SIGNING_SECRET,

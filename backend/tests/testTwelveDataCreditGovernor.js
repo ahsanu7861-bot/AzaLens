@@ -1,232 +1,67 @@
 "use strict";
-
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
-const {
-  BASIC_PLAN_ID,
-  COORDINATION_MODES,
-  TWELVE_DATA_CREDIT_WEIGHTS,
-  TWELVE_DATA_PLAN_PRESETS,
-  TwelveDataCreditGovernor,
-  getTwelveDataCreditSnapshot,
-  reserveTwelveDataCredits,
-  resolveTwelveDataGovernorRuntime,
-} = require("../services/twelveDataCreditGovernor");
+const { createSharedAtomicCoordinator } = require("../services/twelveDataSharedAtomicCoordinator");
+const { SharedAtomicTwelveDataGovernor, TwelveDataCreditBudgetError, getTwelveDataCreditSnapshot, resolveTwelveDataGovernorRuntime, setGovernorForTests } = require("../services/twelveDataCreditGovernor");
 
 async function main() {
-  assert.equal(BASIC_PLAN_ID, "basic_internal");
-  assert.equal(COORDINATION_MODES.DISABLED, "disabled");
-  assert.deepEqual(TWELVE_DATA_CREDIT_WEIGHTS, {
-    quote: 1,
-    time_series: 1,
-    symbol_search: 1,
-    profile: 10,
-    stocks: 1,
-    logo: 1,
-    profile_bundle: 12,
-  });
-  assert.equal(TWELVE_DATA_PLAN_PRESETS.basic_internal.enabled, true);
-  assert.equal(TWELVE_DATA_PLAN_PRESETS.basic_internal.creditsPerMinute, 8);
-  assert.equal(TWELVE_DATA_PLAN_PRESETS.basic_internal.creditsPerDay, 800);
-  for (const planId of ["venture_610", "venture_1597", "venture_2584"]) {
-    assert.equal(TWELVE_DATA_PLAN_PRESETS[planId].enabled, false);
-    assert.throws(
-      () => new TwelveDataCreditGovernor({
-        plan: TWELVE_DATA_PLAN_PRESETS[planId],
-      }),
-      /disabled/
-    );
-  }
+  assert.deepEqual(resolveTwelveDataGovernorRuntime({}), { mode: "disabled", enabled: false, reason: "coordination_disabled", durableLedger: false, multiInstanceSafe: false });
+  const configured = resolveTwelveDataGovernorRuntime({ TWELVE_DATA_CREDIT_COORDINATION_MODE: "shared_atomic", SUPABASE_URL: "https://example.invalid", SUPABASE_SECRET_KEY: "fake" });
+  assert.equal(configured.enabled, true); assert.equal(configured.multiInstanceSafe, true);
+  const disabled = getTwelveDataCreditSnapshot({});
+  assert.equal(disabled.accounting.minuteCreditsReserved, null);
+  assert.equal(disabled.accounting.dayCreditsRemaining, null);
+  assert.doesNotMatch(JSON.stringify(disabled), /0\/8|0\/800/);
 
-  assert.deepEqual(
-    resolveTwelveDataGovernorRuntime({}),
-    {
-      mode: "disabled",
-      enabled: false,
-      reason: "coordination_disabled",
-      storagePath: null,
-      durableLedger: false,
-      singleInstanceAcknowledged: false,
-      multiInstanceSafe: false,
-    }
-  );
-  assert.equal(
-    resolveTwelveDataGovernorRuntime({
-      TWELVE_DATA_CREDIT_COORDINATION_MODE: "single_instance",
-    }).reason,
-    "single_instance_not_acknowledged"
-  );
-  assert.equal(
-    resolveTwelveDataGovernorRuntime({
-      TWELVE_DATA_CREDIT_COORDINATION_MODE: "single_instance",
-      TWELVE_DATA_SINGLE_INSTANCE_ACK: "true",
-      TWELVE_DATA_CREDIT_LEDGER_PATH: "relative/ledger.json",
-    }).reason,
-    "durable_ledger_path_required"
-  );
-  assert.equal(
-    resolveTwelveDataGovernorRuntime({
-      TWELVE_DATA_CREDIT_COORDINATION_MODE: "single_instance",
-      TWELVE_DATA_SINGLE_INSTANCE_ACK: "true",
-      TWELVE_DATA_CREDIT_LEDGER_PATH: "/durable/ledger.json",
-    }).reason,
-    "durable_ledger_not_acknowledged"
-  );
-  const safeSingleInstance = resolveTwelveDataGovernorRuntime({
-    TWELVE_DATA_CREDIT_COORDINATION_MODE: "single_instance",
-    TWELVE_DATA_SINGLE_INSTANCE_ACK: "true",
-    TWELVE_DATA_CREDIT_LEDGER_PATH: "/durable/ledger.json",
-    TWELVE_DATA_CREDIT_LEDGER_DURABLE_ACK: "true",
-  });
-  assert.equal(safeSingleInstance.enabled, true);
-  assert.equal(safeSingleInstance.storagePath, "/durable/ledger.json");
-  assert.equal(safeSingleInstance.multiInstanceSafe, false);
-  for (const mode of ["multi_instance", "shared_atomic"]) {
-    const posture = resolveTwelveDataGovernorRuntime({
-      TWELVE_DATA_CREDIT_COORDINATION_MODE: mode,
-    });
-    assert.equal(posture.enabled, false);
-    assert.equal(posture.reason, "shared_atomic_coordinator_unavailable");
-  }
-  assert.equal(
-    resolveTwelveDataGovernorRuntime({
-      TWELVE_DATA_CREDIT_COORDINATION_MODE: "unknown",
-    }).reason,
-    "coordination_mode_invalid"
-  );
+  let calls = 0;
+  const accepted = { accepted: true, reason: null, reserved_at: "2026-09-02T00:00:00Z", minute_credits: 1, day_credits: 1 };
+  const governor = new SharedAtomicTwelveDataGovernor({ coordinator: { reserve: async () => { calls += 1; return accepted; } } });
+  await governor.reserve(1); assert.equal(calls, 1);
 
-  const disabledSnapshot = getTwelveDataCreditSnapshot();
-  assert.equal(disabledSnapshot.coordination.enabled, false);
-  assert.equal(disabledSnapshot.coordination.mode, "disabled");
-  assert.equal(disabledSnapshot.coordination.multiInstanceSafe, false);
-  assert.doesNotMatch(
-    JSON.stringify(disabledSnapshot),
-    /ledger\.json|api.?key|token|secret|symbol/i
-  );
+  const daily = new SharedAtomicTwelveDataGovernor({ coordinator: { reserve: async () => ({ ...accepted, accepted: false, reason: "daily_limit_exhausted" }) } });
+  await assert.rejects(daily.reserve(1, { mode: "queue" }), (e) => e.reason === "daily_limit_exhausted");
+  const minute = new SharedAtomicTwelveDataGovernor({ maxQueueWaitMs: 5, coordinator: { reserve: async () => ({ ...accepted, accepted: false, reason: "minute_limit_exhausted", retry_after_ms: 10 }) } });
+  await assert.rejects(minute.reserve(1, { mode: "queue" }), (e) => e.reason === "queue_timeout");
+  const outage = new SharedAtomicTwelveDataGovernor({ coordinator: { reserve: async () => { throw new Error("db body secret"); } } });
+  await assert.rejects(outage.reserve(1), (e) => e.reason === "coordinator_unavailable" && !e.message.includes("secret"));
 
-  let now = Date.parse("2026-08-28T10:00:00.000Z");
-  const governor = new TwelveDataCreditGovernor({ now: () => now });
-  for (let index = 0; index < 8; index += 1) {
-    governor.tryReserve(1);
-  }
-  assert.throws(
-    () => governor.tryReserve(1),
-    (error) =>
-      error.code === "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED" &&
-      error.reason === "minute_limit_exhausted"
-  );
-  assert.throws(
-    () => new TwelveDataCreditGovernor().tryReserve(12),
-    (error) => error.reason === "request_exceeds_minute_limit"
-  );
-
-  now += 60_000;
-  governor.tryReserve(8);
-  assert.equal(governor.snapshot().accounting.dayCreditsReserved, 16);
-
-  const daily = new TwelveDataCreditGovernor({
-    now: () => now,
-    plan: {
-      id: "daily-test",
-      creditsPerMinute: 800,
-      creditsPerDay: 800,
-      enabled: true,
+  const unavailable = createSharedAtomicCoordinator({ url: "https://example.invalid", secretKey: "fake", fetchImpl: async () => { throw new Error("offline"); } });
+  await assert.rejects(unavailable.reserve({ planId: "basic_internal", credits: 1 }), (e) => e.reason === "coordinator_unavailable");
+  const invalid = createSharedAtomicCoordinator({ url: "https://example.invalid", secretKey: "fake", fetchImpl: async () => ({ ok: true, json: async () => ({ unexpected: true }) }) });
+  await assert.rejects(invalid.reserve({ planId: "basic_internal", credits: 1 }), (e) => e.reason === "coordinator_unavailable");
+  let rpcBody;
+  const databaseTimed = createSharedAtomicCoordinator({
+    url: "https://example.invalid",
+    secretKey: "fake",
+    fetchImpl: async (_url, options) => {
+      rpcBody = JSON.parse(options.body);
+      return { ok: true, json: async () => [accepted] };
     },
   });
-  daily.tryReserve(800);
-  assert.throws(
-    () => daily.tryReserve(1),
-    (error) => error.reason === "daily_limit_exhausted"
-  );
+  await databaseTimed.reserve({ planId: "basic_internal", credits: 1, now: Date.parse("2099-01-01") });
+  assert.deepEqual(rpcBody, { p_plan_id: "basic_internal", p_credits: 1 });
 
-  const refusal = new TwelveDataCreditGovernor({
-    now: () => now,
-    maxQueueLength: 0,
-  });
-  refusal.tryReserve(8);
-  await assert.rejects(
-    refusal.reserve(1, { mode: "queue" }),
-    (error) => error.reason === "queue_full"
-  );
-
-  const boundedWait = new TwelveDataCreditGovernor({ now: () => now });
-  boundedWait.tryReserve(8);
-  await assert.rejects(
-    boundedWait.reserve(1, { mode: "queue" }),
-    (error) => error.reason === "queue_wait_exceeded"
-  );
-
-  const snapshotText = JSON.stringify(governor.snapshot());
-  assert.match(snapshotText, /basic_internal/);
-  assert.doesNotMatch(snapshotText, /api.?key|token|secret|symbol/i);
-
-  const storageDirectory = fs.mkdtempSync(
-    path.join(os.tmpdir(), "azalens-b5a-ledger-")
-  );
-  const storagePath = path.join(storageDirectory, "ledger.json");
-  try {
-    const firstProcess = new TwelveDataCreditGovernor({
-      now: () => now,
-      storagePath,
-    });
-    firstProcess.tryReserve(5);
-    const secondProcess = new TwelveDataCreditGovernor({
-      now: () => now,
-      storagePath,
-    });
-    secondProcess.tryReserve(3);
-    assert.throws(
-      () => firstProcess.tryReserve(1),
-      (error) => error.reason === "minute_limit_exhausted"
-    );
-    assert.equal(fs.statSync(storageDirectory).mode & 0o777, 0o700);
-    assert.equal(fs.statSync(storagePath).mode & 0o777, 0o600);
-    const ledgerText = fs.readFileSync(storagePath, "utf8");
-    assert.doesNotMatch(ledgerText, /api.?key|token|secret|symbol/i);
-  } finally {
-    fs.rmSync(storageDirectory, { recursive: true, force: true });
-  }
-
-  process.env.NODE_ENV = "test";
-  process.env.TWELVE_DATA_CREDIT_GOVERNOR_TEST_ENFORCE = "true";
-  await assert.rejects(
-    reserveTwelveDataCredits("quote"),
-    (error) =>
-      error.code === "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED" &&
-      error.reason === "coordination_disabled"
-  );
-  process.env.TWELVE_DATA_API_KEY = Buffer.from([
-    116, 101, 115, 116,
-  ]).toString();
+  process.env.TWELVE_DATA_API_KEY = "fixture-only";
   const axios = require("axios");
   const originalGet = axios.get;
   let transportCalls = 0;
-  axios.get = async () => {
-    transportCalls += 1;
-    throw new Error("Transport must not be reached.");
-  };
+  axios.get = async () => { transportCalls += 1; throw new Error("provider transport must not run"); };
+  setGovernorForTests({
+    reserve: async () => { throw new TwelveDataCreditBudgetError("daily_limit_exhausted"); },
+    snapshot: () => ({}),
+  });
   try {
-    const {
-      clearTwelveDataProfileCache,
-      getTwelveDataCompanyProfile,
-    } = require("../providers/twelveDataProvider");
-    clearTwelveDataProfileCache();
-    const blocked = await getTwelveDataCompanyProfile("AAPL");
-    assert.equal(blocked.success, false);
-    assert.equal(blocked.code, "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED");
+    const { getHistoricalData } = require("../providers/twelveDataProvider");
+    require("../utils/cache").clearAllCache();
+    const refused = await getHistoricalData("AAPL", "1day");
+    assert.equal(refused.success, false);
+    assert.equal(refused.code, "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED");
+    assert.equal(refused.reason, "daily_limit_exhausted");
     assert.equal(transportCalls, 0);
   } finally {
+    setGovernorForTests(null);
     axios.get = originalGet;
     delete process.env.TWELVE_DATA_API_KEY;
-    delete process.env.TWELVE_DATA_CREDIT_GOVERNOR_TEST_ENFORCE;
   }
-
-  console.log("Twelve Data Basic credit governor tests passed.");
+  console.log("Twelve Data shared atomic governor tests passed.");
 }
-
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+main().catch((error) => { console.error(error); process.exit(1); });

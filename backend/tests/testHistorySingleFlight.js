@@ -22,6 +22,7 @@ const {
 const {
   getHistory
 } = require("../services/marketEngine");
+const { setGovernorForTests } = require("../services/twelveDataCreditGovernor");
 
 function twelveDataResponse(symbol = "EXM") {
   return {
@@ -66,6 +67,8 @@ async function testIdenticalRequestsCoalesceAndCache() {
   process.env.HISTORY_PROVIDER = "twelve_data";
 
   let calls = 0;
+  let reservations = 0;
+  setGovernorForTests({ reserve: async (credits) => { reservations += 1; assert.equal(credits, 1); return { credits }; }, snapshot: () => ({}) });
   let release;
   const gate = new Promise((resolve) => {
     release = resolve;
@@ -86,6 +89,7 @@ async function testIdenticalRequestsCoalesceAndCache() {
 
   await allowPendingRegistration();
   assert.equal(calls, 1, "one owner must buy the provider request");
+  assert.equal(reservations, 1, "one cold coalesced history owner must reserve exactly one credit");
   release();
 
   const results = await pending;
@@ -107,6 +111,8 @@ async function testIdenticalRequestsCoalesceAndCache() {
   assert.equal(cached.provenance.sourceTimestamp, results[0].provenance.sourceTimestamp);
   assert.ok(Date.parse(cached.provenance.retrievalTimestamp) >= Date.parse(results[0].provenance.retrievalTimestamp));
   assert.equal(calls, 1, "a cache hit must buy no provider request");
+  assert.equal(reservations, 1, "a warm cache hit must reserve zero new credits");
+  setGovernorForTests(null);
 }
 
 async function testRequestIdentityStaysSeparated() {
