@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict");
 const { createSharedAtomicCoordinator } = require("../services/twelveDataSharedAtomicCoordinator");
-const { SharedAtomicTwelveDataGovernor, getTwelveDataCreditSnapshot, resolveTwelveDataGovernorRuntime } = require("../services/twelveDataCreditGovernor");
+const { SharedAtomicTwelveDataGovernor, TwelveDataCreditBudgetError, getTwelveDataCreditSnapshot, resolveTwelveDataGovernorRuntime, setGovernorForTests } = require("../services/twelveDataCreditGovernor");
 
 async function main() {
   assert.deepEqual(resolveTwelveDataGovernorRuntime({}), { mode: "disabled", enabled: false, reason: "coordination_disabled", durableLedger: false, multiInstanceSafe: false });
@@ -28,6 +28,29 @@ async function main() {
   await assert.rejects(unavailable.reserve({ planId: "basic_internal", credits: 1 }), (e) => e.reason === "coordinator_unavailable");
   const invalid = createSharedAtomicCoordinator({ url: "https://example.invalid", secretKey: "fake", fetchImpl: async () => ({ ok: true, json: async () => ({ unexpected: true }) }) });
   await assert.rejects(invalid.reserve({ planId: "basic_internal", credits: 1 }), (e) => e.reason === "coordinator_unavailable");
+
+  process.env.TWELVE_DATA_API_KEY = "fixture-only";
+  const axios = require("axios");
+  const originalGet = axios.get;
+  let transportCalls = 0;
+  axios.get = async () => { transportCalls += 1; throw new Error("provider transport must not run"); };
+  setGovernorForTests({
+    reserve: async () => { throw new TwelveDataCreditBudgetError("daily_limit_exhausted"); },
+    snapshot: () => ({}),
+  });
+  try {
+    const { getHistoricalData } = require("../providers/twelveDataProvider");
+    require("../utils/cache").clearAllCache();
+    const refused = await getHistoricalData("AAPL", "1day");
+    assert.equal(refused.success, false);
+    assert.equal(refused.code, "TWELVE_DATA_CREDIT_BUDGET_EXCEEDED");
+    assert.equal(refused.reason, "daily_limit_exhausted");
+    assert.equal(transportCalls, 0);
+  } finally {
+    setGovernorForTests(null);
+    axios.get = originalGet;
+    delete process.env.TWELVE_DATA_API_KEY;
+  }
   console.log("Twelve Data shared atomic governor tests passed.");
 }
 main().catch((error) => { console.error(error); process.exit(1); });
