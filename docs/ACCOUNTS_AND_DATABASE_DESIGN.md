@@ -1,9 +1,11 @@
 # Accounts, database and authentication — design
 
-Status: **Slices 1 and 2 built** — migrations 001 and 002 with row-level
+Status: **Slices 1 and 2 built; dormant owner-identity prerequisite built** — migrations 001 and 002 with row-level
 security and their two database tests, plus environment validation, the
-Supabase-scoped CSP and privilege containment. Everything else remains design
-only: no authentication code, no token ledger, no hosted-project migrations.
+Supabase-scoped CSP and privilege containment. The backend token verifier,
+per-request user client and unmounted `requireUser` middleware now exist, but no
+production route uses them and no frontend session flow exists. Everything else
+in the account design remains design-only.
 Revision 4 — incorporates 15 review corrections, 4 refinements, 4 final-review
 fixes, and the Slice 1 implementation findings. See the change logs at the end.
 Covers roadmap item 3.3, plus the part of the parked durable-storage work
@@ -743,7 +745,7 @@ service-role claim. Every one of these must be checked:
 | Check | Requirement | Why |
 |---|---|---|
 | Signature | valid | the basic one |
-| Algorithm | a single algorithm, **`ES256`** — never an allowlist of several | accepting a set of algorithms rather than one is how algorithm-confusion attacks work. Supabase recommends ES256 and states HS256 is *"not recommended for production applications"* |
+| Algorithm | dispatch exactly by the protected header: **`ES256`** to verified JWKS `getClaims()`, or legacy **`HS256`** to authoritative Auth-server `getUser()`; reject everything else | no algorithm may select the wrong verifier, and legacy shared-secret material never enters AzaLens. Supabase recommends ES256 and states HS256 is *"not recommended for production applications"* |
 | `iss` | string-equal to this exact project's issuer URL | a valid token from *someone else's* Supabase project must not authenticate here |
 | `aud` | `authenticated` | tokens minted for other audiences are not login tokens |
 | `exp` | not expired, small bounded clock skew | — |
@@ -778,8 +780,10 @@ set**, not merely the newest. Refetch on an unknown `kid`, with a minimum
 interval between refetches so a stream of forged `kid` values cannot turn our
 auth middleware into a request amplifier against Supabase.
 
-Verification is a local signature check — no network call per request beyond the
-cached key set, so no meaningful latency and no cost.
+ES256 verification is a local signature check — no network call per request
+beyond the cached key set, so no meaningful latency and no cost. Legacy HS256
+verification deliberately calls Supabase Auth for each token because AzaLens
+does not possess the legacy signing secret.
 
 **Issuer: derived, not configured.** `iss` is the project's Auth v1 endpoint, so
 it is `SUPABASE_URL` + `/auth/v1`. Deriving it removes a variable and removes a
@@ -789,17 +793,20 @@ production data. There is deliberately no `SUPABASE_JWT_ISSUER` variable. One
 returns only if a custom auth domain is ever configured, which is the documented
 trigger.
 
-> **Pending verification (Slice 3).** Two claims here rest on documentation
-> rather than observation, because no AzaLens user token has yet been issued or
-> inspected: (a) the exact `iss` value — Supabase's docs say `iss` identifies the
-> issuing server and is *typically* the Auth v1 endpoint, and "typically" is not
-> a guarantee; and (b) whether a newly created project still enables the legacy
-> HS256 shared secret by default, which determines whether the allowlist must
-> actively exclude HS256 or merely omit it. Both must be confirmed against a real
-> `azalens-dev` access token before this section is treated as settled.
+> **Observed signing mode; issuer still pending a real user token.** A read-only
+> request to production project `jexphwidcfbgxpthgwum`'s public JWKS endpoint on
+> 2026-09-02 returned one EC/P-256 key advertising `ES256` and a `kid`; no key
+> material was recorded. Production is therefore configured for asymmetric
+> signing. Supabase documents `getClaims(accessToken)` as the supported verified
+> path for asymmetric tokens and authoritative `getUser(accessToken)` validation
+> for legacy/symmetric tokens. The dormant implementation follows those paths and
+> rejects unknown algorithms. The exact issuer claim remains unobserved because
+> no AzaLens user exists and no user token was created or inspected in this slice;
+> activation remains blocked until one invited owner's real token confirms it.
 
-On success the middleware attaches `req.user = { id, email }` and the fresh
-per-request client from §1.1 as `req.db`. Every route uses `req.db`, so a handler
+On success the middleware attaches only `req.user = { id }` and the fresh
+per-request client from §1.1 as `req.db`. Every future authenticated route uses
+`req.db`, so a handler
 *cannot* accidentally read someone else's data — the connection it holds does not
 have that power.
 
@@ -1559,7 +1566,7 @@ implementation surfaced.
 | b | **Key terminology corrected for the current API-key model.** `SUPABASE_ANON_KEY` → `SUPABASE_PUBLISHABLE_KEY`; `SUPABASE_SERVICE_ROLE_KEY` → `SUPABASE_SECRET_KEY`; "anon key" → "publishable key"; "admin/service-role key" → "secret key". A note in Part 1 states the key-versus-role distinction explicitly | Part 1, §1.1, §3.0, 7.1, 7.5, 7.9 |
 | c | **Postgres role identifiers deliberately untouched.** Every `GRANT`, `REVOKE` and policy `TO` clause still names `anon`, `authenticated`, `service_role`. No global replacement was performed | Part 3 |
 | d | **`role` claim audit.** The check survives but its justification changed: the current secret key is opaque, not a JWT, so it cannot carry a claim and fails signature verification first. Retained as defence in depth because legacy JWT-based keys remain valid until end-2026 | §4.3 |
-| e | **§4.3 tightened**: single algorithm `ES256` rather than an allowlist; JWKS cache bounded at 10 minutes because Supabase's edge caches for that long and warns against caching longer; verification must accept any key currently in the set, since keys rotate through standby/current/previously-used | §4.3 |
+| e | **§4.3 tightened**: asymmetric user tokens use only `ES256`; legacy `HS256` is never locally verified and instead requires authoritative Auth-server validation. JWKS cache is bounded at 10 minutes because Supabase's edge caches for that long and warns against caching longer; verification must accept any key currently in the set, since keys rotate through standby/current/previously-used | §4.3 |
 | f | **Issuer derived, not configured.** `SUPABASE_JWT_ISSUER` dropped; `iss` is `SUPABASE_URL` + `/auth/v1`. A prod-URL/dev-issuer mismatch becomes impossible | §4.3 |
 | g | **Two claims marked pending verification**, not settled: the exact `iss` value, and whether a new project still enables the legacy HS256 secret by default. Both need a real `azalens-dev` token | §4.3 |
 | h | **Privilege-containment test rewritten** to scan for `SUPABASE_SECRET_KEY` and the literal `sb_secret_`, and explicitly *not* to reject the Postgres identifier `service_role` in SQL | 7.5 |
