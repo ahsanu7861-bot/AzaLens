@@ -18,7 +18,7 @@ function createSharedAtomicCoordinator(options = {}) {
     ? configuredTimeout
     : DEFAULT_TIMEOUT_MS;
 
-  async function reserve({ planId, credits, now }) {
+  async function reserve({ planId, credits }) {
     if (!baseUrl || !secretKey || typeof fetchImpl !== "function") {
       throw coordinatorError("coordination_disabled");
     }
@@ -37,7 +37,6 @@ function createSharedAtomicCoordinator(options = {}) {
         body: JSON.stringify({
           p_plan_id: planId,
           p_credits: credits,
-          ...(now ? { p_now: new Date(now).toISOString() } : {}),
         }),
       });
     } catch {

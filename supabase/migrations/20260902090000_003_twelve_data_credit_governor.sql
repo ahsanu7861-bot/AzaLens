@@ -14,8 +14,7 @@ revoke all on public.twelve_data_credit_ledger from public, anon, authenticated,
 
 create or replace function public.reserve_twelve_data_credits(
   p_plan_id text,
-  p_credits integer,
-  p_now timestamptz default clock_timestamp()
+  p_credits integer
 )
 returns table (
   accepted boolean,
@@ -33,8 +32,9 @@ set search_path = ''
 as $$
 declare
   v_row public.twelve_data_credit_ledger%rowtype;
-  v_minute_key timestamptz := date_trunc('minute', p_now at time zone 'UTC') at time zone 'UTC';
-  v_day_key date := (p_now at time zone 'UTC')::date;
+  v_now timestamptz := clock_timestamp();
+  v_minute_key timestamptz := date_trunc('minute', v_now at time zone 'UTC') at time zone 'UTC';
+  v_day_key date := (v_now at time zone 'UTC')::date;
   v_minute_credits integer;
   v_day_credits integer;
 begin
@@ -56,15 +56,15 @@ begin
   v_day_credits := case when v_row.day_key = v_day_key then v_row.day_credits else 0 end;
 
   if v_day_credits + p_credits > 800 then
-    return query select false, 'daily_limit_exhausted'::text, p_now, v_minute_key,
+    return query select false, 'daily_limit_exhausted'::text, v_now, v_minute_key,
       v_day_key, v_minute_credits, v_day_credits, null::integer;
     return;
   end if;
 
   if v_minute_credits + p_credits > 8 then
-    return query select false, 'minute_limit_exhausted'::text, p_now, v_minute_key,
+    return query select false, 'minute_limit_exhausted'::text, v_now, v_minute_key,
       v_day_key, v_minute_credits, v_day_credits,
-      greatest(0, floor(extract(epoch from ((v_minute_key + interval '1 minute') - p_now)) * 1000)::integer);
+      greatest(0, floor(extract(epoch from ((v_minute_key + interval '1 minute') - v_now)) * 1000)::integer);
     return;
   end if;
 
@@ -73,15 +73,15 @@ begin
          day_key = v_day_key,
          minute_credits = v_minute_credits + p_credits,
          day_credits = v_day_credits + p_credits,
-         updated_at = p_now
+         updated_at = v_now
    where plan_id = p_plan_id;
 
-  return query select true, null::text, p_now, v_minute_key, v_day_key,
+  return query select true, null::text, v_now, v_minute_key, v_day_key,
     v_minute_credits + p_credits, v_day_credits + p_credits, null::integer;
 end;
 $$;
 
-revoke all on function public.reserve_twelve_data_credits(text, integer, timestamptz)
+revoke all on function public.reserve_twelve_data_credits(text, integer)
   from public, anon, authenticated;
-grant execute on function public.reserve_twelve_data_credits(text, integer, timestamptz)
+grant execute on function public.reserve_twelve_data_credits(text, integer)
   to service_role;

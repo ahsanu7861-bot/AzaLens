@@ -28,6 +28,17 @@ async function main() {
   await assert.rejects(unavailable.reserve({ planId: "basic_internal", credits: 1 }), (e) => e.reason === "coordinator_unavailable");
   const invalid = createSharedAtomicCoordinator({ url: "https://example.invalid", secretKey: "fake", fetchImpl: async () => ({ ok: true, json: async () => ({ unexpected: true }) }) });
   await assert.rejects(invalid.reserve({ planId: "basic_internal", credits: 1 }), (e) => e.reason === "coordinator_unavailable");
+  let rpcBody;
+  const databaseTimed = createSharedAtomicCoordinator({
+    url: "https://example.invalid",
+    secretKey: "fake",
+    fetchImpl: async (_url, options) => {
+      rpcBody = JSON.parse(options.body);
+      return { ok: true, json: async () => [accepted] };
+    },
+  });
+  await databaseTimed.reserve({ planId: "basic_internal", credits: 1, now: Date.parse("2099-01-01") });
+  assert.deepEqual(rpcBody, { p_plan_id: "basic_internal", p_credits: 1 });
 
   process.env.TWELVE_DATA_API_KEY = "fixture-only";
   const axios = require("axios");

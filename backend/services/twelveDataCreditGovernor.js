@@ -25,7 +25,6 @@ function resolveTwelveDataGovernorRuntime(env = process.env) {
 class SharedAtomicTwelveDataGovernor {
   constructor(options = {}) {
     this.coordinator = options.coordinator;
-    this.now = options.now || Date.now;
     this.setTimer = options.setTimer || setTimeout;
     this.maxQueueLength = options.maxQueueLength ?? 8;
     this.maxQueueWaitMs = options.maxQueueWaitMs ?? 5_000;
