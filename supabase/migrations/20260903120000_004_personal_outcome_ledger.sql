@@ -79,25 +79,30 @@ create table public.outcome_snapshot_provenance (
     (state = 'UNAVAILABLE' and underlying_state = 'UNAVAILABLE' and provider = 'Unknown' and
       source_timestamp is null and cache_state = 'UNAVAILABLE' and cache_age_seconds is null and
       display_entitlement = 'NON_DISPLAY_NOT_ACTIVATED' and
+      cardinality(limitation_codes) = 1 and
       limitation_codes @> array['PROVIDER_UNAVAILABLE']::text[]) or
     (capability = 'QUOTE' and provider = 'Finnhub' and
       state = 'REALTIME_CONSOLIDATION_UNVERIFIED' and
       underlying_state = 'REALTIME_CONSOLIDATION_UNVERIFIED' and
       cache_state = 'MISS' and cache_age_seconds is null and
       display_entitlement = 'PRIVATE_PERSONAL_OWNER_ONLY' and broker_verification_required and
+      cardinality(limitation_codes) = 2 and
       limitation_codes @> array['CONSOLIDATION_UNVERIFIED','BROKER_VERIFICATION_REQUIRED']::text[]) or
     (capability = 'QUOTE' and provider = 'Finnhub' and state = 'CACHE' and
       underlying_state = 'REALTIME_CONSOLIDATION_UNVERIFIED' and
       cache_state in ('HIT','COALESCED') and cache_age_seconds is not null and
       display_entitlement = 'PRIVATE_PERSONAL_OWNER_ONLY' and broker_verification_required and
+      cardinality(limitation_codes) = 3 and
       limitation_codes @> array['CONSOLIDATION_UNVERIFIED','BROKER_VERIFICATION_REQUIRED','CACHE_DERIVED']::text[]) or
     (capability = 'HISTORY' and provider = 'TwelveData' and state = 'EOD_CONSOLIDATED' and
       underlying_state = 'EOD_CONSOLIDATED' and cache_state = 'MISS' and cache_age_seconds is null and
       display_entitlement = 'NON_DISPLAY_DERIVED_ANALYTICS_ONLY' and broker_verification_required and
+      cardinality(limitation_codes) = 2 and
       limitation_codes @> array['NON_RECONSTRUCTIVE_ANALYTICS_ONLY','BROKER_VERIFICATION_REQUIRED']::text[]) or
     (capability = 'HISTORY' and provider = 'TwelveData' and state = 'CACHE' and
       underlying_state = 'EOD_CONSOLIDATED' and cache_state in ('HIT','COALESCED') and cache_age_seconds is not null and
       display_entitlement = 'NON_DISPLAY_DERIVED_ANALYTICS_ONLY' and broker_verification_required and
+      cardinality(limitation_codes) = 3 and
       limitation_codes @> array['NON_RECONSTRUCTIVE_ANALYTICS_ONLY','BROKER_VERIFICATION_REQUIRED','CACHE_DERIVED']::text[])
   ),
   check (source_timestamp is null or source_timestamp <= retrieval_timestamp)
@@ -162,6 +167,10 @@ create table public.outcome_position_events (
   ),
   check (event_type <> 'ENTRY_CONFIRMED' or sequence_no = 1)
 );
+
+-- Correction and supersession events are deliberately unsupported in Slice 2.
+-- OWNER_NOTE and HIDDEN_BY_OWNER do not alter or supersede an earlier event;
+-- any future correction contract requires separate immutable arithmetic semantics.
 
 create index personal_risk_limit_versions_user_created_idx on public.personal_risk_limit_versions(user_id, created_at desc);
 create index outcome_decision_snapshots_user_created_idx on public.outcome_decision_snapshots(user_id, captured_at desc);
@@ -271,6 +280,7 @@ as $$
 declare
   v_user uuid := auth.uid(); v_snapshot uuid; v_position uuid; v_event bigint;
   v_existing public.outcome_positions%rowtype; v_fingerprint text; v_item jsonb;
+  v_canonical_provenance jsonb;
 begin
   if v_user is null then raise exception using errcode='42501', message='authentication required'; end if;
   if not coalesce(p_broker_confirmed, false) then raise exception using errcode='22023', message='broker confirmation required'; end if;
@@ -293,6 +303,19 @@ begin
     end if;
   end loop;
 
+  -- The table constraints reject missing, duplicate, extra, and contradictory
+  -- codes. Canonical sorting makes equivalent caller sets byte-identical in both
+  -- the immutable snapshot and its idempotency fingerprint.
+  select jsonb_agg(
+    (item - 'limitation_codes') || jsonb_build_object(
+      'limitation_codes', coalesce((
+        select jsonb_agg(code order by code)
+        from jsonb_array_elements_text(coalesce(item->'limitation_codes', '[]'::jsonb)) code
+      ), '[]'::jsonb)
+    ) order by item->>'capability'
+  ) into v_canonical_provenance
+  from jsonb_array_elements(p_provenance) item;
+
   v_fingerprint := encode(extensions.digest(convert_to(jsonb_build_object(
     'version', 1,
     'symbol', p_symbol, 'market', p_market, 'currency', p_currency,
@@ -306,7 +329,7 @@ begin
     'risk_limit_version_id', p_risk_limit_version_id,
     'public_direction', p_public_direction, 'public_evidence_state', p_public_evidence_state,
     'public_risk_classification', p_public_risk_classification, 'shariah_state', p_shariah_state,
-    'provenance', p_provenance, 'broker_confirmed', p_broker_confirmed,
+    'provenance', v_canonical_provenance, 'broker_confirmed', p_broker_confirmed,
     'broker_effective_at', p_broker_effective_at, 'entry_price', p_entry_price,
     'entry_quantity', p_entry_quantity, 'fees', p_fees, 'taxes', p_taxes
   )::text, 'UTF8'), 'sha256'), 'hex');
@@ -336,7 +359,7 @@ begin
   select v_snapshot,v_user,x.capability,x.provider,x.state,x.underlying_state,x.source_timestamp,
     x.retrieval_timestamp,x.cache_state,x.cache_age_seconds,x.interval,x.display_entitlement,
     x.broker_verification_required,coalesce(x.limitation_codes,'{}'::text[])
-  from jsonb_to_recordset(p_provenance) as x(capability text,provider text,state text,
+  from jsonb_to_recordset(v_canonical_provenance) as x(capability text,provider text,state text,
     underlying_state text,source_timestamp timestamptz,retrieval_timestamp timestamptz,
     cache_state text,cache_age_seconds integer,interval text,display_entitlement text,
     broker_verification_required boolean,limitation_codes text[]);

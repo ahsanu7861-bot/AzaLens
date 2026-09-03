@@ -33,6 +33,14 @@ async function main(){
     const delimiterKey=uuid(); const delimiter=createBody(delimiterKey,"PIPE"); delimiter.p_thesis_text="a|b";
     assert.equal((await create(delimiter)).status,200);
     assert.match(JSON.stringify((await create({...delimiter,p_thesis_text:"a",p_invalidation_condition:"b|Fixture invalidation"})).body),/idempotency conflict/i);
+    const orderKey=uuid(); const ordered=createBody(orderKey,"ORDR");
+    assert.equal((await create(ordered)).status,200);
+    const reordered={...ordered,p_provenance:[
+      {...provenance[1],limitation_codes:[...provenance[1].limitation_codes].reverse()},
+      {...provenance[0],limitation_codes:[...provenance[0].limitation_codes].reverse()},
+    ]};
+    const orderReplay=await create(reordered); assert.equal(orderReplay.status,200); assert.equal(orderReplay.body[0].replayed,true);
+    assert.equal(sql(`select string_agg(array_to_string(limitation_codes,','),'|' order by capability) from public.outcome_snapshot_provenance where snapshot_id='${orderReplay.body[0].snapshot_id}'`),"BROKER_VERIFICATION_REQUIRED,NON_RECONSTRUCTIVE_ANALYTICS_ONLY|BROKER_VERIFICATION_REQUIRED,CONSOLIDATION_UNVERIFIED");
     assert.equal(sql(`select count(*) from public.outcome_positions where id='${positionId}'`),"1");
 
     const partialKey=uuid(); const partialBody={p_position_id:positionId,p_idempotency_key:partialKey,p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-04T00:00:00Z",p_price:"120",p_quantity:"4",p_fees:"2",p_taxes:"1",p_thesis_result:"VALID",p_usefulness:"USEFUL",p_exit_reason:"Owner fixture exit"};
@@ -74,6 +82,11 @@ async function main(){
       {...provenance[1],state:"REALTIME_LIMITED_VENUE"},
       {...provenance[1],underlying_state:"REALTIME_LIMITED_VENUE"},
       {...provenance[1],display_entitlement:"PRIVATE_PERSONAL_OWNER_ONLY"},
+      {...provenance[1],limitation_codes:[...provenance[1].limitation_codes,"PROVIDER_UNAVAILABLE"]},
+      {...provenance[1],limitation_codes:[...provenance[1].limitation_codes,"CONSOLIDATION_UNVERIFIED"]},
+      {...provenance[1],limitation_codes:[...provenance[1].limitation_codes,"CACHE_DERIVED"]},
+      {...provenance[1],limitation_codes:["NON_RECONSTRUCTIVE_ANALYTICS_ONLY"]},
+      {...provenance[1],limitation_codes:["NON_RECONSTRUCTIVE_ANALYTICS_ONLY","BROKER_VERIFICATION_REQUIRED","BROKER_VERIFICATION_REQUIRED"]},
     ];
     for(const [index,attack] of attacks.entries()) assert.ok(!(await create(createBody(uuid(),`X${index}`,{provenance:[provenance[0],attack]}))).ok);
     const unavailable={capability:"HISTORY",provider:"Unknown",state:"UNAVAILABLE",underlying_state:"UNAVAILABLE",source_timestamp:null,retrieval_timestamp:"2026-09-03T00:00:01Z",cache_state:"UNAVAILABLE",cache_age_seconds:null,interval:"1day",display_entitlement:"NON_DISPLAY_NOT_ACTIVATED",broker_verification_required:true,limitation_codes:["PROVIDER_UNAVAILABLE"]};
@@ -85,6 +98,10 @@ async function main(){
     assert.ok(!(await create(createBody(uuid(),"CAGE",{provenance:[{...cachedQuote,cache_age_seconds:null},cachedHistory]}))).ok);
     assert.ok(!(await create(createBody(uuid(),"MISS",{provenance:[{...provenance[0],cache_age_seconds:1},provenance[1]]}))).ok);
     assert.ok(!(await create(createBody(uuid(),"NBBO",{provenance:[{...provenance[0],state:"REALTIME_LIMITED_VENUE"},provenance[1]]}))).ok);
+    assert.ok(!(await create(createBody(uuid(),"QUNA",{provenance:[{...provenance[0],limitation_codes:[...provenance[0].limitation_codes,"PROVIDER_UNAVAILABLE"]},provenance[1]]}))).ok);
+    assert.ok(!(await create(createBody(uuid(),"QCAD",{provenance:[{...provenance[0],limitation_codes:[...provenance[0].limitation_codes,"CACHE_DERIVED"]},provenance[1]]}))).ok);
+    assert.ok(!(await create(createBody(uuid(),"QANA",{provenance:[{...provenance[0],limitation_codes:[...provenance[0].limitation_codes,"NON_RECONSTRUCTIVE_ANALYTICS_ONLY"]},provenance[1]]}))).ok);
+    assert.ok(!(await create(createBody(uuid(),"UDUP",{provenance:[provenance[0],{...unavailable,limitation_codes:["PROVIDER_UNAVAILABLE","PROVIDER_UNAVAILABLE"]}]}))).ok);
     const noteNumeric=await append({p_position_id:raceId,p_idempotency_key:uuid(),p_event_type:"OWNER_NOTE",p_price:"987654.12345678",p_owner_note:"legitimate bounded owner prose"});
     assert.ok(!noteNumeric.ok,"non-execution events cannot carry numeric observations");
     const hiddenNumeric=await append({p_position_id:raceId,p_idempotency_key:uuid(),p_event_type:"HIDDEN_BY_OWNER",p_quantity:"1"}); assert.ok(!hiddenNumeric.ok);

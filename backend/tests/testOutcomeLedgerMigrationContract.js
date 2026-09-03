@@ -50,6 +50,9 @@ function inspect(sql) {
   if (/md5\s*\(|concat_ws\s*\(/i.test(sql) || !/extensions\.digest/.test(sql) || !/'sha256'/.test(sql)) errors.push("canonical SHA-256 fingerprint absent");
   if (!/result_open_quantity/.test(sql) || !/return query select v_existing\.id,v_existing\.sequence_no,v_existing\.result_open_quantity/.test(sql)) errors.push("stable replay result absent");
   if (/supersedes_event_id/.test(sql)) errors.push("incomplete correction support present");
+  if (!/Correction and supersession events are deliberately unsupported/.test(sql)) errors.push("correction deferral undocumented");
+  if ((sql.match(/cardinality\(limitation_codes\) = [123]/g) || []).length !== 5) errors.push("exact limitation-code sets absent");
+  if (!/v_canonical_provenance/.test(sql) || !/jsonb_agg\(code order by code\)/.test(sql)) errors.push("canonical limitation storage absent");
   if (/grant\s+(?:insert|update|delete)[^;]*outcome_/i.test(sql)) errors.push("immutable ledger gained direct writes");
   if (/references\s+auth\.users\s*\(id\)/i.test(sql) === false) errors.push("owner foreign key absent");
   return errors;
@@ -68,6 +71,8 @@ const mutations = [
   ["storage boundary", up.replaceAll("limitation_codes", "free_text_limitations").replaceAll("provenance is not storable", "bad provenance"), "storage boundary absent"],
   ["fingerprint", up.replaceAll("extensions.digest", "md5").replaceAll("'sha256'", "'md5'"), "canonical SHA-256 fingerprint absent"],
   ["stable replay", up.replaceAll("v_existing.result_open_quantity", "v_open"), "stable replay result absent"],
+  ["exact limitation sets", up.replaceAll(/cardinality\(limitation_codes\) = [123] and/g, "true and"), "exact limitation-code sets absent"],
+  ["canonical limitation storage", up.replaceAll("jsonb_agg(code order by code)", "jsonb_agg(code)"), "canonical limitation storage absent"],
   ["immutability", `${up}\ngrant update on public.outcome_decision_snapshots to authenticated;`, "immutable ledger gained direct writes"],
 ];
 for (const [name, mutated, expected] of mutations) {
