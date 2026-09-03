@@ -19,10 +19,22 @@ set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-CONTAINER="$(docker ps --filter name=supabase_db_ --format '{{.Names}}' | head -1)"
+PROJECT_ID="$(sed -n 's/^[[:space:]]*project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' supabase/config.toml)"
+if [ -z "$PROJECT_ID" ]; then
+    echo "ERROR: supabase/config.toml has no project_id."
+    exit 1
+fi
+EXPECTED_CONTAINER="supabase_db_${PROJECT_ID}"
+CANDIDATES="$(docker ps --filter "name=^/${EXPECTED_CONTAINER}$" --format '{{.Names}}')"
+CANDIDATE_COUNT="$(printf '%s\n' "$CANDIDATES" | sed '/^$/d' | wc -l | tr -d ' ')"
 
-if [ -z "$CONTAINER" ]; then
-    echo "ERROR: no supabase_db_* container is running. Run 'supabase start'."
+if [ "$CANDIDATE_COUNT" -ne 1 ]; then
+    echo "ERROR: expected exactly one repository-specific local database container ${EXPECTED_CONTAINER}; found ${CANDIDATE_COUNT}."
+    exit 1
+fi
+CONTAINER="$CANDIDATES"
+if [ "$CONTAINER" != "$EXPECTED_CONTAINER" ]; then
+    echo "ERROR: resolved container identity does not match this repository."
     exit 1
 fi
 

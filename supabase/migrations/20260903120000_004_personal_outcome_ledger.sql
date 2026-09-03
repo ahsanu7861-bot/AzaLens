@@ -58,14 +58,48 @@ create table public.outcome_snapshot_provenance (
   interval text check (interval in ('1day')),
   display_entitlement text not null check (display_entitlement in ('PRIVATE_PERSONAL_OWNER_ONLY', 'NON_DISPLAY_DERIVED_ANALYTICS_ONLY', 'NON_DISPLAY_NOT_ACTIVATED')),
   broker_verification_required boolean not null,
-  limitations text[] not null default '{}'::text[] check (cardinality(limitations) <= 16),
+  limitation_codes text[] not null default '{}'::text[] check (
+    cardinality(limitation_codes) <= 8 and
+    limitation_codes <@ array[
+      'CONSOLIDATION_UNVERIFIED',
+      'BROKER_VERIFICATION_REQUIRED',
+      'NON_RECONSTRUCTIVE_ANALYTICS_ONLY',
+      'CACHE_DERIVED',
+      'PROVIDER_UNAVAILABLE'
+    ]::text[]
+  ),
   primary key (snapshot_id, capability),
   foreign key (snapshot_id, user_id)
     references public.outcome_decision_snapshots(id, user_id) on delete cascade,
-  check (capability <> 'HISTORY' or provider <> 'TwelveData' or
-    (state in ('EOD_CONSOLIDATED', 'CACHE', 'UNAVAILABLE') and interval = '1day' and display_entitlement = 'NON_DISPLAY_DERIVED_ANALYTICS_ONLY')),
-  check (provider <> 'Finnhub' or capability <> 'QUOTE' or broker_verification_required),
-  check ((cache_state in ('HIT', 'COALESCED')) = (cache_age_seconds is not null)),
+  check (
+    (capability = 'QUOTE' and provider in ('Finnhub', 'Unknown') and interval is null) or
+    (capability = 'HISTORY' and provider in ('TwelveData', 'Unknown') and interval = '1day')
+  ),
+  check (
+    (state = 'UNAVAILABLE' and underlying_state = 'UNAVAILABLE' and provider = 'Unknown' and
+      source_timestamp is null and cache_state = 'UNAVAILABLE' and cache_age_seconds is null and
+      display_entitlement = 'NON_DISPLAY_NOT_ACTIVATED' and
+      limitation_codes @> array['PROVIDER_UNAVAILABLE']::text[]) or
+    (capability = 'QUOTE' and provider = 'Finnhub' and
+      state = 'REALTIME_CONSOLIDATION_UNVERIFIED' and
+      underlying_state = 'REALTIME_CONSOLIDATION_UNVERIFIED' and
+      cache_state = 'MISS' and cache_age_seconds is null and
+      display_entitlement = 'PRIVATE_PERSONAL_OWNER_ONLY' and broker_verification_required and
+      limitation_codes @> array['CONSOLIDATION_UNVERIFIED','BROKER_VERIFICATION_REQUIRED']::text[]) or
+    (capability = 'QUOTE' and provider = 'Finnhub' and state = 'CACHE' and
+      underlying_state = 'REALTIME_CONSOLIDATION_UNVERIFIED' and
+      cache_state in ('HIT','COALESCED') and cache_age_seconds is not null and
+      display_entitlement = 'PRIVATE_PERSONAL_OWNER_ONLY' and broker_verification_required and
+      limitation_codes @> array['CONSOLIDATION_UNVERIFIED','BROKER_VERIFICATION_REQUIRED','CACHE_DERIVED']::text[]) or
+    (capability = 'HISTORY' and provider = 'TwelveData' and state = 'EOD_CONSOLIDATED' and
+      underlying_state = 'EOD_CONSOLIDATED' and cache_state = 'MISS' and cache_age_seconds is null and
+      display_entitlement = 'NON_DISPLAY_DERIVED_ANALYTICS_ONLY' and broker_verification_required and
+      limitation_codes @> array['NON_RECONSTRUCTIVE_ANALYTICS_ONLY','BROKER_VERIFICATION_REQUIRED']::text[]) or
+    (capability = 'HISTORY' and provider = 'TwelveData' and state = 'CACHE' and
+      underlying_state = 'EOD_CONSOLIDATED' and cache_state in ('HIT','COALESCED') and cache_age_seconds is not null and
+      display_entitlement = 'NON_DISPLAY_DERIVED_ANALYTICS_ONLY' and broker_verification_required and
+      limitation_codes @> array['NON_RECONSTRUCTIVE_ANALYTICS_ONLY','BROKER_VERIFICATION_REQUIRED','CACHE_DERIVED']::text[])
+  ),
   check (source_timestamp is null or source_timestamp <= retrieval_timestamp)
 );
 
@@ -78,7 +112,7 @@ create table public.outcome_positions (
   currency text not null check (currency ~ '^[A-Z]{3}$'),
   posture text not null check (posture = 'LONG_CASH_EQUITY'),
   client_idempotency_key uuid not null,
-  request_fingerprint text not null check (request_fingerprint ~ '^[0-9a-f]{32}$'),
+  request_fingerprint text not null check (request_fingerprint ~ '^[0-9a-f]{64}$'),
   created_at timestamptz not null default clock_timestamp(),
   unique (id, user_id),
   unique (snapshot_id),
@@ -94,7 +128,7 @@ create table public.outcome_position_events (
   sequence_no integer not null check (sequence_no > 0),
   event_type text not null check (event_type in ('ENTRY_CONFIRMED', 'PARTIAL_EXIT_CONFIRMED', 'FINAL_EXIT_CONFIRMED', 'OWNER_NOTE', 'HIDDEN_BY_OWNER')),
   client_idempotency_key uuid not null,
-  request_fingerprint text not null check (request_fingerprint ~ '^[0-9a-f]{32}$'),
+  request_fingerprint text not null check (request_fingerprint ~ '^[0-9a-f]{64}$'),
   broker_confirmed boolean not null,
   broker_effective_at timestamptz,
   price numeric(24,8),
@@ -105,22 +139,27 @@ create table public.outcome_position_events (
   usefulness text check (usefulness in ('USEFUL', 'PARTLY_USEFUL', 'NOT_USEFUL', 'UNKNOWN')),
   exit_reason text check (char_length(exit_reason) <= 1000),
   owner_note text check (char_length(owner_note) <= 4000),
-  supersedes_event_id bigint references public.outcome_position_events(id),
+  result_open_quantity numeric not null,
+  result_realized_pl numeric not null,
+  result_realized_return_pct numeric,
   created_at timestamptz not null default clock_timestamp(),
   unique (position_id, sequence_no),
   unique (user_id, client_idempotency_key),
   unique (id, position_id, user_id),
   foreign key (position_id, user_id)
     references public.outcome_positions(id, user_id) on delete cascade,
-  foreign key (supersedes_event_id, position_id, user_id)
-    references public.outcome_position_events(id, position_id, user_id),
   check (price is null or price > 0),
   check (quantity is null or quantity > 0),
   check (fees is null or fees >= 0),
   check (taxes is null or taxes >= 0),
   check ((event_type in ('ENTRY_CONFIRMED', 'PARTIAL_EXIT_CONFIRMED', 'FINAL_EXIT_CONFIRMED')) = broker_confirmed),
-  check ((event_type in ('ENTRY_CONFIRMED', 'PARTIAL_EXIT_CONFIRMED', 'FINAL_EXIT_CONFIRMED')) =
-    (broker_effective_at is not null and price is not null and quantity is not null)),
+  check (
+    (event_type in ('ENTRY_CONFIRMED', 'PARTIAL_EXIT_CONFIRMED', 'FINAL_EXIT_CONFIRMED') and
+      broker_effective_at is not null and price is not null and quantity is not null and
+      fees is not null and taxes is not null) or
+    (event_type in ('OWNER_NOTE', 'HIDDEN_BY_OWNER') and broker_effective_at is null and
+      price is null and quantity is null and fees is null and taxes is null)
+  ),
   check (event_type <> 'ENTRY_CONFIRMED' or sequence_no = 1)
 );
 
@@ -165,38 +204,9 @@ create policy outcome_positions_select_own on public.outcome_positions
 create policy outcome_position_events_select_own on public.outcome_position_events
   for select to authenticated using ((select auth.uid()) = user_id);
 
-create function public.outcome_text_is_storage_safe(p_value text)
-returns boolean
-language sql
-immutable
-set search_path = ''
-as $$
-  select p_value is null or (
-    p_value !~ '[\{\}\[\]]' and
-    lower(p_value) !~ '(time[_ ]?series|ohlcv|candles?|market[_ ]?series|raw[_ ]?history)'
-  )
-$$;
-revoke all on function public.outcome_text_is_storage_safe(text) from public, anon, authenticated, service_role;
-
-create function public.outcome_text_array_is_storage_safe(p_values text[])
-returns boolean
-language sql
-immutable
-set search_path = ''
-as $$
-  select coalesce(bool_and(public.outcome_text_is_storage_safe(item)), true)
-  from unnest(p_values) item
-$$;
-revoke all on function public.outcome_text_array_is_storage_safe(text[]) from public, anon, authenticated, service_role;
-
-alter table public.outcome_decision_snapshots add constraint outcome_snapshot_text_safe
-  check (public.outcome_text_is_storage_safe(thesis_text) and
-         public.outcome_text_is_storage_safe(invalidation_condition) and
-         public.outcome_text_is_storage_safe(planned_horizon));
-alter table public.outcome_snapshot_provenance add constraint outcome_provenance_text_safe
-  check (public.outcome_text_array_is_storage_safe(limitations));
-alter table public.outcome_position_events add constraint outcome_event_text_safe
-  check (public.outcome_text_is_storage_safe(exit_reason) and public.outcome_text_is_storage_safe(owner_note));
+-- Owner-authored prose is deliberately bounded but not content-scanned. PostgreSQL
+-- cannot prove arbitrary prose free of steganographic data. Provider-derived input is
+-- therefore restricted to the typed provenance columns and limitation-code vocabulary.
 
 create function public.create_personal_risk_limit_version(
   p_base_currency text,
@@ -276,21 +286,30 @@ begin
   for v_item in select value from jsonb_array_elements(p_provenance) loop
     if jsonb_typeof(v_item) <> 'object' or exists (
       select 1 from jsonb_object_keys(v_item) k
-       where k not in ('capability','provider','state','underlying_state','source_timestamp','retrieval_timestamp','cache_state','cache_age_seconds','interval','display_entitlement','broker_verification_required','limitations')
+       where k not in ('capability','provider','state','underlying_state','source_timestamp','retrieval_timestamp','cache_state','cache_age_seconds','interval','display_entitlement','broker_verification_required','limitation_codes')
     ) then raise exception using errcode='22023', message='provenance is not storable'; end if;
     if exists (select 1 from jsonb_object_keys(v_item) k where lower(k) in ('open','high','low','close','volume','values','bars','candles','datetime','price')) then
       raise exception using errcode='22023', message='provenance is not storable';
     end if;
   end loop;
 
-  v_fingerprint := md5(concat_ws('|', p_symbol, p_market, p_currency,
-    p_analysis_contract_version, p_analysis_created_at::text, p_thesis_text,
-    p_invalidation_condition, p_planned_horizon, p_intended_invalidation_price::text,
-    p_intended_target_price::text, p_maximum_planned_loss::text, p_risk_percentage::text,
-    p_risk_limit_version_id::text, p_public_direction, p_public_evidence_state,
-    p_public_risk_classification, p_shariah_state, p_provenance::text,
-    p_broker_effective_at::text, p_entry_price::text, p_entry_quantity::text,
-    p_fees::text, p_taxes::text));
+  v_fingerprint := encode(extensions.digest(convert_to(jsonb_build_object(
+    'version', 1,
+    'symbol', p_symbol, 'market', p_market, 'currency', p_currency,
+    'analysis_contract_version', p_analysis_contract_version,
+    'analysis_created_at', p_analysis_created_at,
+    'thesis_text', p_thesis_text, 'invalidation_condition', p_invalidation_condition,
+    'planned_horizon', p_planned_horizon,
+    'intended_invalidation_price', p_intended_invalidation_price,
+    'intended_target_price', p_intended_target_price,
+    'maximum_planned_loss', p_maximum_planned_loss, 'risk_percentage', p_risk_percentage,
+    'risk_limit_version_id', p_risk_limit_version_id,
+    'public_direction', p_public_direction, 'public_evidence_state', p_public_evidence_state,
+    'public_risk_classification', p_public_risk_classification, 'shariah_state', p_shariah_state,
+    'provenance', p_provenance, 'broker_confirmed', p_broker_confirmed,
+    'broker_effective_at', p_broker_effective_at, 'entry_price', p_entry_price,
+    'entry_quantity', p_entry_quantity, 'fees', p_fees, 'taxes', p_taxes
+  )::text, 'UTF8'), 'sha256'), 'hex');
 
   perform pg_advisory_xact_lock(hashtextextended(v_user::text || ':' || p_idempotency_key::text, 0));
   select * into v_existing from public.outcome_positions
@@ -313,14 +332,14 @@ begin
 
   insert into public.outcome_snapshot_provenance(snapshot_id,user_id,capability,provider,state,
     underlying_state,source_timestamp,retrieval_timestamp,cache_state,cache_age_seconds,
-    interval,display_entitlement,broker_verification_required,limitations)
+    interval,display_entitlement,broker_verification_required,limitation_codes)
   select v_snapshot,v_user,x.capability,x.provider,x.state,x.underlying_state,x.source_timestamp,
     x.retrieval_timestamp,x.cache_state,x.cache_age_seconds,x.interval,x.display_entitlement,
-    x.broker_verification_required,coalesce(x.limitations,'{}'::text[])
+    x.broker_verification_required,coalesce(x.limitation_codes,'{}'::text[])
   from jsonb_to_recordset(p_provenance) as x(capability text,provider text,state text,
     underlying_state text,source_timestamp timestamptz,retrieval_timestamp timestamptz,
     cache_state text,cache_age_seconds integer,interval text,display_entitlement text,
-    broker_verification_required boolean,limitations text[]);
+    broker_verification_required boolean,limitation_codes text[]);
 
   insert into public.outcome_positions(user_id,snapshot_id,symbol,market,currency,posture,
     client_idempotency_key,request_fingerprint)
@@ -329,9 +348,10 @@ begin
 
   insert into public.outcome_position_events(position_id,user_id,sequence_no,event_type,
     client_idempotency_key,request_fingerprint,broker_confirmed,broker_effective_at,
-    price,quantity,fees,taxes)
+    price,quantity,fees,taxes,result_open_quantity,result_realized_pl,result_realized_return_pct)
   values(v_position,v_user,1,'ENTRY_CONFIRMED',p_idempotency_key,v_fingerprint,true,
-    p_broker_effective_at,p_entry_price,p_entry_quantity,coalesce(p_fees,0),coalesce(p_taxes,0))
+    p_broker_effective_at,p_entry_price,p_entry_quantity,coalesce(p_fees,0),coalesce(p_taxes,0),
+    p_entry_quantity,0,null)
   returning id into v_event;
   return query select v_snapshot,v_position,v_event,false;
 end $$;
@@ -349,8 +369,7 @@ create function public.append_outcome_position_event(
   p_thesis_result text default null,
   p_usefulness text default null,
   p_exit_reason text default null,
-  p_owner_note text default null,
-  p_supersedes_event_id bigint default null
+  p_owner_note text default null
 )
 returns table(event_id bigint, sequence_no integer, open_quantity numeric, realized_pl numeric, realized_return_pct numeric, replayed boolean)
 language plpgsql security definer set search_path = ''
@@ -364,57 +383,73 @@ begin
   if v_user is null then raise exception using errcode='42501', message='authentication required'; end if;
   select * into v_position from public.outcome_positions where id=p_position_id and user_id=v_user for update;
   if not found then raise exception using errcode='42501', message='position unavailable'; end if;
-  select e.* into strict v_entry from public.outcome_position_events e where e.position_id=p_position_id and e.sequence_no=1;
-  v_fp := md5(concat_ws('|',p_position_id::text,p_event_type,p_broker_confirmed::text,
-    p_broker_effective_at::text,p_price::text,p_quantity::text,p_fees::text,p_taxes::text,
-    p_thesis_result,p_usefulness,p_exit_reason,p_owner_note,p_supersedes_event_id::text));
+  select e.* into strict v_entry from public.outcome_position_events e where e.position_id=v_position.id and e.sequence_no=1;
+  v_fp := encode(extensions.digest(convert_to(jsonb_build_object(
+    'version', 1, 'position_id', p_position_id, 'event_type', p_event_type,
+    'broker_confirmed', p_broker_confirmed, 'broker_effective_at', p_broker_effective_at,
+    'price', p_price, 'quantity', p_quantity, 'fees', p_fees, 'taxes', p_taxes,
+    'thesis_result', p_thesis_result, 'usefulness', p_usefulness,
+    'exit_reason', p_exit_reason, 'owner_note', p_owner_note
+  )::text, 'UTF8'), 'sha256'), 'hex');
   select * into v_existing from public.outcome_position_events e where e.user_id=v_user and e.client_idempotency_key=p_idempotency_key;
   if found then
     if v_existing.position_id <> p_position_id or v_existing.request_fingerprint <> v_fp then raise exception using errcode='23505', message='idempotency conflict'; end if;
-    v_event := v_existing.id; v_seq := v_existing.sequence_no;
+    return query select v_existing.id,v_existing.sequence_no,v_existing.result_open_quantity,
+      v_existing.result_realized_pl,v_existing.result_realized_return_pct,true;
+    return;
   else
     if p_event_type not in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED','OWNER_NOTE','HIDDEN_BY_OWNER') then
       raise exception using errcode='22023', message='invalid event type'; end if;
     select coalesce(sum(e.quantity),0) into v_closed from public.outcome_position_events e
-      where e.position_id=p_position_id and e.event_type in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED');
-    if exists(select 1 from public.outcome_position_events e where e.position_id=p_position_id and e.event_type='FINAL_EXIT_CONFIRMED') then
+      where e.position_id=v_position.id and e.event_type in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED');
+    if exists(select 1 from public.outcome_position_events e where e.position_id=v_position.id and e.event_type='FINAL_EXIT_CONFIRMED') then
       raise exception using errcode='22023', message='position already closed'; end if;
     if p_event_type in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED') then
       if not coalesce(p_broker_confirmed,false) or p_broker_effective_at is null or p_price is null or p_price <= 0 or p_quantity is null or p_quantity <= 0 then
         raise exception using errcode='22023', message='invalid broker exit'; end if;
       if p_broker_effective_at < v_entry.broker_effective_at or p_broker_effective_at < coalesce((
         select max(e.broker_effective_at) from public.outcome_position_events e
-        where e.position_id=p_position_id and e.event_type in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED')
+        where e.position_id=v_position.id and e.event_type in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED')
       ), v_entry.broker_effective_at) then
         raise exception using errcode='22023', message='broker event is out of order'; end if;
       if v_closed + p_quantity > v_entry.quantity then raise exception using errcode='22023', message='exit quantity exceeds open quantity'; end if;
       if p_event_type='PARTIAL_EXIT_CONFIRMED' and v_closed+p_quantity >= v_entry.quantity then raise exception using errcode='22023', message='partial exit must leave open quantity'; end if;
       if p_event_type='FINAL_EXIT_CONFIRMED' and v_closed+p_quantity <> v_entry.quantity then raise exception using errcode='22023', message='final exit must close exact quantity'; end if;
     end if;
-    select coalesce(max(e.sequence_no),0)+1 into v_seq from public.outcome_position_events e where e.position_id=p_position_id;
+    select coalesce(max(e.sequence_no),0)+1 into v_seq from public.outcome_position_events e where e.position_id=v_position.id;
+    select coalesce(sum(e.quantity),0),coalesce(sum(e.quantity*e.price),0),coalesce(sum(e.fees),0),coalesce(sum(e.taxes),0)
+      into v_closed,v_exit_proceeds,v_exit_fees,v_exit_taxes from public.outcome_position_events e
+      where e.position_id=v_position.id and e.event_type in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED');
+    if p_event_type in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED') then
+      v_closed := v_closed + p_quantity;
+      v_exit_proceeds := v_exit_proceeds + (p_quantity*p_price);
+      v_exit_fees := v_exit_fees + coalesce(p_fees,0);
+      v_exit_taxes := v_exit_taxes + coalesce(p_taxes,0);
+    end if;
+    v_open := v_entry.quantity-v_closed;
+    v_pl := v_exit_proceeds-(v_entry.price*v_closed)-
+      case when v_entry.quantity=0 then 0 else coalesce(v_entry.fees,0)*v_closed/v_entry.quantity end-
+      v_exit_fees-v_exit_taxes;
+    v_return := case when v_closed=0 then null else
+      v_pl/((v_entry.price*v_closed)+(coalesce(v_entry.fees,0)*v_closed/v_entry.quantity))*100 end;
     insert into public.outcome_position_events(position_id,user_id,sequence_no,event_type,
       client_idempotency_key,request_fingerprint,broker_confirmed,broker_effective_at,price,
-      quantity,fees,taxes,thesis_result,usefulness,exit_reason,owner_note,supersedes_event_id)
-    values(p_position_id,v_user,v_seq,p_event_type,p_idempotency_key,v_fp,coalesce(p_broker_confirmed,false),
-      p_broker_effective_at,p_price,p_quantity,p_fees,p_taxes,p_thesis_result,p_usefulness,
-      p_exit_reason,p_owner_note,p_supersedes_event_id)
+      quantity,fees,taxes,thesis_result,usefulness,exit_reason,owner_note,
+      result_open_quantity,result_realized_pl,result_realized_return_pct)
+    values(v_position.id,v_user,v_seq,p_event_type,p_idempotency_key,v_fp,coalesce(p_broker_confirmed,false),
+      p_broker_effective_at,p_price,p_quantity,
+      case when p_event_type in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED') then coalesce(p_fees,0) else null end,
+      case when p_event_type in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED') then coalesce(p_taxes,0) else null end,
+      p_thesis_result,p_usefulness,
+      p_exit_reason,p_owner_note,v_open,v_pl,v_return)
     returning id into v_event;
   end if;
-  select coalesce(sum(e.quantity),0),coalesce(sum(e.quantity*e.price),0),coalesce(sum(e.fees),0),coalesce(sum(e.taxes),0)
-    into v_closed,v_exit_proceeds,v_exit_fees,v_exit_taxes from public.outcome_position_events e
-    where e.position_id=p_position_id and e.event_type in ('PARTIAL_EXIT_CONFIRMED','FINAL_EXIT_CONFIRMED');
-  v_open := v_entry.quantity-v_closed;
-  v_pl := v_exit_proceeds-(v_entry.price*v_closed)-
-    case when v_entry.quantity=0 then 0 else coalesce(v_entry.fees,0)*v_closed/v_entry.quantity end-
-    v_exit_fees-v_exit_taxes;
-  v_return := case when v_closed=0 then null else
-    v_pl/((v_entry.price*v_closed)+(coalesce(v_entry.fees,0)*v_closed/v_entry.quantity))*100 end;
-  return query select v_event,v_seq,v_open,v_pl,v_return,(v_existing.id is not null);
+  return query select v_event,v_seq,v_open,v_pl,v_return,false;
 end $$;
 
 revoke all on function public.create_personal_risk_limit_version(text,numeric,numeric,numeric,numeric,integer,numeric,numeric,text,text) from public, anon, service_role;
 revoke all on function public.create_outcome_position(uuid,text,text,text,text,timestamptz,text,text,text,numeric,numeric,numeric,numeric,uuid,text,text,text,text,jsonb,boolean,timestamptz,numeric,numeric,numeric,numeric) from public, anon, service_role;
-revoke all on function public.append_outcome_position_event(uuid,uuid,text,boolean,timestamptz,numeric,numeric,numeric,numeric,text,text,text,text,bigint) from public, anon, service_role;
+revoke all on function public.append_outcome_position_event(uuid,uuid,text,boolean,timestamptz,numeric,numeric,numeric,numeric,text,text,text,text) from public, anon, service_role;
 grant execute on function public.create_personal_risk_limit_version(text,numeric,numeric,numeric,numeric,integer,numeric,numeric,text,text) to authenticated;
 grant execute on function public.create_outcome_position(uuid,text,text,text,text,timestamptz,text,text,text,numeric,numeric,numeric,numeric,uuid,text,text,text,text,jsonb,boolean,timestamptz,numeric,numeric,numeric,numeric) to authenticated;
-grant execute on function public.append_outcome_position_event(uuid,uuid,text,boolean,timestamptz,numeric,numeric,numeric,numeric,text,text,text,text,bigint) to authenticated;
+grant execute on function public.append_outcome_position_event(uuid,uuid,text,boolean,timestamptz,numeric,numeric,numeric,numeric,text,text,text,text) to authenticated;

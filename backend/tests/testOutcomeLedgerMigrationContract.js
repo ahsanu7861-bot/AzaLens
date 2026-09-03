@@ -46,7 +46,10 @@ function inspect(sql) {
   if (!/for update;/.test(sql)) errors.push("position row is not locked");
   if (!/client_idempotency_key/.test(sql) || !/idempotency conflict/.test(sql)) errors.push("idempotency absent");
   if (!/exit quantity exceeds open quantity/.test(sql)) errors.push("exit quantity guard absent");
-  if (!/outcome_text_is_storage_safe/.test(sql) || !/provenance is not storable/.test(sql)) errors.push("storage boundary absent");
+  if (!/limitation_codes/.test(sql) || !/provenance is not storable/.test(sql)) errors.push("storage boundary absent");
+  if (/md5\s*\(|concat_ws\s*\(/i.test(sql) || !/extensions\.digest/.test(sql) || !/'sha256'/.test(sql)) errors.push("canonical SHA-256 fingerprint absent");
+  if (!/result_open_quantity/.test(sql) || !/return query select v_existing\.id,v_existing\.sequence_no,v_existing\.result_open_quantity/.test(sql)) errors.push("stable replay result absent");
+  if (/supersedes_event_id/.test(sql)) errors.push("incomplete correction support present");
   if (/grant\s+(?:insert|update|delete)[^;]*outcome_/i.test(sql)) errors.push("immutable ledger gained direct writes");
   if (/references\s+auth\.users\s*\(id\)/i.test(sql) === false) errors.push("owner foreign key absent");
   return errors;
@@ -62,7 +65,9 @@ const mutations = [
   ["auth.uid", up.replaceAll("auth.uid()", "null::uuid"), "does not derive auth.uid"],
   ["idempotency", up.replaceAll("idempotency conflict", "duplicate"), "idempotency absent"],
   ["exit protection", up.replace("exit quantity exceeds open quantity", "invalid exit"), "exit quantity guard absent"],
-  ["storage boundary", up.replaceAll("outcome_text_is_storage_safe", "text_is_ok").replaceAll("provenance is not storable", "bad provenance"), "storage boundary absent"],
+  ["storage boundary", up.replaceAll("limitation_codes", "free_text_limitations").replaceAll("provenance is not storable", "bad provenance"), "storage boundary absent"],
+  ["fingerprint", up.replaceAll("extensions.digest", "md5").replaceAll("'sha256'", "'md5'"), "canonical SHA-256 fingerprint absent"],
+  ["stable replay", up.replaceAll("v_existing.result_open_quantity", "v_open"), "stable replay result absent"],
   ["immutability", `${up}\ngrant update on public.outcome_decision_snapshots to authenticated;`, "immutable ledger gained direct writes"],
 ];
 for (const [name, mutated, expected] of mutations) {

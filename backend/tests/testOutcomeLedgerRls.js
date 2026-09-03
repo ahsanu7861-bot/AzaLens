@@ -27,8 +27,8 @@ async function main() {
       p_intended_invalidation_price:null,p_intended_target_price:null,p_maximum_planned_loss:null,p_risk_percentage:null,
       p_risk_limit_version_id:null,p_public_direction:"BULLISH",p_public_evidence_state:"SUPPORTIVE",
       p_public_risk_classification:"UNKNOWN",p_shariah_state:"COMPLIANT",p_provenance:[
-        {capability:"QUOTE",provider:"Finnhub",state:"UNAVAILABLE",underlying_state:"UNAVAILABLE",source_timestamp:null,retrieval_timestamp:"2026-09-03T00:00:00Z",cache_state:"UNAVAILABLE",cache_age_seconds:null,interval:null,display_entitlement:"PRIVATE_PERSONAL_OWNER_ONLY",broker_verification_required:true,limitations:["Unavailable fixture"]},
-        {capability:"HISTORY",provider:"TwelveData",state:"UNAVAILABLE",underlying_state:"UNAVAILABLE",source_timestamp:null,retrieval_timestamp:"2026-09-03T00:00:00Z",cache_state:"UNAVAILABLE",cache_age_seconds:null,interval:"1day",display_entitlement:"NON_DISPLAY_DERIVED_ANALYTICS_ONLY",broker_verification_required:true,limitations:["Unavailable fixture"]}
+        {capability:"QUOTE",provider:"Unknown",state:"UNAVAILABLE",underlying_state:"UNAVAILABLE",source_timestamp:null,retrieval_timestamp:"2026-09-03T00:00:00Z",cache_state:"UNAVAILABLE",cache_age_seconds:null,interval:null,display_entitlement:"NON_DISPLAY_NOT_ACTIVATED",broker_verification_required:true,limitation_codes:["PROVIDER_UNAVAILABLE"]},
+        {capability:"HISTORY",provider:"Unknown",state:"UNAVAILABLE",underlying_state:"UNAVAILABLE",source_timestamp:null,retrieval_timestamp:"2026-09-03T00:00:00Z",cache_state:"UNAVAILABLE",cache_age_seconds:null,interval:"1day",display_entitlement:"NON_DISPLAY_NOT_ACTIVATED",broker_verification_required:true,limitation_codes:["PROVIDER_UNAVAILABLE"]}
       ],
       p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T01:00:00Z",p_entry_price:"100.00000000",
       p_entry_quantity:"10.00000000",p_fees:"1.00000000",p_taxes:"0"
