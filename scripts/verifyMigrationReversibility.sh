@@ -106,6 +106,11 @@ if [ "$FAILURES" -gt 0 ]; then
 fi
 
 echo "== 5. re-apply every migration from empty =="
+# The down scripts are deliberately ordinary SQL and never falsify migration
+# history. In this disposable local proof, clear that local-only history before
+# asking the CLI to replay; otherwise `db reset` can retain "applied" records
+# for objects the verification-only down scripts just removed.
+q "truncate table supabase_migrations.schema_migrations"
 supabase db reset >/dev/null
 
 TABLES_AFTER="$(q "select count(*) from pg_tables where schemaname='public'")"
@@ -115,5 +120,20 @@ if [ "$TABLES_AFTER" != "$TABLES_BEFORE" ]; then
 fi
 
 echo "   public tables after re-apply: $TABLES_AFTER"
+
+LEDGER_TABLES_AFTER="$(q "select count(*) from pg_tables where schemaname='public' and tablename in ('personal_risk_limit_versions','outcome_decision_snapshots','outcome_snapshot_provenance','outcome_positions','outcome_position_events')")"
+LEDGER_RPCS_AFTER="$(q "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('create_personal_risk_limit_version','create_outcome_position','append_outcome_position_event')")"
+LEDGER_POLICIES_AFTER="$(q "select count(*) from pg_policies where schemaname='public' and tablename in ('personal_risk_limit_versions','outcome_decision_snapshots','outcome_snapshot_provenance','outcome_positions','outcome_position_events')")"
+LEDGER_UNFORCED_AFTER="$(q "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('personal_risk_limit_versions','outcome_decision_snapshots','outcome_snapshot_provenance','outcome_positions','outcome_position_events') and (not c.relrowsecurity or not c.relforcerowsecurity)")"
+LEDGER_UNSAFE_GRANTS_AFTER="$(q "select count(*) from information_schema.role_table_grants where table_schema='public' and table_name in ('personal_risk_limit_versions','outcome_decision_snapshots','outcome_snapshot_provenance','outcome_positions','outcome_position_events') and (grantee in ('anon','service_role') or (grantee='authenticated' and privilege_type <> 'SELECT'))")"
+LEDGER_BAD_EXECUTE_AFTER="$(q "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace cross join (values ('anon'),('service_role')) r(role_name) where n.nspname='public' and p.proname in ('create_personal_risk_limit_version','create_outcome_position','append_outcome_position_event') and has_function_privilege(r.role_name,p.oid,'EXECUTE')")"
+
+if [ "$LEDGER_TABLES_AFTER" != 5 ] || [ "$LEDGER_RPCS_AFTER" != 3 ] || \
+   [ "$LEDGER_POLICIES_AFTER" != 5 ] || [ "$LEDGER_UNFORCED_AFTER" != 0 ] || \
+   [ "$LEDGER_UNSAFE_GRANTS_AFTER" != 0 ] || [ "$LEDGER_BAD_EXECUTE_AFTER" != 0 ]; then
+    echo "ERROR: migration 004 did not return with its exact security contract."
+    exit 1
+fi
+echo "   migration 004 restored: 5 tables, 3 RPCs, 5 owner policies, forced RLS, least privilege"
 echo ""
 echo "REVERSIBILITY CHECK PASSED"

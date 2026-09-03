@@ -15,7 +15,7 @@
     "check:migrations:down": "node scripts/checkDownMigrations.js",
     "test:tenant-isolation": "node tests/testTenantIsolation.js",
     "test:rls-coverage": "node tests/testRlsCoverage.js",
-    "test:db": "npm run check:migrations && npm run check:migrations:down && npm run test:tenant-isolation && npm run test:rls-coverage && node tests/testTwelveDataCreditRpc.js",
+    "test:db": "npm run check:migrations && npm run check:migrations:down && node tests/testOutcomeLedgerMigrationContract.js && npm run test:tenant-isolation && npm run test:rls-coverage && node tests/testTwelveDataCreditRpc.js && node tests/testOutcomeLedgerRpc.js && node tests/testOutcomeLedgerRls.js",
     "test:compliance-gate": "node tests/testComplianceGate.js",
     "test:market-session": "node tests/testMarketSession.js",
     "test:rvol-session-awareness": "node tests/testRvolSessionAwareness.js",
