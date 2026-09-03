@@ -1,22 +1,9 @@
 -- Personal outcome ledger: immutable decisions and append-only lifecycle events.
--- No provider observations are accepted or stored. All ownership comes from auth.uid().
-
-create table public.personal_risk_limit_versions (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  base_currency text not null check (base_currency ~ '^[A-Z]{3}$'),
-  max_planned_loss_amount numeric(24,8) check (max_planned_loss_amount > 0),
-  max_planned_loss_pct numeric(9,6) check (max_planned_loss_pct > 0 and max_planned_loss_pct <= 100),
-  max_position_exposure_pct numeric(9,6) check (max_position_exposure_pct > 0 and max_position_exposure_pct <= 100),
-  max_symbol_concentration_pct numeric(9,6) check (max_symbol_concentration_pct > 0 and max_symbol_concentration_pct <= 100),
-  max_open_positions integer check (max_open_positions > 0),
-  max_daily_realized_loss numeric(24,8) check (max_daily_realized_loss > 0),
-  max_weekly_realized_loss numeric(24,8) check (max_weekly_realized_loss > 0),
-  missing_invalidation_action text not null check (missing_invalidation_action in ('WARN', 'BLOCK')),
-  stale_quote_action text not null check (stale_quote_action in ('WARN', 'BLOCK')),
-  created_at timestamptz not null default clock_timestamp(),
-  unique (id, user_id)
-);
+-- Raw provider observations are never accepted. Ownership comes only from auth.uid().
+-- No runtime ledger caller exists yet. Slice 3 is blocked until its runtime producer
+-- emits this three-axis provenance contract. Risk-limit enforcement is a mandatory
+-- pre-trading gate: real position recording must not be activated until atomic limits
+-- and typed WARN/BLOCK semantics receive separate approval.
 
 create table public.outcome_decision_snapshots (
   id uuid primary key default gen_random_uuid(),
@@ -33,79 +20,83 @@ create table public.outcome_decision_snapshots (
   intended_target_price numeric(24,8) check (intended_target_price > 0),
   maximum_planned_loss numeric(24,8) check (maximum_planned_loss > 0),
   risk_percentage numeric(9,6) check (risk_percentage > 0 and risk_percentage <= 100),
-  risk_limit_version_id uuid,
   public_direction text check (public_direction in ('BULLISH', 'BEARISH', 'NEUTRAL', 'UNKNOWN')),
   public_evidence_state text check (public_evidence_state in ('SUPPORTIVE', 'MIXED', 'ADVERSE', 'INCOMPLETE', 'UNKNOWN')),
   public_risk_classification text check (public_risk_classification in ('LOW', 'MEDIUM', 'HIGH', 'UNKNOWN')),
   shariah_state text not null check (shariah_state in ('COMPLIANT', 'NON_COMPLIANT', 'DOUBTFUL', 'UNAVAILABLE', 'UNKNOWN')),
   unique (id, user_id),
-  unique (id, user_id, symbol, market),
-  foreign key (risk_limit_version_id, user_id)
-    references public.personal_risk_limit_versions(id, user_id)
+  unique (id, user_id, symbol, market)
 );
 
 create table public.outcome_snapshot_provenance (
   snapshot_id uuid not null,
   user_id uuid not null,
   capability text not null check (capability in ('QUOTE', 'HISTORY')),
-  provider text not null check (provider in ('Finnhub', 'TwelveData', 'Unknown')),
-  state text not null check (state in ('REALTIME_CONSOLIDATION_UNVERIFIED', 'REALTIME_LIMITED_VENUE', 'EOD_CONSOLIDATED', 'CACHE', 'UNAVAILABLE')),
-  underlying_state text not null check (underlying_state in ('REALTIME_CONSOLIDATION_UNVERIFIED', 'REALTIME_LIMITED_VENUE', 'EOD_CONSOLIDATED', 'UNAVAILABLE')),
-  source_timestamp timestamptz,
-  retrieval_timestamp timestamptz not null,
-  cache_state text not null check (cache_state in ('MISS', 'HIT', 'COALESCED', 'EXPIRED', 'UNAVAILABLE')),
-  cache_age_seconds integer check (cache_age_seconds >= 0),
-  interval text check (interval in ('1day')),
-  display_entitlement text not null check (display_entitlement in ('PRIVATE_PERSONAL_OWNER_ONLY', 'NON_DISPLAY_DERIVED_ANALYTICS_ONLY', 'NON_DISPLAY_NOT_ACTIVATED')),
-  broker_verification_required boolean not null,
+  provider text not null check (char_length(provider) between 1 and 80 and provider ~ '^[A-Za-z0-9][A-Za-z0-9 ._-]*$'),
+  source_observation text not null check (source_observation in ('REALTIME','DELAYED','EOD','MARKET_CLOSED','UNAVAILABLE')),
+  venue_scope text not null check (venue_scope in ('LIMITED_VENUE','COMPOSITE_INDICATIVE','CONSOLIDATED_VERIFIED','CONSOLIDATION_UNVERIFIED','NOT_APPLICABLE','UNKNOWN')),
+  interval text check (interval is null or (char_length(interval) between 1 and 24 and interval ~ '^[A-Za-z0-9]+$')),
+  observed_at timestamptz,
+  delivery_state text not null check (delivery_state in ('MISS','HIT','COALESCED','EXPIRED_REJECTED')),
+  retrieved_at timestamptz not null,
+  original_retrieved_at timestamptz not null,
+  age_seconds integer not null check (age_seconds >= 0),
+  freshness_threshold_seconds integer not null check (freshness_threshold_seconds > 0),
+  usable boolean not null,
+  entitlement_display text not null check (entitlement_display in ('PERMITTED_PRIVATE','PERMITTED_EXTERNAL','PROHIBITED','UNRESOLVED')),
+  entitlement_analysis text not null check (entitlement_analysis in ('PERMITTED_NON_RECONSTRUCTIVE','PROHIBITED','UNRESOLVED')),
+  entitlement_storage text not null check (entitlement_storage in ('PERMITTED_RAW','PERMITTED_DERIVED_ONLY','PROHIBITED','UNRESOLVED')),
+  entitlement_attribution text not null check (entitlement_attribution in ('REQUIRED','NOT_REQUIRED_PRIVATE','UNRESOLVED')),
+  entitlement_authority text not null check (entitlement_authority in ('PUBLISHED_TERMS','PLAN_DOCUMENTATION','PROVIDER_CORRESPONDENCE','SEPARATE_AGREEMENT','UNKNOWN')),
+  entitlement_assessed_at timestamptz not null,
+  authority_reference text not null check (char_length(authority_reference) between 1 and 240 and authority_reference !~ '[[:cntrl:]]'),
   limitation_codes text[] not null default '{}'::text[] check (
-    cardinality(limitation_codes) <= 8 and
+    cardinality(limitation_codes) <= 12 and
     limitation_codes <@ array[
-      'CONSOLIDATION_UNVERIFIED',
+      'ATTRIBUTION_REQUIRED',
       'BROKER_VERIFICATION_REQUIRED',
+      'COMPOSITE_INDICATIVE',
+      'CONSOLIDATION_UNVERIFIED',
+      'DISPLAY_PROHIBITED',
+      'ENTITLEMENT_UNRESOLVED',
+      'EXPIRED_REJECTED',
+      'LIMITED_VENUE',
+      'MARKET_CLOSED',
       'NON_RECONSTRUCTIVE_ANALYTICS_ONLY',
-      'CACHE_DERIVED',
-      'PROVIDER_UNAVAILABLE'
+      'RAW_STORAGE_PROHIBITED',
+      'SOURCE_UNAVAILABLE'
     ]::text[]
   ),
   primary key (snapshot_id, capability),
   foreign key (snapshot_id, user_id)
     references public.outcome_decision_snapshots(id, user_id) on delete cascade,
-  check (
-    (capability = 'QUOTE' and provider in ('Finnhub', 'Unknown') and interval is null) or
-    (capability = 'HISTORY' and provider in ('TwelveData', 'Unknown') and interval = '1day')
-  ),
-  check (
-    (state = 'UNAVAILABLE' and underlying_state = 'UNAVAILABLE' and provider = 'Unknown' and
-      source_timestamp is null and cache_state = 'UNAVAILABLE' and cache_age_seconds is null and
-      display_entitlement = 'NON_DISPLAY_NOT_ACTIVATED' and
-      cardinality(limitation_codes) = 1 and
-      limitation_codes @> array['PROVIDER_UNAVAILABLE']::text[]) or
-    (capability = 'QUOTE' and provider = 'Finnhub' and
-      state = 'REALTIME_CONSOLIDATION_UNVERIFIED' and
-      underlying_state = 'REALTIME_CONSOLIDATION_UNVERIFIED' and
-      cache_state = 'MISS' and cache_age_seconds is null and
-      display_entitlement = 'PRIVATE_PERSONAL_OWNER_ONLY' and broker_verification_required and
-      cardinality(limitation_codes) = 2 and
-      limitation_codes @> array['CONSOLIDATION_UNVERIFIED','BROKER_VERIFICATION_REQUIRED']::text[]) or
-    (capability = 'QUOTE' and provider = 'Finnhub' and state = 'CACHE' and
-      underlying_state = 'REALTIME_CONSOLIDATION_UNVERIFIED' and
-      cache_state in ('HIT','COALESCED') and cache_age_seconds is not null and
-      display_entitlement = 'PRIVATE_PERSONAL_OWNER_ONLY' and broker_verification_required and
-      cardinality(limitation_codes) = 3 and
-      limitation_codes @> array['CONSOLIDATION_UNVERIFIED','BROKER_VERIFICATION_REQUIRED','CACHE_DERIVED']::text[]) or
-    (capability = 'HISTORY' and provider = 'TwelveData' and state = 'EOD_CONSOLIDATED' and
-      underlying_state = 'EOD_CONSOLIDATED' and cache_state = 'MISS' and cache_age_seconds is null and
-      display_entitlement = 'NON_DISPLAY_DERIVED_ANALYTICS_ONLY' and broker_verification_required and
-      cardinality(limitation_codes) = 2 and
-      limitation_codes @> array['NON_RECONSTRUCTIVE_ANALYTICS_ONLY','BROKER_VERIFICATION_REQUIRED']::text[]) or
-    (capability = 'HISTORY' and provider = 'TwelveData' and state = 'CACHE' and
-      underlying_state = 'EOD_CONSOLIDATED' and cache_state in ('HIT','COALESCED') and cache_age_seconds is not null and
-      display_entitlement = 'NON_DISPLAY_DERIVED_ANALYTICS_ONLY' and broker_verification_required and
-      cardinality(limitation_codes) = 3 and
-      limitation_codes @> array['NON_RECONSTRUCTIVE_ANALYTICS_ONLY','BROKER_VERIFICATION_REQUIRED','CACHE_DERIVED']::text[])
-  ),
-  check (source_timestamp is null or source_timestamp <= retrieval_timestamp)
+  check ((capability = 'QUOTE' and interval is null) or (capability = 'HISTORY' and interval is not null)),
+  check (original_retrieved_at <= retrieved_at),
+  check (age_seconds = floor(extract(epoch from (retrieved_at - original_retrieved_at)))::integer),
+  check (entitlement_assessed_at <= retrieved_at),
+  check (observed_at is null or observed_at <= retrieved_at),
+  check ((delivery_state = 'MISS' and age_seconds = 0 and original_retrieved_at = retrieved_at) or
+         (delivery_state in ('HIT','COALESCED') and usable) or
+         (delivery_state = 'EXPIRED_REJECTED' and not usable and source_observation = 'UNAVAILABLE')),
+  check ((source_observation = 'UNAVAILABLE' and not usable and observed_at is null and venue_scope in ('NOT_APPLICABLE','UNKNOWN')) or
+         (source_observation <> 'UNAVAILABLE' and usable and observed_at is not null)),
+  check (source_observation <> 'REALTIME' or age_seconds <= freshness_threshold_seconds),
+  check (venue_scope <> 'CONSOLIDATED_VERIFIED' or
+         (entitlement_authority <> 'UNKNOWN' and authority_reference <> 'unknown')),
+  check (limitation_codes = array_remove(array[
+    case when entitlement_attribution = 'REQUIRED' then 'ATTRIBUTION_REQUIRED' end,
+    case when capability = 'QUOTE' and source_observation <> 'UNAVAILABLE' then 'BROKER_VERIFICATION_REQUIRED' end,
+    case when venue_scope = 'COMPOSITE_INDICATIVE' then 'COMPOSITE_INDICATIVE' end,
+    case when venue_scope = 'CONSOLIDATION_UNVERIFIED' then 'CONSOLIDATION_UNVERIFIED' end,
+    case when entitlement_display = 'PROHIBITED' then 'DISPLAY_PROHIBITED' end,
+    case when 'UNRESOLVED' in (entitlement_display,entitlement_analysis,entitlement_storage,entitlement_attribution) then 'ENTITLEMENT_UNRESOLVED' end,
+    case when delivery_state = 'EXPIRED_REJECTED' then 'EXPIRED_REJECTED' end,
+    case when venue_scope = 'LIMITED_VENUE' then 'LIMITED_VENUE' end,
+    case when source_observation = 'MARKET_CLOSED' then 'MARKET_CLOSED' end,
+    case when entitlement_analysis = 'PERMITTED_NON_RECONSTRUCTIVE' then 'NON_RECONSTRUCTIVE_ANALYTICS_ONLY' end,
+    case when entitlement_storage in ('PERMITTED_DERIVED_ONLY','PROHIBITED') then 'RAW_STORAGE_PROHIBITED' end,
+    case when source_observation = 'UNAVAILABLE' then 'SOURCE_UNAVAILABLE' end
+  ]::text[], null))
 );
 
 create table public.outcome_positions (
@@ -172,7 +163,6 @@ create table public.outcome_position_events (
 -- OWNER_NOTE and HIDDEN_BY_OWNER do not alter or supersede an earlier event;
 -- any future correction contract requires separate immutable arithmetic semantics.
 
-create index personal_risk_limit_versions_user_created_idx on public.personal_risk_limit_versions(user_id, created_at desc);
 create index outcome_decision_snapshots_user_created_idx on public.outcome_decision_snapshots(user_id, captured_at desc);
 create index outcome_decision_snapshots_user_symbol_idx on public.outcome_decision_snapshots(user_id, symbol, captured_at desc);
 create index outcome_snapshot_provenance_user_idx on public.outcome_snapshot_provenance(user_id, snapshot_id);
@@ -181,8 +171,6 @@ create index outcome_positions_user_symbol_idx on public.outcome_positions(user_
 create index outcome_position_events_position_created_idx on public.outcome_position_events(position_id, sequence_no);
 create index outcome_position_events_user_created_idx on public.outcome_position_events(user_id, created_at desc);
 
-alter table public.personal_risk_limit_versions enable row level security;
-alter table public.personal_risk_limit_versions force row level security;
 alter table public.outcome_decision_snapshots enable row level security;
 alter table public.outcome_decision_snapshots force row level security;
 alter table public.outcome_snapshot_provenance enable row level security;
@@ -192,18 +180,15 @@ alter table public.outcome_positions force row level security;
 alter table public.outcome_position_events enable row level security;
 alter table public.outcome_position_events force row level security;
 
-revoke all on public.personal_risk_limit_versions from public, anon, authenticated, service_role;
 revoke all on public.outcome_decision_snapshots from public, anon, authenticated, service_role;
 revoke all on public.outcome_snapshot_provenance from public, anon, authenticated, service_role;
 revoke all on public.outcome_positions from public, anon, authenticated, service_role;
 revoke all on public.outcome_position_events from public, anon, authenticated, service_role;
 revoke all on sequence public.outcome_position_events_id_seq from public, anon, authenticated, service_role;
 
-grant select on public.personal_risk_limit_versions, public.outcome_decision_snapshots,
+grant select on public.outcome_decision_snapshots,
   public.outcome_snapshot_provenance, public.outcome_positions, public.outcome_position_events to authenticated;
 
-create policy personal_risk_limit_versions_select_own on public.personal_risk_limit_versions
-  for select to authenticated using ((select auth.uid()) = user_id);
 create policy outcome_decision_snapshots_select_own on public.outcome_decision_snapshots
   for select to authenticated using ((select auth.uid()) = user_id);
 create policy outcome_snapshot_provenance_select_own on public.outcome_snapshot_provenance
@@ -216,36 +201,6 @@ create policy outcome_position_events_select_own on public.outcome_position_even
 -- Owner-authored prose is deliberately bounded but not content-scanned. PostgreSQL
 -- cannot prove arbitrary prose free of steganographic data. Provider-derived input is
 -- therefore restricted to the typed provenance columns and limitation-code vocabulary.
-
-create function public.create_personal_risk_limit_version(
-  p_base_currency text,
-  p_max_planned_loss_amount numeric,
-  p_max_planned_loss_pct numeric,
-  p_max_position_exposure_pct numeric,
-  p_max_symbol_concentration_pct numeric,
-  p_max_open_positions integer,
-  p_max_daily_realized_loss numeric,
-  p_max_weekly_realized_loss numeric,
-  p_missing_invalidation_action text,
-  p_stale_quote_action text
-)
-returns public.personal_risk_limit_versions
-language plpgsql security definer set search_path = ''
-as $$
-declare v_user uuid := auth.uid(); v_result public.personal_risk_limit_versions;
-begin
-  if v_user is null then raise exception using errcode='42501', message='authentication required'; end if;
-  insert into public.personal_risk_limit_versions(user_id, base_currency,
-    max_planned_loss_amount, max_planned_loss_pct, max_position_exposure_pct,
-    max_symbol_concentration_pct, max_open_positions, max_daily_realized_loss,
-    max_weekly_realized_loss, missing_invalidation_action, stale_quote_action)
-  values (v_user, p_base_currency, p_max_planned_loss_amount, p_max_planned_loss_pct,
-    p_max_position_exposure_pct, p_max_symbol_concentration_pct, p_max_open_positions,
-    p_max_daily_realized_loss, p_max_weekly_realized_loss,
-    p_missing_invalidation_action, p_stale_quote_action)
-  returning * into v_result;
-  return v_result;
-end $$;
 
 create function public.create_outcome_position(
   p_idempotency_key uuid,
@@ -261,7 +216,6 @@ create function public.create_outcome_position(
   p_intended_target_price numeric,
   p_maximum_planned_loss numeric,
   p_risk_percentage numeric,
-  p_risk_limit_version_id uuid,
   p_public_direction text,
   p_public_evidence_state text,
   p_public_risk_classification text,
@@ -296,7 +250,10 @@ begin
   for v_item in select value from jsonb_array_elements(p_provenance) loop
     if jsonb_typeof(v_item) <> 'object' or exists (
       select 1 from jsonb_object_keys(v_item) k
-       where k not in ('capability','provider','state','underlying_state','source_timestamp','retrieval_timestamp','cache_state','cache_age_seconds','interval','display_entitlement','broker_verification_required','limitation_codes')
+       where k not in ('capability','provider','source_observation','venue_scope','interval','observed_at',
+         'delivery_state','retrieved_at','original_retrieved_at','age_seconds','freshness_threshold_seconds','usable',
+         'entitlement_display','entitlement_analysis','entitlement_storage','entitlement_attribution',
+         'entitlement_authority','entitlement_assessed_at','authority_reference','limitation_codes')
     ) then raise exception using errcode='22023', message='provenance is not storable'; end if;
     if exists (select 1 from jsonb_object_keys(v_item) k where lower(k) in ('open','high','low','close','volume','values','bars','candles','datetime','price')) then
       raise exception using errcode='22023', message='provenance is not storable';
@@ -326,7 +283,6 @@ begin
     'intended_invalidation_price', p_intended_invalidation_price,
     'intended_target_price', p_intended_target_price,
     'maximum_planned_loss', p_maximum_planned_loss, 'risk_percentage', p_risk_percentage,
-    'risk_limit_version_id', p_risk_limit_version_id,
     'public_direction', p_public_direction, 'public_evidence_state', p_public_evidence_state,
     'public_risk_classification', p_public_risk_classification, 'shariah_state', p_shariah_state,
     'provenance', v_canonical_provenance, 'broker_confirmed', p_broker_confirmed,
@@ -346,23 +302,30 @@ begin
   insert into public.outcome_decision_snapshots(user_id, symbol, market, analysis_contract_version,
     analysis_created_at, thesis_text, invalidation_condition, planned_horizon,
     intended_invalidation_price, intended_target_price, maximum_planned_loss, risk_percentage,
-    risk_limit_version_id, public_direction, public_evidence_state, public_risk_classification, shariah_state)
+    public_direction, public_evidence_state, public_risk_classification, shariah_state)
   values(v_user, p_symbol, p_market, p_analysis_contract_version, p_analysis_created_at,
     p_thesis_text, p_invalidation_condition, p_planned_horizon, p_intended_invalidation_price,
-    p_intended_target_price, p_maximum_planned_loss, p_risk_percentage, p_risk_limit_version_id,
+    p_intended_target_price, p_maximum_planned_loss, p_risk_percentage,
     p_public_direction, p_public_evidence_state, p_public_risk_classification, p_shariah_state)
   returning id into v_snapshot;
 
-  insert into public.outcome_snapshot_provenance(snapshot_id,user_id,capability,provider,state,
-    underlying_state,source_timestamp,retrieval_timestamp,cache_state,cache_age_seconds,
-    interval,display_entitlement,broker_verification_required,limitation_codes)
-  select v_snapshot,v_user,x.capability,x.provider,x.state,x.underlying_state,x.source_timestamp,
-    x.retrieval_timestamp,x.cache_state,x.cache_age_seconds,x.interval,x.display_entitlement,
-    x.broker_verification_required,coalesce(x.limitation_codes,'{}'::text[])
-  from jsonb_to_recordset(v_canonical_provenance) as x(capability text,provider text,state text,
-    underlying_state text,source_timestamp timestamptz,retrieval_timestamp timestamptz,
-    cache_state text,cache_age_seconds integer,interval text,display_entitlement text,
-    broker_verification_required boolean,limitation_codes text[]);
+  insert into public.outcome_snapshot_provenance(snapshot_id,user_id,capability,provider,
+    source_observation,venue_scope,interval,observed_at,delivery_state,retrieved_at,
+    original_retrieved_at,age_seconds,freshness_threshold_seconds,usable,
+    entitlement_display,entitlement_analysis,entitlement_storage,entitlement_attribution,
+    entitlement_authority,entitlement_assessed_at,authority_reference,limitation_codes)
+  select v_snapshot,v_user,x.capability,x.provider,x.source_observation,x.venue_scope,x.interval,
+    x.observed_at,x.delivery_state,x.retrieved_at,x.original_retrieved_at,x.age_seconds,
+    x.freshness_threshold_seconds,x.usable,x.entitlement_display,x.entitlement_analysis,
+    x.entitlement_storage,x.entitlement_attribution,x.entitlement_authority,
+    x.entitlement_assessed_at,x.authority_reference,coalesce(x.limitation_codes,'{}'::text[])
+  from jsonb_to_recordset(v_canonical_provenance) as x(capability text,provider text,
+    source_observation text,venue_scope text,interval text,observed_at timestamptz,
+    delivery_state text,retrieved_at timestamptz,original_retrieved_at timestamptz,
+    age_seconds integer,freshness_threshold_seconds integer,usable boolean,
+    entitlement_display text,entitlement_analysis text,entitlement_storage text,
+    entitlement_attribution text,entitlement_authority text,entitlement_assessed_at timestamptz,
+    authority_reference text,limitation_codes text[]);
 
   insert into public.outcome_positions(user_id,snapshot_id,symbol,market,currency,posture,
     client_idempotency_key,request_fingerprint)
@@ -470,9 +433,7 @@ begin
   return query select v_event,v_seq,v_open,v_pl,v_return,false;
 end $$;
 
-revoke all on function public.create_personal_risk_limit_version(text,numeric,numeric,numeric,numeric,integer,numeric,numeric,text,text) from public, anon, service_role;
-revoke all on function public.create_outcome_position(uuid,text,text,text,text,timestamptz,text,text,text,numeric,numeric,numeric,numeric,uuid,text,text,text,text,jsonb,boolean,timestamptz,numeric,numeric,numeric,numeric) from public, anon, service_role;
+revoke all on function public.create_outcome_position(uuid,text,text,text,text,timestamptz,text,text,text,numeric,numeric,numeric,numeric,text,text,text,text,jsonb,boolean,timestamptz,numeric,numeric,numeric,numeric) from public, anon, service_role;
 revoke all on function public.append_outcome_position_event(uuid,uuid,text,boolean,timestamptz,numeric,numeric,numeric,numeric,text,text,text,text) from public, anon, service_role;
-grant execute on function public.create_personal_risk_limit_version(text,numeric,numeric,numeric,numeric,integer,numeric,numeric,text,text) to authenticated;
-grant execute on function public.create_outcome_position(uuid,text,text,text,text,timestamptz,text,text,text,numeric,numeric,numeric,numeric,uuid,text,text,text,text,jsonb,boolean,timestamptz,numeric,numeric,numeric,numeric) to authenticated;
+grant execute on function public.create_outcome_position(uuid,text,text,text,text,timestamptz,text,text,text,numeric,numeric,numeric,numeric,text,text,text,text,jsonb,boolean,timestamptz,numeric,numeric,numeric,numeric) to authenticated;
 grant execute on function public.append_outcome_position_event(uuid,uuid,text,boolean,timestamptz,numeric,numeric,numeric,numeric,text,text,text,text) to authenticated;

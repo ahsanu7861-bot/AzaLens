@@ -25,10 +25,10 @@ async function main() {
       p_analysis_contract_version:"test-v1",p_analysis_created_at:"2026-09-03T00:00:00Z",
       p_thesis_text:"Fixture thesis",p_invalidation_condition:"Fixture invalidation",p_planned_horizon:"swing",
       p_intended_invalidation_price:null,p_intended_target_price:null,p_maximum_planned_loss:null,p_risk_percentage:null,
-      p_risk_limit_version_id:null,p_public_direction:"BULLISH",p_public_evidence_state:"SUPPORTIVE",
+      p_public_direction:"BULLISH",p_public_evidence_state:"SUPPORTIVE",
       p_public_risk_classification:"UNKNOWN",p_shariah_state:"COMPLIANT",p_provenance:[
-        {capability:"QUOTE",provider:"Unknown",state:"UNAVAILABLE",underlying_state:"UNAVAILABLE",source_timestamp:null,retrieval_timestamp:"2026-09-03T00:00:00Z",cache_state:"UNAVAILABLE",cache_age_seconds:null,interval:null,display_entitlement:"NON_DISPLAY_NOT_ACTIVATED",broker_verification_required:true,limitation_codes:["PROVIDER_UNAVAILABLE"]},
-        {capability:"HISTORY",provider:"Unknown",state:"UNAVAILABLE",underlying_state:"UNAVAILABLE",source_timestamp:null,retrieval_timestamp:"2026-09-03T00:00:00Z",cache_state:"UNAVAILABLE",cache_age_seconds:null,interval:"1day",display_entitlement:"NON_DISPLAY_NOT_ACTIVATED",broker_verification_required:true,limitation_codes:["PROVIDER_UNAVAILABLE"]}
+        {capability:"QUOTE",provider:"UnavailableSource",source_observation:"UNAVAILABLE",venue_scope:"UNKNOWN",interval:null,observed_at:null,delivery_state:"MISS",retrieved_at:"2026-09-03T00:00:00Z",original_retrieved_at:"2026-09-03T00:00:00Z",age_seconds:0,freshness_threshold_seconds:20,usable:false,entitlement_display:"UNRESOLVED",entitlement_analysis:"UNRESOLVED",entitlement_storage:"UNRESOLVED",entitlement_attribution:"UNRESOLVED",entitlement_authority:"UNKNOWN",entitlement_assessed_at:"2026-09-03T00:00:00Z",authority_reference:"unknown",limitation_codes:["ENTITLEMENT_UNRESOLVED","SOURCE_UNAVAILABLE"]},
+        {capability:"HISTORY",provider:"UnavailableSource",source_observation:"UNAVAILABLE",venue_scope:"UNKNOWN",interval:"1day",observed_at:null,delivery_state:"MISS",retrieved_at:"2026-09-03T00:00:00Z",original_retrieved_at:"2026-09-03T00:00:00Z",age_seconds:0,freshness_threshold_seconds:86400,usable:false,entitlement_display:"UNRESOLVED",entitlement_analysis:"UNRESOLVED",entitlement_storage:"UNRESOLVED",entitlement_attribution:"UNRESOLVED",entitlement_authority:"UNKNOWN",entitlement_assessed_at:"2026-09-03T00:00:00Z",authority_reference:"unknown",limitation_codes:["ENTITLEMENT_UNRESOLVED","SOURCE_UNAVAILABLE"]}
       ],
       p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T01:00:00Z",p_entry_price:"100.00000000",
       p_entry_quantity:"10.00000000",p_fees:"1.00000000",p_taxes:"0"
@@ -43,12 +43,12 @@ async function main() {
     }});
     assert.ok(!directInsert.ok,"authenticated direct snapshot insert must be denied");
 
-    for (const table of ["outcome_decision_snapshots","outcome_snapshot_provenance","outcome_positions","outcome_position_events","personal_risk_limit_versions"]) {
+    for (const table of ["outcome_decision_snapshots","outcome_snapshot_provenance","outcome_positions","outcome_position_events"]) {
       const a = await rest(`/${table}?select=*`, A.token);
       const b = await rest(`/${table}?select=*`, B.token);
       const anon = await rest(`/${table}?select=*`, undefined);
       assert.equal(a.status, 200); assert.equal(b.status, 200);
-      if (table !== "outcome_snapshot_provenance" && table !== "personal_risk_limit_versions") assert.ok(a.body.length >= 1);
+      if (table !== "outcome_snapshot_provenance") assert.ok(a.body.length >= 1);
       assert.equal(b.body.length, 0, `${table}: user B must see no user A rows`);
       assert.ok(!anon.ok || anon.body.length === 0, `${table}: anonymous read denied`);
 

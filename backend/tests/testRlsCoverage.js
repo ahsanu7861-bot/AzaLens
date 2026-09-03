@@ -28,10 +28,6 @@ const EXPECTED = {
     policies: ["SELECT"],
     updatableColumns: [],
   },
-  personal_risk_limit_versions: {
-    policies: ["SELECT"],
-    updatableColumns: [],
-  },
   twelve_data_credit_ledger: {
     policies: [],
     updatableColumns: [],
@@ -270,7 +266,7 @@ check(
 );
 
 // ------------------------------------------------------------
-// 8. Only the three narrow owner-ledger RPCs are executable by authenticated.
+// 8. Only the two narrow owner-ledger RPCs are executable by authenticated.
 //    Helper/trigger/system functions remain unavailable.
 // ------------------------------------------------------------
 
@@ -289,7 +285,6 @@ check(
   executable.join(",") === [
     "append_outcome_position_event by authenticated",
     "create_outcome_position by authenticated",
-    "create_personal_risk_limit_version by authenticated",
   ].join(","),
   executable.join(", ")
 );

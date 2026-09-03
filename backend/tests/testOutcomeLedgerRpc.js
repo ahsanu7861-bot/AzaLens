@@ -15,10 +15,10 @@ async function main(){
   let serial=10;
   const uuid=()=>`20000000-0000-4000-8000-${String(serial++).padStart(12,"0")}`;
   const provenance=[
-    {capability:"QUOTE",provider:"Finnhub",state:"REALTIME_CONSOLIDATION_UNVERIFIED",underlying_state:"REALTIME_CONSOLIDATION_UNVERIFIED",source_timestamp:"2026-09-03T00:00:00Z",retrieval_timestamp:"2026-09-03T00:00:01Z",cache_state:"MISS",cache_age_seconds:null,interval:null,display_entitlement:"PRIVATE_PERSONAL_OWNER_ONLY",broker_verification_required:true,limitation_codes:["CONSOLIDATION_UNVERIFIED","BROKER_VERIFICATION_REQUIRED"]},
-    {capability:"HISTORY",provider:"TwelveData",state:"EOD_CONSOLIDATED",underlying_state:"EOD_CONSOLIDATED",source_timestamp:"2026-09-02T00:00:00Z",retrieval_timestamp:"2026-09-03T00:00:01Z",cache_state:"MISS",cache_age_seconds:null,interval:"1day",display_entitlement:"NON_DISPLAY_DERIVED_ANALYTICS_ONLY",broker_verification_required:true,limitation_codes:["NON_RECONSTRUCTIVE_ANALYTICS_ONLY","BROKER_VERIFICATION_REQUIRED"]}
+    {capability:"QUOTE",provider:"Finnhub",source_observation:"REALTIME",venue_scope:"CONSOLIDATION_UNVERIFIED",interval:null,observed_at:"2026-09-03T00:00:00Z",delivery_state:"MISS",retrieved_at:"2026-09-03T00:00:01Z",original_retrieved_at:"2026-09-03T00:00:01Z",age_seconds:0,freshness_threshold_seconds:20,usable:true,entitlement_display:"PERMITTED_PRIVATE",entitlement_analysis:"PERMITTED_NON_RECONSTRUCTIVE",entitlement_storage:"PERMITTED_DERIVED_ONLY",entitlement_attribution:"NOT_REQUIRED_PRIVATE",entitlement_authority:"PLAN_DOCUMENTATION",entitlement_assessed_at:"2026-09-03T00:00:00Z",authority_reference:"plan:private-owner-2026-09",limitation_codes:["BROKER_VERIFICATION_REQUIRED","CONSOLIDATION_UNVERIFIED","NON_RECONSTRUCTIVE_ANALYTICS_ONLY","RAW_STORAGE_PROHIBITED"]},
+    {capability:"HISTORY",provider:"TwelveData",source_observation:"EOD",venue_scope:"UNKNOWN",interval:"1day",observed_at:"2026-09-02T00:00:00Z",delivery_state:"MISS",retrieved_at:"2026-09-03T00:00:01Z",original_retrieved_at:"2026-09-03T00:00:01Z",age_seconds:0,freshness_threshold_seconds:86400,usable:true,entitlement_display:"PROHIBITED",entitlement_analysis:"PERMITTED_NON_RECONSTRUCTIVE",entitlement_storage:"PERMITTED_DERIVED_ONLY",entitlement_attribution:"UNRESOLVED",entitlement_authority:"UNKNOWN",entitlement_assessed_at:"2026-09-03T00:00:00Z",authority_reference:"legal-review:twelve-data-basic",limitation_codes:["DISPLAY_PROHIBITED","ENTITLEMENT_UNRESOLVED","NON_RECONSTRUCTIVE_ANALYTICS_ONLY","RAW_STORAGE_PROHIBITED"]}
   ];
-  const createBody=(key,symbol="AAPL",extra={})=>({p_idempotency_key:key,p_symbol:symbol,p_market:"US",p_currency:extra.currency||"USD",p_analysis_contract_version:"test-v1",p_analysis_created_at:"2026-09-03T00:00:00Z",p_thesis_text:"Fixture thesis",p_invalidation_condition:"Fixture invalidation",p_planned_horizon:"swing",p_intended_invalidation_price:null,p_intended_target_price:null,p_maximum_planned_loss:null,p_risk_percentage:null,p_risk_limit_version_id:null,p_public_direction:"BULLISH",p_public_evidence_state:"SUPPORTIVE",p_public_risk_classification:"UNKNOWN",p_shariah_state:"COMPLIANT",p_provenance:extra.provenance||provenance,p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T01:00:00Z",p_entry_price:extra.price||"100.00000000",p_entry_quantity:extra.quantity||"10.00000000",p_fees:extra.fees??"10.00000000",p_taxes:extra.taxes??"0"});
+  const createBody=(key,symbol="AAPL",extra={})=>({p_idempotency_key:key,p_symbol:symbol,p_market:"US",p_currency:extra.currency||"USD",p_analysis_contract_version:"test-v1",p_analysis_created_at:"2026-09-03T00:00:00Z",p_thesis_text:"Fixture thesis",p_invalidation_condition:"Fixture invalidation",p_planned_horizon:"swing",p_intended_invalidation_price:null,p_intended_target_price:null,p_maximum_planned_loss:null,p_risk_percentage:null,p_public_direction:"BULLISH",p_public_evidence_state:"SUPPORTIVE",p_public_risk_classification:"UNKNOWN",p_shariah_state:"COMPLIANT",p_provenance:extra.provenance||provenance,p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T01:00:00Z",p_entry_price:extra.price||"100.00000000",p_entry_quantity:extra.quantity||"10.00000000",p_fees:extra.fees??"10.00000000",p_taxes:extra.taxes??"0"});
   const create=(body)=>rest("/rpc/create_outcome_position",token,{method:"POST",body});
   const append=(body)=>rest("/rpc/append_outcome_position_event",token,{method:"POST",body});
   try {
@@ -40,7 +40,7 @@ async function main(){
       {...provenance[0],limitation_codes:[...provenance[0].limitation_codes].reverse()},
     ]};
     const orderReplay=await create(reordered); assert.equal(orderReplay.status,200); assert.equal(orderReplay.body[0].replayed,true);
-    assert.equal(sql(`select string_agg(array_to_string(limitation_codes,','),'|' order by capability) from public.outcome_snapshot_provenance where snapshot_id='${orderReplay.body[0].snapshot_id}'`),"BROKER_VERIFICATION_REQUIRED,NON_RECONSTRUCTIVE_ANALYTICS_ONLY|BROKER_VERIFICATION_REQUIRED,CONSOLIDATION_UNVERIFIED");
+    assert.equal(sql(`select string_agg(array_to_string(limitation_codes,','),'|' order by capability) from public.outcome_snapshot_provenance where snapshot_id='${orderReplay.body[0].snapshot_id}'`),"DISPLAY_PROHIBITED,ENTITLEMENT_UNRESOLVED,NON_RECONSTRUCTIVE_ANALYTICS_ONLY,RAW_STORAGE_PROHIBITED|BROKER_VERIFICATION_REQUIRED,CONSOLIDATION_UNVERIFIED,NON_RECONSTRUCTIVE_ANALYTICS_ONLY,RAW_STORAGE_PROHIBITED");
     assert.equal(sql(`select count(*) from public.outcome_positions where id='${positionId}'`),"1");
 
     const partialKey=uuid(); const partialBody={p_position_id:positionId,p_idempotency_key:partialKey,p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-04T00:00:00Z",p_price:"120",p_quantity:"4",p_fees:"2",p_taxes:"1",p_thesis_result:"VALID",p_usefulness:"USEFUL",p_exit_reason:"Owner fixture exit"};
@@ -78,30 +78,33 @@ async function main(){
       {...provenance[1],limitation_codes:["987654.1|987655.2"]},
       {...provenance[1],limitation_codes:["PHN2Pjk4NzY1NC4xPC92Pg=="]},
       {...provenance[1],limitation_codes:["<v>987654.1</v>"]},
-      {...provenance[1],provider:"Finnhub"},
-      {...provenance[1],state:"REALTIME_LIMITED_VENUE"},
-      {...provenance[1],underlying_state:"REALTIME_LIMITED_VENUE"},
-      {...provenance[1],display_entitlement:"PRIVATE_PERSONAL_OWNER_ONLY"},
-      {...provenance[1],limitation_codes:[...provenance[1].limitation_codes,"PROVIDER_UNAVAILABLE"]},
-      {...provenance[1],limitation_codes:[...provenance[1].limitation_codes,"CONSOLIDATION_UNVERIFIED"]},
-      {...provenance[1],limitation_codes:[...provenance[1].limitation_codes,"CACHE_DERIVED"]},
-      {...provenance[1],limitation_codes:["NON_RECONSTRUCTIVE_ANALYTICS_ONLY"]},
-      {...provenance[1],limitation_codes:["NON_RECONSTRUCTIVE_ANALYTICS_ONLY","BROKER_VERIFICATION_REQUIRED","BROKER_VERIFICATION_REQUIRED"]},
+      {...provenance[1],delivery_state:"MISS",age_seconds:1},
+      {...provenance[1],delivery_state:"HIT",original_retrieved_at:"2026-09-03T00:00:00Z",age_seconds:2},
+      {...provenance[1],delivery_state:"HIT",usable:false},
+      {...provenance[1],source_observation:"UNAVAILABLE",observed_at:null,usable:true},
+      {...provenance[1],entitlement_assessed_at:"2026-09-03T00:00:02Z"},
+      {...provenance[1],venue_scope:"CONSOLIDATED_VERIFIED",entitlement_authority:"UNKNOWN",authority_reference:"unknown"},
+      {...provenance[1],limitation_codes:[...provenance[1].limitation_codes,"SOURCE_UNAVAILABLE"]},
+      {...provenance[1],limitation_codes:provenance[1].limitation_codes.slice(1)},
+      {...provenance[1],limitation_codes:[...provenance[1].limitation_codes,provenance[1].limitation_codes[0]]},
     ];
     for(const [index,attack] of attacks.entries()) assert.ok(!(await create(createBody(uuid(),`X${index}`,{provenance:[provenance[0],attack]}))).ok);
-    const unavailable={capability:"HISTORY",provider:"Unknown",state:"UNAVAILABLE",underlying_state:"UNAVAILABLE",source_timestamp:null,retrieval_timestamp:"2026-09-03T00:00:01Z",cache_state:"UNAVAILABLE",cache_age_seconds:null,interval:"1day",display_entitlement:"NON_DISPLAY_NOT_ACTIVATED",broker_verification_required:true,limitation_codes:["PROVIDER_UNAVAILABLE"]};
+    const unavailable={capability:"HISTORY",provider:"UnavailableSource",source_observation:"UNAVAILABLE",venue_scope:"UNKNOWN",interval:"1day",observed_at:null,delivery_state:"MISS",retrieved_at:"2026-09-03T00:00:01Z",original_retrieved_at:"2026-09-03T00:00:01Z",age_seconds:0,freshness_threshold_seconds:86400,usable:false,entitlement_display:"UNRESOLVED",entitlement_analysis:"UNRESOLVED",entitlement_storage:"UNRESOLVED",entitlement_attribution:"UNRESOLVED",entitlement_authority:"UNKNOWN",entitlement_assessed_at:"2026-09-03T00:00:00Z",authority_reference:"unknown",limitation_codes:["ENTITLEMENT_UNRESOLVED","SOURCE_UNAVAILABLE"]};
     assert.equal((await create(createBody(uuid(),"UNAV",{provenance:[provenance[0],unavailable]}))).status,200);
-    assert.ok(!(await create(createBody(uuid(),"UTIM",{provenance:[provenance[0],{...unavailable,source_timestamp:"2026-09-02T00:00:00Z"}]}))).ok);
-    const cachedQuote={...provenance[0],state:"CACHE",cache_state:"HIT",cache_age_seconds:30,limitation_codes:[...provenance[0].limitation_codes,"CACHE_DERIVED"]};
-    const cachedHistory={...provenance[1],state:"CACHE",cache_state:"COALESCED",cache_age_seconds:1,limitation_codes:[...provenance[1].limitation_codes,"CACHE_DERIVED"]};
+    assert.ok(!(await create(createBody(uuid(),"UTIM",{provenance:[provenance[0],{...unavailable,observed_at:"2026-09-02T00:00:00Z"}]}))).ok);
+    const cachedQuote={...provenance[0],delivery_state:"HIT",original_retrieved_at:"2026-09-03T00:00:00Z",age_seconds:1};
+    const cachedHistory={...provenance[1],delivery_state:"COALESCED",original_retrieved_at:"2026-09-03T00:00:00Z",age_seconds:1};
     assert.equal((await create(createBody(uuid(),"CACH",{provenance:[cachedQuote,cachedHistory]}))).status,200);
-    assert.ok(!(await create(createBody(uuid(),"CAGE",{provenance:[{...cachedQuote,cache_age_seconds:null},cachedHistory]}))).ok);
-    assert.ok(!(await create(createBody(uuid(),"MISS",{provenance:[{...provenance[0],cache_age_seconds:1},provenance[1]]}))).ok);
-    assert.ok(!(await create(createBody(uuid(),"NBBO",{provenance:[{...provenance[0],state:"REALTIME_LIMITED_VENUE"},provenance[1]]}))).ok);
-    assert.ok(!(await create(createBody(uuid(),"QUNA",{provenance:[{...provenance[0],limitation_codes:[...provenance[0].limitation_codes,"PROVIDER_UNAVAILABLE"]},provenance[1]]}))).ok);
-    assert.ok(!(await create(createBody(uuid(),"QCAD",{provenance:[{...provenance[0],limitation_codes:[...provenance[0].limitation_codes,"CACHE_DERIVED"]},provenance[1]]}))).ok);
-    assert.ok(!(await create(createBody(uuid(),"QANA",{provenance:[{...provenance[0],limitation_codes:[...provenance[0].limitation_codes,"NON_RECONSTRUCTIVE_ANALYTICS_ONLY"]},provenance[1]]}))).ok);
-    assert.ok(!(await create(createBody(uuid(),"UDUP",{provenance:[provenance[0],{...unavailable,limitation_codes:["PROVIDER_UNAVAILABLE","PROVIDER_UNAVAILABLE"]}]}))).ok);
+    assert.ok(!(await create(createBody(uuid(),"OLDQ",{provenance:[{...cachedQuote,age_seconds:21},cachedHistory]}))).ok,"aged realtime cannot remain realtime");
+    const expired={...unavailable,delivery_state:"EXPIRED_REJECTED",original_retrieved_at:"2026-09-02T00:00:01Z",age_seconds:86400,limitation_codes:["ENTITLEMENT_UNRESOLVED","EXPIRED_REJECTED","SOURCE_UNAVAILABLE"]};
+    assert.equal((await create(createBody(uuid(),"EXPD",{provenance:[provenance[0],expired]}))).status,200);
+    assert.ok(!(await create(createBody(uuid(),"EXPU",{provenance:[provenance[0],{...expired,usable:true}]}))).ok);
+    const alternate=[{...provenance[0],provider:"QuoteProviderTwo"},{...provenance[1],provider:"HistoryProviderTwo"}];
+    assert.equal((await create(createBody(uuid(),"NEUT",{provenance:alternate}))).status,200,"provider names are factual, not capability allowlists");
+    const consolidated={...provenance[1],provider:"ArchiveFeed",venue_scope:"CONSOLIDATED_VERIFIED",entitlement_authority:"PUBLISHED_TERMS",authority_reference:"terms:archive-feed-2026-09",limitation_codes:provenance[1].limitation_codes};
+    assert.equal((await create(createBody(uuid(),"CONS",{provenance:[{...provenance[0],provider:"MarketFeed"},consolidated]}))).status,200);
+    const closed={...provenance[0],source_observation:"MARKET_CLOSED",venue_scope:"UNKNOWN",delivery_state:"HIT",original_retrieved_at:"2026-09-02T23:43:22Z",age_seconds:999,limitation_codes:["BROKER_VERIFICATION_REQUIRED","MARKET_CLOSED","NON_RECONSTRUCTIVE_ANALYTICS_ONLY","RAW_STORAGE_PROHIBITED"]};
+    assert.equal((await create(createBody(uuid(),"CLSD",{provenance:[closed,provenance[1]]}))).status,200,"market closed is context, not freshness");
     const noteNumeric=await append({p_position_id:raceId,p_idempotency_key:uuid(),p_event_type:"OWNER_NOTE",p_price:"987654.12345678",p_owner_note:"legitimate bounded owner prose"});
     assert.ok(!noteNumeric.ok,"non-execution events cannot carry numeric observations");
     const hiddenNumeric=await append({p_position_id:raceId,p_idempotency_key:uuid(),p_event_type:"HIDDEN_BY_OWNER",p_quantity:"1"}); assert.ok(!hiddenNumeric.ok);
@@ -126,9 +129,6 @@ async function main(){
     const concurrentKey=uuid(); const concurrentBody=createBody(concurrentKey,"CONC");
     const concurrent=await Promise.all([create(concurrentBody),create({...concurrentBody,p_fees:"1",p_taxes:null})]);
     assert.equal(concurrent.filter(r=>r.ok).length,1); assert.match(JSON.stringify(concurrent.find(r=>!r.ok).body),/idempotency conflict/i);
-
-    const limit=await rest("/rpc/create_personal_risk_limit_version",token,{method:"POST",body:{p_base_currency:"USD",p_max_planned_loss_amount:null,p_max_planned_loss_pct:null,p_max_position_exposure_pct:null,p_max_symbol_concentration_pct:null,p_max_open_positions:null,p_max_daily_realized_loss:null,p_max_weekly_realized_loss:null,p_missing_invalidation_action:"WARN",p_stale_quote_action:"BLOCK"}});
-    assert.equal(limit.status,200); assert.equal(limit.body.base_currency||limit.body[0]?.base_currency,"USD");
 
     console.log("Outcome ledger atomic RPC, idempotency, arithmetic, concurrency and storage-boundary contracts passed.");
   } finally { if(userId) await admin(`/auth/v1/admin/users/${userId}`,{method:"DELETE"}); }
