@@ -23,10 +23,7 @@ import {
 } from './historyProvenance';
 import ProviderAttribution from './attribution/ProviderAttribution';
 import { resolveProviderAttribution } from './attribution/providerAttributionRegistry';
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  'https://api.azalens.com';
+import { api } from '../services/api';
 
 type StockChartProps = {
   symbol: string;
@@ -151,24 +148,18 @@ export default function StockChart({
 
         const normalizedSymbol = symbol.trim().toUpperCase();
 
-        const response = await fetch(
-          `${API_BASE_URL}/history/${encodeURIComponent(
-            normalizedSymbol,
-          )}`,
-          {
-            signal: controller.signal,
-            credentials: 'include',
-          },
+        const response = await api.get<HistoryResponse>(
+          `/history/${encodeURIComponent(normalizedSymbol)}`,
+          { signal: controller.signal },
         );
 
-        if (!response.ok) {
+        if (response.status !== 200) {
           throw new Error(
             `Historical data request failed with status ${response.status}.`,
           );
         }
 
-        const result =
-          (await response.json()) as HistoryResponse;
+        const result = response.data;
 
         if (
           result.success !== true ||
@@ -206,10 +197,7 @@ export default function StockChart({
           provider: readHistoryProvider(result),
         });
       } catch (caughtError) {
-        if (
-          caughtError instanceof DOMException &&
-          caughtError.name === 'AbortError'
-        ) {
+        if (controller.signal.aborted) {
           return;
         }
 

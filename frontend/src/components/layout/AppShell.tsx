@@ -14,6 +14,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useCommandStore } from "../../store/commandStore";
+import { useOwnerSession } from "../../auth/OwnerSessionContext";
 import AzaLensLogo from "../brand/AzaLensLogo";
 import ThemeToggle from "./ThemeToggle";
 
@@ -72,6 +73,7 @@ function RailLink({
 }
 
 export default function AppShell() {
+  const ownerSession = useOwnerSession();
   const setCommandOpen = useCommandStore((state) => state.setOpen);
   const commandOpen = useCommandStore((state) => state.open);
   const location = useLocation();
@@ -215,7 +217,9 @@ export default function AppShell() {
 
           <button
             type="button"
-            aria-label="Open account menu"
+            aria-label="Sign out"
+            title="Sign out"
+            onClick={() => void ownerSession.signOut()}
             className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand to-intelligence text-xs font-bold !text-white shadow-[0_8px_24px_var(--az-brand-soft)]"
           >
             AU

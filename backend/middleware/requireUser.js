@@ -3,6 +3,10 @@
 const { createSupabaseAccessTokenVerifier } = require("../auth/verifySupabaseAccessToken");
 const { createUserSupabaseClient } = require("../services/createUserSupabaseClient");
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_IDENTITY_SCAN_DEPTH = 12;
+const MAX_IDENTITY_SCAN_NODES = 2_000;
+
 function authorizationValues(req) {
   const values = [];
   const raw = Array.isArray(req.rawHeaders) ? req.rawHeaders : [];
@@ -23,16 +27,42 @@ function extractBearerToken(req) {
   return match ? match[1] : false;
 }
 
-function hasCallerSuppliedUserId(req) {
+function inspectCallerSuppliedUserId(req, {
+  maxDepth = MAX_IDENTITY_SCAN_DEPTH,
+  maxNodes = MAX_IDENTITY_SCAN_NODES,
+} = {}) {
   const forbiddenHeaders = ["x-user-id", "x-owner-id", "x-supabase-user-id"];
-  if (forbiddenHeaders.some((name) => req.headers?.[name] !== undefined)) return true;
-  const containsIdentity = (value, seen = new Set()) => {
-    if (!value || typeof value !== "object" || seen.has(value)) return false;
+  if (forbiddenHeaders.some((name) => req.headers?.[name] !== undefined)) {
+    return { supplied: true, exhausted: false };
+  }
+
+  const seen = new Set();
+  const stack = [req.params, req.query, req.body].map((value) => ({ value, depth: 0 }));
+  let nodes = 0;
+
+  while (stack.length > 0) {
+    const { value, depth } = stack.pop();
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
     seen.add(value);
-    if (["user_id", "userId"].some((key) => Object.prototype.hasOwnProperty.call(value, key))) return true;
-    return Object.values(value).some((child) => containsIdentity(child, seen));
-  };
-  return [req.params, req.query, req.body].some((source) => containsIdentity(source));
+    nodes += 1;
+    if (nodes > maxNodes || depth > maxDepth) return { supplied: false, exhausted: true };
+
+    const keys = Object.keys(value);
+    if (keys.includes("user_id") || keys.includes("userId")) {
+      return { supplied: true, exhausted: false };
+    }
+    if (nodes + stack.length + keys.length > maxNodes) {
+      return { supplied: false, exhausted: true };
+    }
+    for (const key of keys) stack.push({ value: value[key], depth: depth + 1 });
+  }
+
+  return { supplied: false, exhausted: false };
+}
+
+function hasCallerSuppliedUserId(req, limits) {
+  const result = inspectCallerSuppliedUserId(req, limits);
+  return result.supplied || result.exhausted;
 }
 
 function jsonError(res, status, code, message) {
@@ -44,16 +74,25 @@ function createRequireUser({
   verifyAccessToken = createSupabaseAccessTokenVerifier({ env }),
   createUserClient = (token) => createUserSupabaseClient(token, env),
 } = {}) {
+  const ownerUserId = String(env.PRIVATE_OWNER_USER_ID || "").trim().toLowerCase();
+
   return async function requireUser(req, res, next) {
     const token = extractBearerToken(req);
     if (token === null) return jsonError(res, 401, "AUTH_REQUIRED", "A verified owner session is required.");
     if (token === false) return jsonError(res, 401, "AUTH_TOKEN_INVALID", "The owner session is invalid.");
-    if (hasCallerSuppliedUserId(req)) {
+    const identityInput = inspectCallerSuppliedUserId(req);
+    if (identityInput.exhausted) {
+      return jsonError(res, 400, "IDENTITY_INPUT_LIMIT_EXCEEDED", "The request could not be safely inspected for identity fields.");
+    }
+    if (identityInput.supplied) {
       return jsonError(res, 400, "USER_ID_NOT_ACCEPTED", "User identity is derived from the verified session.");
     }
 
     try {
       const identity = await verifyAccessToken(token);
+      if (!UUID_PATTERN.test(ownerUserId) || identity.userId.toLowerCase() !== ownerUserId) {
+        return jsonError(res, 403, "OWNER_IDENTITY_REQUIRED", "A verified owner session is required.");
+      }
       const db = createUserClient(token);
       req.user = Object.freeze({ id: identity.userId });
       req.db = db;
@@ -71,4 +110,7 @@ module.exports = {
   createRequireUser,
   extractBearerToken,
   hasCallerSuppliedUserId,
+  inspectCallerSuppliedUserId,
+  MAX_IDENTITY_SCAN_DEPTH,
+  MAX_IDENTITY_SCAN_NODES,
 };

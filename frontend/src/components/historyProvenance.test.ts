@@ -173,7 +173,7 @@ describe("StockChart provenance wiring", () => {
     expect(stockChartCode).toContain("new AbortController()");
     expect(stockChartCode).toContain("signal: controller.signal");
     expect(stockChartCode).toContain("return () => controller.abort();");
-    expect(stockChartCode).toContain('caughtError.name === \'AbortError\'');
+    expect(stockChartCode).toContain("if (controller.signal.aborted)");
   });
 
   /*

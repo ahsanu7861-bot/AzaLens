@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import StockChart from "./StockChart";
 import { ThemeContext } from "../app/providers/theme";
+import { api } from "../services/api";
+
+vi.mock("../services/api", () => ({ api: { get: vi.fn() } }));
 
 /*
  * B7b. These tests exist for one question: does the Twelve Data credit describe
@@ -61,9 +64,8 @@ function renderChart(symbol = "AAPL") {
 
 function respondWith(body: unknown, ok = true) {
   return vi.fn().mockResolvedValue({
-    ok,
     status: ok ? 200 : 500,
-    json: async () => body,
+    data: body,
   });
 }
 
@@ -108,13 +110,13 @@ globalThis.ResizeObserver =
   TestResizeObserver as unknown as typeof globalThis.ResizeObserver;
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  vi.mocked(api.get).mockReset();
   vi.restoreAllMocks();
 });
 
 describe("StockChart attributes the provider the response declared", () => {
   it("renders the exact approved wording and href for TwelveData", async () => {
-    vi.stubGlobal("fetch", respondWith(successBody("TwelveData")));
+    vi.mocked(api.get).mockImplementation(respondWith(successBody("TwelveData")));
     renderChart();
 
     const link = await screen.findByRole("link", { name: APPROVED_TEXT });
@@ -125,7 +127,7 @@ describe("StockChart attributes the provider the response declared", () => {
   });
 
   it("keeps the two credits as separate anchors and separate statements", async () => {
-    vi.stubGlobal("fetch", respondWith(successBody("TwelveData")));
+    vi.mocked(api.get).mockImplementation(respondWith(successBody("TwelveData")));
     renderChart();
 
     const twelveData = await screen.findByRole("link", { name: APPROVED_TEXT });
@@ -141,7 +143,7 @@ describe("StockChart attributes the provider the response declared", () => {
   });
 
   it("renders exactly one Twelve Data statement", async () => {
-    vi.stubGlobal("fetch", respondWith(successBody("TwelveData")));
+    vi.mocked(api.get).mockImplementation(respondWith(successBody("TwelveData")));
     const { container } = renderChart();
 
     await screen.findByRole("link", { name: APPROVED_TEXT });
@@ -155,7 +157,7 @@ describe("StockChart attributes the provider the response declared", () => {
   });
 
   it("carries no crawl-blocking rel token", async () => {
-    vi.stubGlobal("fetch", respondWith(successBody("TwelveData")));
+    vi.mocked(api.get).mockImplementation(respondWith(successBody("TwelveData")));
     renderChart();
 
     const link = await screen.findByRole("link", { name: APPROVED_TEXT });
@@ -187,7 +189,7 @@ describe("StockChart never invents provenance", () => {
 
   for (const [description, provider] of unattributed) {
     it(`renders bars but no attribution for ${description}`, async () => {
-      vi.stubGlobal("fetch", respondWith(successBody(provider)));
+      vi.mocked(api.get).mockImplementation(respondWith(successBody(provider)));
       renderChart();
 
       await waitFor(() => {
@@ -204,7 +206,7 @@ describe("StockChart never invents provenance", () => {
   }
 
   it("renders no attribution when the field is absent entirely", async () => {
-    vi.stubGlobal("fetch", respondWith(successBody()));
+    vi.mocked(api.get).mockImplementation(respondWith(successBody()));
     renderChart();
 
     await waitFor(() => {
@@ -217,7 +219,7 @@ describe("StockChart never invents provenance", () => {
 
 describe("StockChart hides attribution whenever the bars are hidden", () => {
   it("renders no attribution while loading", () => {
-    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    vi.mocked(api.get).mockImplementation(vi.fn(() => new Promise(() => {})));
     renderChart();
 
     expect(screen.getByText(/Loading/i)).toBeInTheDocument();
@@ -225,10 +227,7 @@ describe("StockChart hides attribution whenever the bars are hidden", () => {
   });
 
   it("renders no attribution in the error state", async () => {
-    vi.stubGlobal(
-      "fetch",
-      respondWith({ success: false, error: "boom" }),
-    );
+    vi.mocked(api.get).mockImplementation(respondWith({ success: false, error: "boom" }));
     renderChart();
 
     await screen.findByText("boom");
@@ -237,8 +236,7 @@ describe("StockChart hides attribution whenever the bars are hidden", () => {
   });
 
   it("renders no attribution when a success carries zero bars", async () => {
-    vi.stubGlobal(
-      "fetch",
+    vi.mocked(api.get).mockImplementation(
       respondWith({
         success: true,
         symbol: "AAPL",
@@ -268,12 +266,11 @@ describe("StockChart hides attribution whenever the bars are hidden", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
-        ok: true,
         status: 200,
-        json: async () => successBody("TwelveData"),
+        data: successBody("TwelveData"),
       })
       .mockImplementationOnce(() => pending);
-    vi.stubGlobal("fetch", fetchMock);
+    vi.mocked(api.get).mockImplementation(fetchMock);
 
     const { rerender } = renderChart("AAPL");
     await screen.findByRole("link", { name: APPROVED_TEXT });
@@ -303,7 +300,7 @@ describe("StockChart hides attribution whenever the bars are hidden", () => {
 
 describe("StockChart keeps the TradingView credit unconditional", () => {
   it("renders it while loading", () => {
-    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    vi.mocked(api.get).mockImplementation(vi.fn(() => new Promise(() => {})));
     renderChart();
 
     expect(
@@ -312,7 +309,7 @@ describe("StockChart keeps the TradingView credit unconditional", () => {
   });
 
   it("renders it in the error state", async () => {
-    vi.stubGlobal("fetch", respondWith({ success: false, error: "boom" }));
+    vi.mocked(api.get).mockImplementation(respondWith({ success: false, error: "boom" }));
     renderChart();
 
     await screen.findByText("boom");
@@ -323,7 +320,7 @@ describe("StockChart keeps the TradingView credit unconditional", () => {
   });
 
   it("renders it on success, unchanged in wording and target", async () => {
-    vi.stubGlobal("fetch", respondWith(successBody("TwelveData")));
+    vi.mocked(api.get).mockImplementation(respondWith(successBody("TwelveData")));
     renderChart();
 
     await screen.findByRole("link", { name: APPROVED_TEXT });
@@ -342,7 +339,7 @@ describe("StockChart emits no empty attribution wrapper", () => {
    * with a line box, which would be an invisible layout shift in the footer.
    */
   it("renders no attribution container when provenance is unresolved", async () => {
-    vi.stubGlobal("fetch", respondWith(successBody("Finnhub")));
+    vi.mocked(api.get).mockImplementation(respondWith(successBody("Finnhub")));
     const { container } = renderChart();
 
     await waitFor(() => {
@@ -355,7 +352,7 @@ describe("StockChart emits no empty attribution wrapper", () => {
   });
 
   it("renders the container only alongside its content", async () => {
-    vi.stubGlobal("fetch", respondWith(successBody("TwelveData")));
+    vi.mocked(api.get).mockImplementation(respondWith(successBody("TwelveData")));
     const { container } = renderChart();
 
     await screen.findByRole("link", { name: APPROVED_TEXT });

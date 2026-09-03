@@ -19,6 +19,10 @@ process.env.SEARCH_PROVIDER = "finnhub";
 process.env.HISTORY_PROVIDER = "twelve_data";
 process.env.FUNDAMENTALS_PROVIDER = "finnhub";
 process.env.TWELVE_DATA_PROFILE_ENABLED = "false";
+process.env.PRIVATE_OWNER_USER_ID = "11111111-1111-4111-8111-111111111111";
+process.env.SUPABASE_URL = "https://xhxlgalaytuqdnmmwypv.supabase.co";
+process.env.SUPABASE_PUBLISHABLE_KEY = "sb_publishable_notarealkey000000000";
+process.env.SUPABASE_SECRET_KEY = "sb_secret_notarealkey000000000";
 
 let providerCalls = 0;
 const originalGet = axios.get;
