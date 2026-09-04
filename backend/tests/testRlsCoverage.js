@@ -12,6 +12,22 @@ const { sql } = require("./helpers/localSupabase");
 */
 
 const EXPECTED = {
+  outcome_decision_snapshots: {
+    policies: ["SELECT"],
+    updatableColumns: [],
+  },
+  outcome_position_events: {
+    policies: ["SELECT"],
+    updatableColumns: [],
+  },
+  outcome_positions: {
+    policies: ["SELECT"],
+    updatableColumns: [],
+  },
+  outcome_snapshot_provenance: {
+    policies: ["SELECT"],
+    updatableColumns: [],
+  },
   twelve_data_credit_ledger: {
     policies: [],
     updatableColumns: [],
@@ -250,8 +266,8 @@ check(
 );
 
 // ------------------------------------------------------------
-// 8. No function in public is executable by anon or authenticated.
-//    Proves the default-privilege revoke in migration 001 took hold.
+// 8. Only the two narrow owner-ledger RPCs are executable by authenticated.
+//    Helper/trigger/system functions remain unavailable.
 // ------------------------------------------------------------
 
 const executable = rows(`
@@ -265,8 +281,11 @@ const executable = rows(`
 `);
 
 check(
-  "no public function is executable by anon or authenticated",
-  executable.length === 0,
+  "authenticated can execute only the owner-ledger RPCs and anon can execute none",
+  executable.join(",") === [
+    "append_outcome_position_event by authenticated",
+    "create_outcome_position by authenticated",
+  ].join(","),
   executable.join(", ")
 );
 

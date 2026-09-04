@@ -142,6 +142,13 @@ jobs:
         working-directory: backend
         run: node tests/testTwelveDataCreditRpc.js
 
+      - name: Prove outcome-ledger migration, RPC, arithmetic, concurrency, and RLS contracts
+        working-directory: backend
+        run: >-
+          node tests/testOutcomeLedgerMigrationContract.js &&
+          node tests/testOutcomeLedgerRpc.js &&
+          node tests/testOutcomeLedgerRls.js
+
       - name: Prove the migrations reverse cleanly
         run: bash scripts/verifyMigrationReversibility.sh
 
