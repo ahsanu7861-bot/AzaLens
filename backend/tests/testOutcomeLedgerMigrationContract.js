@@ -58,6 +58,12 @@ const CANONICALISATION = {
 };
 const RAW_NUMERIC = /p_(?:entry_price|entry_quantity|fees|taxes|price|quantity|intended_invalidation_price|intended_target_price|maximum_planned_loss|risk_percentage)\b/;
 
+// The G-3 assertion is delimited in the migration text so that both this file
+// and the executable old-body proof in testOutcomeLedgerRpc.js can excise
+// exactly it, and nothing else, to show it is load-bearing.
+const G3_OPEN = "-- >>> G-3 non-execution execution-field rejection";
+const G3_CLOSE = "-- <<< G-3 non-execution execution-field rejection";
+
 function inspect(sql) {
   const errors = [];
   for (const table of tables) {
@@ -148,6 +154,59 @@ function inspect(sql) {
       errors.push(`raw numeric parameter is read after canonicalisation ${rpc}`);
     }
   }
+
+  // G-1b. The same database-authoritative bound, applied to the two remaining
+  // caller-supplied instants. Each right-hand side must be a database-generated
+  // default and must stay unreachable from either RPC.
+  if (!sql.includes("captured_at timestamptz not null default clock_timestamp()")) {
+    errors.push("database-generated decision instant absent");
+  }
+  if (!sql.includes("constraint outcome_decision_snapshots_not_future check (analysis_created_at <= captured_at)")) {
+    errors.push("future-dated decision is not bounded");
+  }
+  if (!sql.includes("constraint outcome_position_events_not_future check (broker_effective_at is null or broker_effective_at <= created_at)")) {
+    errors.push("future-dated broker execution is not bounded");
+  }
+  // \b never matches inside analysis_created_at, so this does not false-positive.
+  for (const rpc of rpcs) {
+    const body = rpcBody(sql, rpc);
+    if (/\bcaptured_at\b/.test(body)) errors.push(`decision instant is reachable from the RPC ${rpc}`);
+    if (/\bcreated_at\b/.test(body)) errors.push(`event instant is reachable from the RPC ${rpc}`);
+  }
+
+  // G-3. Non-execution events reject every execution field, by name, before the
+  // fingerprint, the row lock, the sequence allocation and any insert - and
+  // after the precision contract, which owns the first word on every number.
+  const appendBody = rpcBody(sql, "append_outcome_position_event");
+  const opened = appendBody.indexOf(G3_OPEN);
+  const closed = appendBody.indexOf(G3_CLOSE);
+  if (opened < 0 || closed < opened) {
+    errors.push("non-execution execution-field rejection absent");
+  } else {
+    if (!/execution field not permitted on non-execution event/.test(appendBody)) {
+      errors.push("non-execution execution-field rejection absent");
+    }
+    const canonical = appendBody.indexOf(CANONICALISATION.append_outcome_position_event);
+    if (canonical >= 0 && opened < canonical) {
+      errors.push("non-execution rejection precedes numeric validation");
+    }
+    for (const [label, needle] of [
+      ["fingerprint", "extensions.digest"],
+      ["lock", "for update"],
+      ["sequence allocation", "max(e.sequence_no)"],
+      ["insert", "insert into public."],
+    ]) {
+      const at = appendBody.indexOf(needle);
+      if (at >= 0 && at < opened) errors.push(`non-execution rejection follows the ${label}`);
+    }
+    const block = appendBody.slice(opened, closed);
+    if (!/p_event_type in \('OWNER_NOTE','HIDDEN_BY_OWNER'\)/.test(block)) {
+      errors.push("non-execution rejection is not scoped to the non-execution event types");
+    }
+    for (const field of ["broker_effective_at", "fees", "price", "quantity", "taxes"]) {
+      if (!block.includes(`('${field}',`)) errors.push(`non-execution rejection omits ${field}`);
+    }
+  }
   return errors;
 }
 
@@ -185,6 +244,21 @@ const mutations = [
     "  select f.field into v_bad_numeric\n  from (values\n    ('entry_price'",
     "  if p_entry_price <= 0 then raise exception using errcode='22023', message='invalid broker execution'; end if;\n  select f.field into v_bad_numeric\n  from (values\n    ('entry_price'",
   ), "guard precedes numeric validation create_outcome_position"],
+  ["decision instant", up.replace("  captured_at timestamptz not null default clock_timestamp(),\n", ""), "database-generated decision instant absent"],
+  ["decision bound", up.replace("constraint outcome_decision_snapshots_not_future check (analysis_created_at <= captured_at),\n", ""), "future-dated decision is not bounded"],
+  ["decision bound weakened", up.replace("check (analysis_created_at <= captured_at)", "check (analysis_created_at is not null)"), "future-dated decision is not bounded"],
+  ["execution bound", up.replace("constraint outcome_position_events_not_future check (broker_effective_at is null or broker_effective_at <= created_at)", "check (true)"), "future-dated broker execution is not bounded"],
+  ["execution bound weakened", up.replace("broker_effective_at is null or broker_effective_at <= created_at", "broker_effective_at is null or broker_effective_at <= clock_timestamp()"), "future-dated broker execution is not bounded"],
+  ["caller-supplied decision instant", up.replace("analysis_created_at, thesis_text, invalidation_condition, planned_horizon,", "analysis_created_at, captured_at, thesis_text, invalidation_condition, planned_horizon,"), "decision instant is reachable from the RPC create_outcome_position"],
+  ["non-execution rejection", up.slice(0, up.indexOf(G3_OPEN)) + up.slice(up.indexOf(G3_CLOSE) + G3_CLOSE.length), "non-execution execution-field rejection absent"],
+  ["non-execution fees", up.replace("      ('fees', v_fees is not null),\n", ""), "non-execution rejection omits fees"],
+  ["non-execution taxes", up.replace("      ('taxes', v_taxes is not null)\n", ""), "non-execution rejection omits taxes"],
+  ["non-execution scope", up.replace("if p_event_type in ('OWNER_NOTE','HIDDEN_BY_OWNER') then", "if p_event_type in ('OWNER_NOTE') then"), "non-execution rejection is not scoped to the non-execution event types"],
+  ["non-execution rejection order", (() => {
+    const block = up.slice(up.indexOf(G3_OPEN), up.indexOf(G3_CLOSE) + G3_CLOSE.length);
+    const without = up.slice(0, up.indexOf(G3_OPEN)) + up.slice(up.indexOf(G3_CLOSE) + G3_CLOSE.length);
+    return without.replace("  return query select v_event,v_seq,v_open,v_pl,v_return,false;", `${block}\n  return query select v_event,v_seq,v_open,v_pl,v_return,false;`);
+  })(), "non-execution rejection follows the fingerprint"],
   ["raw numeric guard", up.replace(
     "if v_entry_price is null or v_entry_price <= 0 or v_entry_quantity is null or v_entry_quantity <= 0",
     "if p_entry_price is null or p_entry_price <= 0 or p_entry_quantity is null or p_entry_quantity <= 0",
