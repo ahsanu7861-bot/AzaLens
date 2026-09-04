@@ -33,6 +33,31 @@ const rpcs = [
   "append_outcome_position_event",
 ];
 
+/*
+  `inspect` below deliberately slices each RPC at the first "revoke all on
+  function", which is fine for presence checks but useless for ORDER checks
+  because both functions are defined before the first revoke. Order checks use
+  this exact-boundary slicer instead.
+*/
+function rpcBody(sql, rpc) {
+  const bounds = [
+    sql.indexOf("create function public.create_outcome_position"),
+    sql.indexOf("create function public.append_outcome_position_event"),
+    sql.indexOf("revoke all on function"),
+  ];
+  if (bounds.some((at) => at < 0)) return "";
+  return rpc === "create_outcome_position"
+    ? sql.slice(bounds[0], bounds[1])
+    : sql.slice(bounds[1], bounds[2]);
+}
+
+const CANONICALISATION = {
+  create_outcome_position: "v_risk_percentage := p_risk_percentage;",
+  append_outcome_position_event:
+    "v_price := p_price; v_quantity := p_quantity; v_fees := p_fees; v_taxes := p_taxes;",
+};
+const RAW_NUMERIC = /p_(?:entry_price|entry_quantity|fees|taxes|price|quantity|intended_invalidation_price|intended_target_price|maximum_planned_loss|risk_percentage)\b/;
+
 function inspect(sql) {
   const errors = [];
   for (const table of tables) {
@@ -80,6 +105,49 @@ function inspect(sql) {
   if (!/Slice 3 is blocked/.test(sql) || !/Risk-limit enforcement is a mandatory/.test(sql)) errors.push("activation deferral undocumented");
   if (/grant\s+(?:insert|update|delete)[^;]*outcome_/i.test(sql)) errors.push("immutable ledger gained direct writes");
   if (/references\s+auth\.users\s*\(id\)/i.test(sql) === false) errors.push("owner foreign key absent");
+
+  // G-1. A coherent but wholly future-dated timeline must be refused against a
+  // database-generated insertion instant the caller cannot reach.
+  if (!sql.includes("recorded_at timestamptz not null default clock_timestamp()")) {
+    errors.push("database-generated insertion instant absent");
+  }
+  if (!/constraint outcome_snapshot_provenance_not_future check \(/.test(sql)) {
+    errors.push("future-dated provenance is not bounded");
+  }
+  for (const clause of [
+    /\bretrieved_at <= recorded_at/,
+    /\boriginal_retrieved_at <= recorded_at/,
+    /\bentitlement_assessed_at <= recorded_at/,
+    /\bobserved_at is null or observed_at <= recorded_at/,
+  ]) {
+    if (!clause.test(sql)) errors.push(`future bound incomplete: ${clause.source}`);
+  }
+  if (/recorded_at/.test(rpcBody(sql, "create_outcome_position"))) {
+    errors.push("insertion instant is reachable from the RPC");
+  }
+
+  // G-2. Both RPCs must validate scale and range, then canonicalise, before any
+  // guard, lock, fingerprint or insert - and must never re-read a raw numeric.
+  for (const rpc of Object.keys(CANONICALISATION)) {
+    const body = rpcBody(sql, rpc);
+    const marker = CANONICALISATION[rpc];
+    const validator = body.indexOf("select f.field into v_bad_numeric");
+    const canonical = body.indexOf(marker);
+    if (validator < 0 || canonical < 0) { errors.push(`validation pipeline absent ${rpc}`); continue; }
+    if (canonical < validator) errors.push(`canonicalisation precedes numeric validation ${rpc}`);
+    for (const [label, needle] of [
+      ["guard", "errcode='22023'"],
+      ["fingerprint", "extensions.digest"],
+      ["insert", "insert into public."],
+      ["lock", "for update"],
+    ]) {
+      const at = body.indexOf(needle);
+      if (at >= 0 && at < canonical) errors.push(`${label} precedes numeric validation ${rpc}`);
+    }
+    if (RAW_NUMERIC.test(body.slice(canonical + marker.length))) {
+      errors.push(`raw numeric parameter is read after canonicalisation ${rpc}`);
+    }
+  }
   return errors;
 }
 
@@ -109,6 +177,18 @@ const mutations = [
   ["range validation", up.replaceAll("abs(f.amount) >= power(10::numeric, f.max_integer_digits)", "false"), "numeric range is not validated before insert"],
   ["evidence scheme", up.replace("authority_reference ~ '^[a-z][a-z0-9_-]*:[^[:space:]]'", "authority_reference <> 'unknown'"), "entitlement evidence reference is not scheme-qualified"],
   ["authority coherence", up.replace("and entitlement_attribution = 'UNRESOLVED'", "and true"), "UNKNOWN authority is not confined to wholly unresolved assessments"],
+  ["insertion instant", up.replace("recorded_at timestamptz not null default clock_timestamp(),", ""), "database-generated insertion instant absent"],
+  ["future bound", up.replace("    retrieved_at <= recorded_at and\n", ""), "future bound incomplete: \\bretrieved_at <= recorded_at"],
+  ["future bound name", up.replace("constraint outcome_snapshot_provenance_not_future check (", "check ("), "future-dated provenance is not bounded"],
+  ["caller-supplied instant", up.replace("'authority_reference','limitation_codes')", "'authority_reference','limitation_codes','recorded_at')"), "insertion instant is reachable from the RPC"],
+  ["validation order", up.replace(
+    "  select f.field into v_bad_numeric\n  from (values\n    ('entry_price'",
+    "  if p_entry_price <= 0 then raise exception using errcode='22023', message='invalid broker execution'; end if;\n  select f.field into v_bad_numeric\n  from (values\n    ('entry_price'",
+  ), "guard precedes numeric validation create_outcome_position"],
+  ["raw numeric guard", up.replace(
+    "if v_entry_price is null or v_entry_price <= 0 or v_entry_quantity is null or v_entry_quantity <= 0",
+    "if p_entry_price is null or p_entry_price <= 0 or p_entry_quantity is null or p_entry_quantity <= 0",
+  ), "raw numeric parameter is read after canonicalisation create_outcome_position"],
 ];
 for (const [name, mutated, expected] of mutations) {
   assert.ok(inspect(mutated).some((error) => error.includes(expected)), `${name} mutation must be detected`);

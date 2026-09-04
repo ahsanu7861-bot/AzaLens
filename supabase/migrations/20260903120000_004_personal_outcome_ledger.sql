@@ -8,7 +8,20 @@
 -- TEMPORAL CONTRACT. Three distinct instants are recorded per provenance row and
 -- are ordered: observed_at <= original_retrieved_at <= retrieved_at. A cached
 -- observation can never claim the provider observed it after AzaLens first
--- retrieved it. age_seconds is CACHE age only and is pinned to
+-- retrieved it. Relative ordering alone still admits a wholly future-dated but
+-- internally coherent timeline, so every caller-supplied provenance instant -
+-- observed_at, original_retrieved_at, retrieved_at and entitlement_assessed_at -
+-- is additionally bounded above by recorded_at, the database-generated
+-- insertion instant. recorded_at is defaulted from clock_timestamp() and is
+-- reachable through neither RPC: it is absent from the provenance key
+-- allowlist, from the record-set projection and from every insert column list,
+-- and no role holds INSERT on the table. The bound is expressed against that
+-- stored column rather than a volatile call inside the CHECK, so the row stays
+-- verifiable for ever afterwards. The comparison is inclusive and carries no
+-- invented skew allowance: an instant equal to recorded_at is accepted, one
+-- microsecond later is not. Historical observations are unaffected, since only
+-- an upper bound is imposed.
+-- age_seconds is CACHE age only and is pinned to
 -- retrieved_at - original_retrieved_at. REALTIME freshness is measured from the
 -- OBSERVATION (retrieved_at - observed_at), never from cache age, so a cache
 -- miss cannot launder a stale observation. The threshold comparison is
@@ -77,6 +90,9 @@ create table public.outcome_snapshot_provenance (
   entitlement_attribution text not null check (entitlement_attribution in ('REQUIRED','NOT_REQUIRED_PRIVATE','UNRESOLVED')),
   entitlement_authority text not null check (entitlement_authority in ('PUBLISHED_TERMS','PLAN_DOCUMENTATION','PROVIDER_CORRESPONDENCE','SEPARATE_AGREEMENT','UNKNOWN')),
   entitlement_assessed_at timestamptz not null,
+  -- Database-generated insertion instant. Caller-uncontrolled: see the temporal
+  -- contract in the header. Never fingerprinted, so replay stays stable.
+  recorded_at timestamptz not null default clock_timestamp(),
   authority_reference text not null check (char_length(authority_reference) between 1 and 240 and authority_reference !~ '[[:cntrl:]]'),
   limitation_codes text[] not null default '{}'::text[] check (
     cardinality(limitation_codes) <= 12 and
@@ -103,6 +119,15 @@ create table public.outcome_snapshot_provenance (
   check (age_seconds = floor(extract(epoch from (retrieved_at - original_retrieved_at)))::integer),
   check (entitlement_assessed_at <= retrieved_at),
   check (observed_at is null or observed_at <= original_retrieved_at),
+  -- No caller-supplied instant may post-date the row's own insertion. Stated in
+  -- full rather than leaning on the ordering chain above, so that weakening any
+  -- one clause cannot silently reopen future-dating.
+  constraint outcome_snapshot_provenance_not_future check (
+    retrieved_at <= recorded_at and
+    original_retrieved_at <= recorded_at and
+    entitlement_assessed_at <= recorded_at and
+    (observed_at is null or observed_at <= recorded_at)
+  ),
   check ((delivery_state = 'MISS' and age_seconds = 0 and original_retrieved_at = retrieved_at) or
          (delivery_state in ('HIT','COALESCED') and usable) or
          (delivery_state = 'EXPIRED_REJECTED' and not usable and source_observation = 'UNAVAILABLE')),
@@ -278,18 +303,14 @@ declare
   v_maximum_planned_loss numeric(24,8); v_risk_percentage numeric(9,6);
 begin
   if v_user is null then raise exception using errcode='42501', message='authentication required'; end if;
-  if not coalesce(p_broker_confirmed, false) then raise exception using errcode='22023', message='broker confirmation required'; end if;
-  if p_entry_price is null or p_entry_price <= 0 or p_entry_quantity is null or p_entry_quantity <= 0 or p_broker_effective_at is null then
-    raise exception using errcode='22023', message='invalid broker execution';
-  end if;
-  if p_broker_effective_at < p_analysis_created_at then
-    raise exception using errcode='22023', message='broker execution predates decision';
-  end if;
 
   -- Precision contract (see header). Validate scale and range BEFORE any guard,
-  -- fingerprint or insert, and reject rather than round. Function parameters
-  -- carry no typmod, so this is the only place the destination precision can be
-  -- enforced. Deterministic first offender by name.
+  -- fingerprint, comparison or insert, and reject rather than round. Function
+  -- parameters carry no typmod, so this is the only place the destination
+  -- precision can be enforced. Deterministic first offender by name. This block
+  -- is the first statement after the caller is established, matching
+  -- append_outcome_position_event exactly, so no semantic guard anywhere in
+  -- either RPC can observe an unvalidated raw numeric parameter.
   select f.field into v_bad_numeric
   from (values
     ('entry_price', p_entry_price, 8, 16),
@@ -311,14 +332,26 @@ begin
       message='numeric input exceeds ledger precision contract: '||v_bad_numeric;
   end if;
 
-  -- Canonical values. Validation above guarantees these assignments neither
-  -- round nor overflow, so guards, fingerprint and storage all see one value.
+  -- Canonical values, created immediately after validation and before anything
+  -- reads a number. Validation above guarantees these assignments neither round
+  -- nor overflow, so guards, fingerprint and storage all see one value. Below
+  -- this line the raw p_* numeric parameters are never read again.
   v_entry_price := p_entry_price; v_entry_quantity := p_entry_quantity;
   v_fees := p_fees; v_taxes := p_taxes;
   v_invalidation_price := p_intended_invalidation_price;
   v_target_price := p_intended_target_price;
   v_maximum_planned_loss := p_maximum_planned_loss;
   v_risk_percentage := p_risk_percentage;
+
+  -- Semantic guards. Every numeric they inspect is a validated canonical local.
+  if not coalesce(p_broker_confirmed, false) then raise exception using errcode='22023', message='broker confirmation required'; end if;
+  if v_entry_price is null or v_entry_price <= 0 or v_entry_quantity is null or v_entry_quantity <= 0 or p_broker_effective_at is null then
+    raise exception using errcode='22023', message='invalid broker execution';
+  end if;
+  if p_broker_effective_at < p_analysis_created_at then
+    raise exception using errcode='22023', message='broker execution predates decision';
+  end if;
+
   if p_provenance is null or jsonb_typeof(p_provenance) <> 'array' or jsonb_array_length(p_provenance) <> 2 then
     raise exception using errcode='22023', message='invalid provenance';
   end if;

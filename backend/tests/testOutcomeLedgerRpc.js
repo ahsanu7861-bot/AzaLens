@@ -309,6 +309,115 @@ async function main(){
     const lateExitReplay=await append({p_position_id:preciseId,p_idempotency_key:uuid(),p_event_type:"OWNER_NOTE",p_owner_note:"post-close note"});
     assert.ok(!lateExitReplay.ok,"a closed position accepts no further events");
 
+    // ==========================================================================
+    // G-1  A coherent but future-dated timeline is refused against recorded_at,
+    //      the database-generated insertion instant the caller cannot reach.
+    // ==========================================================================
+    const pairH=(over)=>[provenance[0],{...provenance[1],...over}];
+    const residue=()=>sql(`select (select count(*) from public.outcome_decision_snapshots where user_id='${userId}')||'|'||(select count(*) from public.outcome_snapshot_provenance where user_id='${userId}')||'|'||(select count(*) from public.outcome_positions where user_id='${userId}')||'|'||(select count(*) from public.outcome_position_events where user_id='${userId}')`);
+
+    // A wholly future REALTIME record. Every relative rule is satisfied - the
+    // observation is five seconds old at its own retrieval - so only the
+    // insertion-instant bound can refuse it.
+    await rejectQ("G1a",{observed_at:"2030-01-01T00:00:00Z",original_retrieved_at:"2030-01-01T00:00:05Z",retrieved_at:"2030-01-01T00:00:05Z",delivery_state:"MISS",age_seconds:0,freshness_threshold_seconds:20,entitlement_assessed_at:"2030-01-01T00:00:00Z"});
+    // A wholly future EOD record: freshness never applies, so the bound is the
+    // only thing standing between the ledger and a fabricated 2030 history bar.
+    const futureHistory={observed_at:"2030-01-01T00:00:00Z",original_retrieved_at:"2030-01-01T00:00:01Z",retrieved_at:"2030-01-01T00:00:01Z",delivery_state:"MISS",age_seconds:0,entitlement_assessed_at:"2030-01-01T00:00:00Z"};
+    assert.ok(!(await create(createBody(uuid(),"G1B",{provenance:pairH(futureHistory)}))).ok,"a coherent year-2030 EOD record must be rejected");
+    // Exactly one future instant among otherwise valid fields.
+    const futureGap=Math.floor((Date.parse("2030-01-01T00:00:00Z")-Date.parse("2026-09-03T00:00:00Z"))/1000);
+    assert.ok(!(await create(createBody(uuid(),"G1C",{provenance:pairH({observed_at:"2026-09-03T00:00:00Z",original_retrieved_at:"2026-09-03T00:00:00Z",retrieved_at:"2030-01-01T00:00:00Z",delivery_state:"HIT",age_seconds:futureGap})}))).ok,"a single future retrieved_at must be rejected");
+    // Current and historical records remain valid: only an upper bound exists.
+    const observedNow=new Date(Date.now()-70000).toISOString(); const retrievedNow=new Date(Date.now()-60000).toISOString();
+    await acceptQ("G1D",{observed_at:observedNow,original_retrieved_at:retrievedNow,retrieved_at:retrievedNow,delivery_state:"MISS",age_seconds:0,freshness_threshold_seconds:120,entitlement_assessed_at:observedNow});
+    await acceptQ("G1E",{observed_at:"2020-01-01T00:00:00Z",original_retrieved_at:"2020-01-01T00:00:05Z",retrieved_at:"2020-01-01T00:00:05Z",delivery_state:"MISS",age_seconds:0,freshness_threshold_seconds:20,entitlement_assessed_at:"2020-01-01T00:00:00Z"});
+    // The insertion instant is not a caller-supplied field.
+    const supplied=await create(createBody(uuid(),"G1F",{provenance:pairH({recorded_at:"2026-09-03T00:00:00Z"})}));
+    assert.ok(!supplied.ok); assert.match(JSON.stringify(supplied.body),/not storable/i,"recorded_at must not be reachable through the RPC");
+    // A refused future request leaves nothing behind and burns no idempotency key.
+    const g1Before=residue(); const g1Key=uuid();
+    assert.ok(!(await create(createBody(g1Key,"G1G",{provenance:pairH(futureHistory)}))).ok);
+    assert.equal(residue(),g1Before,"a rejected future request must leave no snapshot, provenance, position or event");
+    const g1Reused=await create(createBody(g1Key,"G1G"));
+    assert.equal(g1Reused.status,200,"a rejected request must not consume the idempotency key");
+    assert.equal(g1Reused.body[0].replayed,false);
+
+    // Determinism at the boundary itself. The RPC cannot name recorded_at, so
+    // the CHECK is probed directly: equal is accepted, one microsecond past is
+    // not. `probe` reports the outcome instead of aborting the session.
+    const boundary=await create(createBody(uuid(),"BNDY")); const bndSnapshot=boundary.body[0].snapshot_id;
+    const clearHistory=()=>sql(`delete from public.outcome_snapshot_provenance where snapshot_id='${bndSnapshot}' and capability='HISTORY'`);
+    const probe=(recordedAt,suppliedAt)=>sql(`create temp table probe(result text); do $probe$ begin insert into public.outcome_snapshot_provenance(snapshot_id,user_id,capability,provider,source_observation,venue_scope,interval,observed_at,delivery_state,retrieved_at,original_retrieved_at,age_seconds,freshness_threshold_seconds,usable,entitlement_display,entitlement_analysis,entitlement_storage,entitlement_attribution,entitlement_authority,entitlement_assessed_at,recorded_at,authority_reference,limitation_codes) values('${bndSnapshot}','${userId}','HISTORY','BoundaryFeed','EOD','UNKNOWN','1day','${suppliedAt}','MISS','${suppliedAt}','${suppliedAt}',0,86400,true,'PROHIBITED','PERMITTED_NON_RECONSTRUCTIVE','PERMITTED_DERIVED_ONLY','UNRESOLVED','PUBLISHED_TERMS','${suppliedAt}','${recordedAt}','terms:boundary-2026-09',array['DISPLAY_PROHIBITED','ENTITLEMENT_UNRESOLVED','NON_RECONSTRUCTIVE_ANALYTICS_ONLY','RAW_STORAGE_PROHIBITED']); insert into probe values('accepted'); exception when others then insert into probe values('rejected:'||sqlstate); end $probe$; select result from probe`);
+    clearHistory();
+    assert.equal(probe("2026-09-03T00:00:00Z","2026-09-03T00:00:00Z"),"accepted","an instant exactly equal to recorded_at is accepted");
+    clearHistory();
+    assert.equal(probe("2026-09-03T00:00:00Z","2026-09-03T00:00:00.000001Z"),"rejected:23514","one microsecond past recorded_at is refused by the check constraint");
+    clearHistory();
+
+    // Load-bearing: with the bound removed the identical fixture succeeds, so
+    // the bound - not some incidental rule - is what refuses the future.
+    const boundName="outcome_snapshot_provenance_not_future";
+    const boundDef=sql(`select pg_get_constraintdef(oid) from pg_constraint where conname='${boundName}'`);
+    assert.match(boundDef,/recorded_at/,"the future bound must exist before it can be proved load-bearing");
+    sql(`alter table public.outcome_snapshot_provenance drop constraint ${boundName}`);
+    const bypassed=await create(createBody(uuid(),"LBRB",{provenance:pairH(futureHistory)}));
+    assert.equal(bypassed.status,200,"with the bound dropped the identical future record must succeed");
+    sql(`delete from public.outcome_positions where id='${bypassed.body[0].position_id}'`);
+    sql(`delete from public.outcome_decision_snapshots where id='${bypassed.body[0].snapshot_id}'`);
+    sql(`alter table public.outcome_snapshot_provenance add constraint ${boundName} ${boundDef}`);
+    assert.equal(sql(`select pg_get_constraintdef(oid) from pg_constraint where conname='${boundName}'`),boundDef,"the bound must be restored identically");
+    assert.ok(!(await create(createBody(uuid(),"LBRR",{provenance:pairH(futureHistory)}))).ok,"the restored bound must refuse the future record again");
+
+    // ==========================================================================
+    // G-2  Numeric validation and canonicalisation precede every semantic guard,
+    //      fingerprint, lock and insert in BOTH RPCs.
+    // ==========================================================================
+    const g2Before=residue();
+    // Each request breaks a semantic rule AND the precision or range contract.
+    // The precision error must win, proving validation ran first.
+    for (const [label,over] of [
+      ["negative and nine-decimal price",{p_entry_price:"-1.000000001"}],
+      ["unconfirmed broker and nine-decimal fees",{p_broker_confirmed:false,p_fees:"0.000000001"}],
+      ["unconfirmed broker and out-of-range quantity",{p_broker_confirmed:false,p_entry_quantity:"10000000000000000"}],
+      ["execution predating the decision with a nine-decimal tax",{p_broker_effective_at:"2026-09-02T00:00:00Z",p_taxes:"0.000000001"}],
+      ["null price and seven-decimal risk",{p_entry_price:null,p_risk_percentage:"1.5000001"}],
+      ["null price and out-of-range planned loss",{p_entry_price:null,p_maximum_planned_loss:"10000000000000000"}],
+    ]) {
+      const refused=await create({...createBody(uuid(),"V"),...over});
+      assert.ok(!refused.ok,`${label} must be refused`);
+      assert.match(JSON.stringify(refused.body),/precision contract/i,`${label} must fail precision before the semantic guard`);
+    }
+    // Valid canonical values still reach - and still raise - the semantic guards.
+    for (const [label,over,expected] of [
+      ["unconfirmed broker",{p_broker_confirmed:false},/broker confirmation required/i],
+      ["zero price at full scale",{p_entry_price:"0.00000000"},/invalid broker execution/i],
+      ["null quantity",{p_entry_quantity:null},/invalid broker execution/i],
+      ["execution predating the decision",{p_broker_effective_at:"2026-09-02T00:00:00Z"},/predates decision/i],
+    ]) {
+      const refused=await create({...createBody(uuid(),"W"),...over});
+      assert.ok(!refused.ok,`${label} must still be refused`);
+      assert.match(JSON.stringify(refused.body),expected,`${label} must still raise its own semantic error`);
+    }
+    // The append RPC already validated first; prove the two now behave alike.
+    // positionId is closed, so "already closed" is the competing semantic error.
+    for (const [label,over] of [
+      ["unknown event type with a nine-decimal price",{p_event_type:"CORRECTION",p_price:"1.000000001"}],
+      ["closed position with a nine-decimal quantity",{p_event_type:"PARTIAL_EXIT_CONFIRMED",p_quantity:"1.000000001",p_price:"120"}],
+      ["note carrying an out-of-range fee",{p_event_type:"OWNER_NOTE",p_fees:"10000000000000000"}],
+    ]) {
+      const refused=await append({p_position_id:positionId,p_idempotency_key:uuid(),p_broker_confirmed:true,p_broker_effective_at:"2026-09-06T00:00:00Z",...over});
+      assert.ok(!refused.ok,`append: ${label} must be refused`);
+      assert.match(JSON.stringify(refused.body),/precision contract/i,`append: ${label} must fail precision before the semantic guard`);
+    }
+    assert.equal(residue(),g2Before,"no rejected G-2 request may leave a snapshot, provenance, position or event");
+    const g2Key=uuid();
+    assert.ok(!(await create({...createBody(g2Key,"IDEM"),p_entry_price:"1.000000001"})).ok);
+    const g2Reused=await create(createBody(g2Key,"IDEM"));
+    assert.equal(g2Reused.status,200,"a precision-rejected request must not consume the idempotency key");
+    assert.equal(g2Reused.body[0].replayed,false);
+    // Canonical equivalence survives the reorder: 10 and 10.00000000 still replay.
+    assert.equal((await create({...createBody(g2Key,"IDEM"),p_entry_price:"100",p_entry_quantity:"10",p_fees:"10.0",p_taxes:"0.000"})).body[0].replayed,true);
+
     console.log("Outcome ledger atomic RPC, idempotency, arithmetic, concurrency and storage-boundary contracts passed.");
   } finally { if(userId) await admin(`/auth/v1/admin/users/${userId}`,{method:"DELETE"}); }
 }
