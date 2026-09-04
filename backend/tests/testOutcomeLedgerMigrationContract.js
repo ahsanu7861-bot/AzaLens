@@ -1,5 +1,18 @@
 "use strict";
 
+/*
+  STRUCTURAL (LEXICAL) CONTRACT ONLY.
+
+  This file reads the migration and its down script as TEXT. It proves that
+  specific clauses are still present and that the detectors below still fire
+  when the text is mutated. It executes no SQL and connects to no database, so
+  it is a regression tripwire, NOT behavioural proof of anything.
+
+  The executable proof of the behaviour asserted here lives in
+  tests/testOutcomeLedgerRpc.js and tests/testOutcomeLedgerRls.js, which drive a
+  live PostgreSQL instance.
+*/
+
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -56,6 +69,14 @@ function inspect(sql) {
   if (/provider\s+in\s*\(/i.test(sql)) errors.push("provider identity is allowlisted");
   if (!/EXPIRED_REJECTED/.test(sql) || !/not usable and source_observation = 'UNAVAILABLE'/.test(sql)) errors.push("expired data can be usable");
   if (!/CONSOLIDATED_VERIFIED/.test(sql) || !/entitlement_authority <> 'UNKNOWN'/.test(sql)) errors.push("consolidation lacks explicit authority");
+  if (!sql.includes("check (observed_at is null or observed_at <= original_retrieved_at)")) errors.push("observation may post-date original retrieval");
+  if (!sql.includes("extract(epoch from (retrieved_at - observed_at)) <= freshness_threshold_seconds")) errors.push("realtime freshness is not measured from the observation");
+  if (/age_seconds <= freshness_threshold_seconds/.test(sql)) errors.push("realtime freshness still uses cache age");
+  if (!sql.includes("freshness_threshold_seconds between 1 and 604800")) errors.push("freshness threshold is unbounded");
+  if (!/numeric input exceeds ledger precision contract/.test(sql) || !/scale\(f\.amount\) > f\.max_scale/.test(sql)) errors.push("numeric precision is not validated before use");
+  if (!/abs\(f\.amount\) >= power\(10::numeric, f\.max_integer_digits\)/.test(sql)) errors.push("numeric range is not validated before insert");
+  if (!sql.includes("authority_reference ~ '^[a-z][a-z0-9_-]*:[^[:space:]]'")) errors.push("entitlement evidence reference is not scheme-qualified");
+  if (!/entitlement_authority = 'UNKNOWN'/.test(sql) || !/and entitlement_attribution = 'UNRESOLVED'/.test(sql)) errors.push("UNKNOWN authority is not confined to wholly unresolved assessments");
   if (!/Slice 3 is blocked/.test(sql) || !/Risk-limit enforcement is a mandatory/.test(sql)) errors.push("activation deferral undocumented");
   if (/grant\s+(?:insert|update|delete)[^;]*outcome_/i.test(sql)) errors.push("immutable ledger gained direct writes");
   if (/references\s+auth\.users\s*\(id\)/i.test(sql) === false) errors.push("owner foreign key absent");
@@ -78,8 +99,16 @@ const mutations = [
   ["exact limitation sets", up.replace("limitation_codes = array_remove(array[", "true and array["), "exact limitation-code derivation absent"],
   ["canonical limitation storage", up.replaceAll("jsonb_agg(code order by code)", "jsonb_agg(code)"), "canonical limitation storage absent"],
   ["expired refusal", up.replace("not usable and source_observation = 'UNAVAILABLE'", "usable"), "expired data can be usable"],
-  ["consolidation authority", up.replace("entitlement_authority <> 'UNKNOWN'", "true"), "consolidation lacks explicit authority"],
+  ["consolidation authority", up.replaceAll("entitlement_authority <> 'UNKNOWN'", "true"), "consolidation lacks explicit authority"],
   ["immutability", `${up}\ngrant update on public.outcome_decision_snapshots to authenticated;`, "immutable ledger gained direct writes"],
+  ["observation ordering", up.replace("observed_at is null or observed_at <= original_retrieved_at", "observed_at is null or observed_at <= retrieved_at"), "observation may post-date original retrieval"],
+  ["observation freshness", up.replace("extract(epoch from (retrieved_at - observed_at)) <= freshness_threshold_seconds", "age_seconds <= freshness_threshold_seconds"), "realtime freshness is not measured from the observation"],
+  ["cache-age freshness relapse", up.replace("extract(epoch from (retrieved_at - observed_at)) <= freshness_threshold_seconds", "age_seconds <= freshness_threshold_seconds"), "realtime freshness still uses cache age"],
+  ["bounded threshold", up.replace("freshness_threshold_seconds between 1 and 604800", "freshness_threshold_seconds > 0"), "freshness threshold is unbounded"],
+  ["precision validation", up.replaceAll("numeric input exceeds ledger precision contract", "bad number"), "numeric precision is not validated before use"],
+  ["range validation", up.replaceAll("abs(f.amount) >= power(10::numeric, f.max_integer_digits)", "false"), "numeric range is not validated before insert"],
+  ["evidence scheme", up.replace("authority_reference ~ '^[a-z][a-z0-9_-]*:[^[:space:]]'", "authority_reference <> 'unknown'"), "entitlement evidence reference is not scheme-qualified"],
+  ["authority coherence", up.replace("and entitlement_attribution = 'UNRESOLVED'", "and true"), "UNKNOWN authority is not confined to wholly unresolved assessments"],
 ];
 for (const [name, mutated, expected] of mutations) {
   assert.ok(inspect(mutated).some((error) => error.includes(expected)), `${name} mutation must be detected`);
