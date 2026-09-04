@@ -21,6 +21,20 @@
 -- invented skew allowance: an instant equal to recorded_at is accepted, one
 -- microsecond later is not. Historical observations are unaffected, since only
 -- an upper bound is imposed.
+-- The same database-authoritative principle governs the two remaining
+-- caller-supplied instants outside the provenance table. A decision's
+-- analysis_created_at is bounded above by captured_at, and an event's
+-- broker_effective_at by created_at; both of those are defaulted from
+-- clock_timestamp(), appear in no RPC parameter list and in no RPC insert
+-- column list, and no role holds INSERT on either table, so neither can be
+-- supplied or overridden by a caller. Each bound is stated against the stored
+-- database-generated column rather than a volatile clock_timestamp() call
+-- inside the CHECK, so a row stays verifiable for ever afterwards. Both are
+-- inclusive and carry no skew allowance, on the same reasoning as above, and
+-- both impose only an upper bound, so historical decisions and historical
+-- broker executions remain valid. The pre-existing relative rules are
+-- unchanged and still apply in full: a broker execution may not predate its
+-- decision, and an exit may not predate the entry or the latest prior exit.
 -- age_seconds is CACHE age only and is pinned to
 -- retrieved_at - original_retrieved_at. REALTIME freshness is measured from the
 -- OBSERVATION (retrieved_at - observed_at), never from cache age, so a cache
@@ -65,6 +79,10 @@ create table public.outcome_decision_snapshots (
   public_evidence_state text check (public_evidence_state in ('SUPPORTIVE', 'MIXED', 'ADVERSE', 'INCOMPLETE', 'UNKNOWN')),
   public_risk_classification text check (public_risk_classification in ('LOW', 'MEDIUM', 'HIGH', 'UNKNOWN')),
   shariah_state text not null check (shariah_state in ('COMPLIANT', 'NON_COMPLIANT', 'DOUBTFUL', 'UNAVAILABLE', 'UNKNOWN')),
+  -- A decision may not have been analysed after the row recording it existed.
+  -- captured_at is database-generated and caller-unreachable; see the temporal
+  -- contract in the header. Equality at the insertion boundary is deliberate.
+  constraint outcome_decision_snapshots_not_future check (analysis_created_at <= captured_at),
   unique (id, user_id),
   unique (id, user_id, symbol, market)
 );
@@ -218,7 +236,12 @@ create table public.outcome_position_events (
     (event_type in ('OWNER_NOTE', 'HIDDEN_BY_OWNER') and broker_effective_at is null and
       price is null and quantity is null and fees is null and taxes is null)
   ),
-  check (event_type <> 'ENTRY_CONFIRMED' or sequence_no = 1)
+  check (event_type <> 'ENTRY_CONFIRMED' or sequence_no = 1),
+  -- A broker may not have effected an execution after the row recording it
+  -- existed. created_at is database-generated and caller-unreachable; see the
+  -- temporal contract in the header. Equality at the insertion boundary is
+  -- deliberate, and the relative ordering rules above are unaffected.
+  constraint outcome_position_events_not_future check (broker_effective_at is null or broker_effective_at <= created_at)
 );
 
 -- Correction and supersession events are deliberately unsupported in Slice 2.
@@ -474,7 +497,7 @@ declare
   v_closed numeric(24,8); v_exit_proceeds numeric; v_exit_fees numeric; v_exit_taxes numeric;
   v_seq integer; v_event bigint; v_open numeric; v_pl numeric; v_return numeric; v_fp text;
   v_bad_numeric text; v_price numeric(24,8); v_quantity numeric(24,8);
-  v_fees numeric(24,8); v_taxes numeric(24,8);
+  v_fees numeric(24,8); v_taxes numeric(24,8); v_bad_execution_field text;
 begin
   if v_user is null then raise exception using errcode='42501', message='authentication required'; end if;
 
@@ -498,6 +521,38 @@ begin
       message='numeric input exceeds ledger precision contract: '||v_bad_numeric;
   end if;
   v_price := p_price; v_quantity := p_quantity; v_fees := p_fees; v_taxes := p_taxes;
+
+-- >>> G-3 non-execution execution-field rejection
+  -- OWNER_NOTE and HIDDEN_BY_OWNER record no execution, so every execution
+  -- field is REJECTED BY NAME rather than discarded. Before this existed, a
+  -- supplied broker_effective_at, price or quantity was carried into the insert
+  -- and refused late by a table CHECK, while fees and taxes were silently
+  -- replaced with null - the caller was told the note succeeded and was never
+  -- told the money had been dropped. This block inspects only the caller's own
+  -- parameters, through the canonical locals so no raw numeric is re-read, and
+  -- runs before the row lock, the fingerprint, the sequence allocation and
+  -- every insert. A refused request therefore consumes no idempotency key, no
+  -- sequence number and no partial row, and repeating it changes nothing.
+  -- Deterministic first offender by name, matching the precision contract's
+  -- reporting style.
+  if p_event_type in ('OWNER_NOTE','HIDDEN_BY_OWNER') then
+    select f.field into v_bad_execution_field
+    from (values
+      ('broker_effective_at', p_broker_effective_at is not null),
+      ('fees', v_fees is not null),
+      ('price', v_price is not null),
+      ('quantity', v_quantity is not null),
+      ('taxes', v_taxes is not null)
+    ) as f(field, supplied)
+    where f.supplied
+    order by f.field
+    limit 1;
+    if v_bad_execution_field is not null then
+      raise exception using errcode='22023',
+        message='execution field not permitted on non-execution event: '||v_bad_execution_field;
+    end if;
+  end if;
+-- <<< G-3 non-execution execution-field rejection
 
   select * into v_position from public.outcome_positions where id=p_position_id and user_id=v_user for update;
   if not found then raise exception using errcode='42501', message='position unavailable'; end if;

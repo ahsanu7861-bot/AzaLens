@@ -43,7 +43,7 @@ async function main(){
     assert.equal(sql(`select string_agg(array_to_string(limitation_codes,','),'|' order by capability) from public.outcome_snapshot_provenance where snapshot_id='${orderReplay.body[0].snapshot_id}'`),"DISPLAY_PROHIBITED,ENTITLEMENT_UNRESOLVED,NON_RECONSTRUCTIVE_ANALYTICS_ONLY,RAW_STORAGE_PROHIBITED|BROKER_VERIFICATION_REQUIRED,CONSOLIDATION_UNVERIFIED,NON_RECONSTRUCTIVE_ANALYTICS_ONLY,RAW_STORAGE_PROHIBITED");
     assert.equal(sql(`select count(*) from public.outcome_positions where id='${positionId}'`),"1");
 
-    const partialKey=uuid(); const partialBody={p_position_id:positionId,p_idempotency_key:partialKey,p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-04T00:00:00Z",p_price:"120",p_quantity:"4",p_fees:"2",p_taxes:"1",p_thesis_result:"VALID",p_usefulness:"USEFUL",p_exit_reason:"Owner fixture exit"};
+    const partialKey=uuid(); const partialBody={p_position_id:positionId,p_idempotency_key:partialKey,p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T02:00:00Z",p_price:"120",p_quantity:"4",p_fees:"2",p_taxes:"1",p_thesis_result:"VALID",p_usefulness:"USEFUL",p_exit_reason:"Owner fixture exit"};
     const partial=await append(partialBody); assert.equal(partial.status,200,JSON.stringify(partial.body));
     assert.equal(partial.body[0].open_quantity,6); assert.equal(partial.body[0].realized_pl,73);
     assert.ok(Math.abs(Number(partial.body[0].realized_return_pct)-18.069306930693)<1e-10);
@@ -62,12 +62,12 @@ async function main(){
     const afterClose=await append({...partialBody,p_idempotency_key:uuid(),p_quantity:"1"}); assert.ok(!afterClose.ok); assert.match(JSON.stringify(afterClose.body),/already closed/i);
 
     const raceCreate=await create(createBody(uuid(),"RACE")); const raceId=raceCreate.body[0].position_id;
-    const race=await Promise.all(["6","6"].map((quantity)=>append({p_position_id:raceId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-04T00:00:00Z",p_price:"101",p_quantity:quantity,p_fees:"0",p_taxes:"0"})));
+    const race=await Promise.all(["6","6"].map((quantity)=>append({p_position_id:raceId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T02:00:00Z",p_price:"101",p_quantity:quantity,p_fees:"0",p_taxes:"0"})));
     assert.equal(race.filter(r=>r.ok).length,1,"row lock must prevent concurrent oversell");
     assert.equal(sql(`select sum(quantity) from public.outcome_position_events where position_id='${raceId}' and event_type like '%EXIT%'`),"6.00000000");
 
     const finalRaceCreate=await create(createBody(uuid(),"FINL")); const finalRaceId=finalRaceCreate.body[0].position_id;
-    const finalRace=await Promise.all([uuid(),uuid()].map((key)=>append({p_position_id:finalRaceId,p_idempotency_key:key,p_event_type:"FINAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-04T00:00:00Z",p_price:"101",p_quantity:"10",p_fees:"0",p_taxes:"0"})));
+    const finalRace=await Promise.all([uuid(),uuid()].map((key)=>append({p_position_id:finalRaceId,p_idempotency_key:key,p_event_type:"FINAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T02:00:00Z",p_price:"101",p_quantity:"10",p_fees:"0",p_taxes:"0"})));
     assert.equal(finalRace.filter(r=>r.ok).length,1,"exactly one concurrent final close may commit");
     assert.equal(sql(`select count(*) from public.outcome_position_events where position_id='${finalRaceId}' and event_type='FINAL_EXIT_CONFIRMED'`),"1");
 
@@ -121,14 +121,24 @@ async function main(){
     const min=await create(createBody(uuid(),"MINI",{price:"0.00000001",quantity:"0.00000001",fees:"0"})); assert.equal(min.status,200);
     const overflow=await create(createBody(uuid(),"OVFL",{price:"10000000000000000",quantity:"1",fees:"0"})); assert.ok(!overflow.ok);
     const repeat=await create(createBody(uuid(),"REPT",{quantity:"3",fees:"1"})); const repeatId=repeat.body[0].position_id;
-    const repeatOne=await append({p_position_id:repeatId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-04T00:00:00Z",p_price:"100",p_quantity:"1",p_fees:"0",p_taxes:"0"});
+    const repeatOne=await append({p_position_id:repeatId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T02:00:00Z",p_price:"100",p_quantity:"1",p_fees:"0",p_taxes:"0"});
     assert.equal(repeatOne.status,200); assert.match(String(repeatOne.body[0].realized_pl),/^-0\.333333/);
-    const repeatFinal=await append({p_position_id:repeatId,p_idempotency_key:uuid(),p_event_type:"FINAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-05T00:00:00Z",p_price:"100",p_quantity:"2",p_fees:"0",p_taxes:"0"});
+    const repeatFinal=await append({p_position_id:repeatId,p_idempotency_key:uuid(),p_event_type:"FINAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T03:00:00Z",p_price:"100",p_quantity:"2",p_fees:"0",p_taxes:"0"});
     assert.equal(Number(repeatFinal.body[0].realized_pl),-1);
 
     const feeTaxKey=uuid(); const feeTaxBase={p_position_id:raceId,p_idempotency_key:feeTaxKey,p_event_type:"OWNER_NOTE",p_owner_note:"fee-tax fingerprint",p_fees:null,p_taxes:null};
     assert.equal((await append(feeTaxBase)).status,200);
-    const feeTaxConflict=await append({...feeTaxBase,p_fees:"1",p_taxes:null}); assert.match(JSON.stringify(feeTaxConflict.body),/idempotency conflict/i);
+    // Re-sending the same note key with a fee attached no longer reaches the
+    // fingerprint at all: G-3 refuses the execution field first. The fee/tax
+    // fingerprint sensitivity this line used to prove is proved below on an
+    // execution event, where fees and taxes are legitimate inputs.
+    const feeTaxConflict=await append({...feeTaxBase,p_fees:"1",p_taxes:null});
+    assert.ok(!feeTaxConflict.ok); assert.match(JSON.stringify(feeTaxConflict.body),/execution field not permitted on non-execution event: fees/i);
+    const execFeeKey=uuid(); const execFeeBase={p_position_id:raceId,p_idempotency_key:execFeeKey,p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T03:00:00Z",p_price:"101",p_quantity:"1",p_fees:"0",p_taxes:"0"};
+    assert.equal((await append(execFeeBase)).status,200);
+    assert.equal((await append(execFeeBase)).body[0].replayed,true);
+    assert.match(JSON.stringify((await append({...execFeeBase,p_fees:"1"})).body),/idempotency conflict/i,"fees are fingerprinted");
+    assert.match(JSON.stringify((await append({...execFeeBase,p_taxes:"1"})).body),/idempotency conflict/i,"taxes are fingerprinted");
     const concurrentKey=uuid(); const concurrentBody=createBody(concurrentKey,"CONC");
     const concurrent=await Promise.all([create(concurrentBody),create({...concurrentBody,p_fees:"1",p_taxes:null})]);
     assert.equal(concurrent.filter(r=>r.ok).length,1); assert.match(JSON.stringify(concurrent.find(r=>!r.ok).body),/idempotency conflict/i);
@@ -289,7 +299,7 @@ async function main(){
       ["nine-decimal-taxes",{p_quantity:"4",p_price:"120",p_taxes:"0.000000001"}],
       ["quantity-out-of-range",{p_quantity:"10000000000000000",p_price:"120"}],
     ]) {
-      const refused=await append({p_position_id:preciseId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-04T00:00:00Z",p_fees:"0",p_taxes:"0",...body});
+      const refused=await append({p_position_id:preciseId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T02:00:00Z",p_fees:"0",p_taxes:"0",...body});
       assert.ok(!refused.ok,`${label} must be refused`);
       assert.equal(ledgerState(),beforeState,`${label} must leave no partial state`);
     }
@@ -297,10 +307,10 @@ async function main(){
 
     // An exactly-eight-decimal partial exit is accepted, leaves open quantity,
     // and the position remains closable - no stranded zero-open position.
-    const preciseExit=await append({p_position_id:preciseId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-04T00:00:00Z",p_price:"120.00000000",p_quantity:"9.99999999",p_fees:"0",p_taxes:"0"});
+    const preciseExit=await append({p_position_id:preciseId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T02:00:00Z",p_price:"120.00000000",p_quantity:"9.99999999",p_fees:"0",p_taxes:"0"});
     assert.equal(preciseExit.status,200,JSON.stringify(preciseExit.body));
     assert.equal(Number(preciseExit.body[0].open_quantity),1e-8,"a partial exit must leave open quantity");
-    const preciseClose=await append({p_position_id:preciseId,p_idempotency_key:uuid(),p_event_type:"FINAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-05T00:00:00Z",p_price:"120.00000000",p_quantity:"0.00000001",p_fees:"0",p_taxes:"0"});
+    const preciseClose=await append({p_position_id:preciseId,p_idempotency_key:uuid(),p_event_type:"FINAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T03:00:00Z",p_price:"120.00000000",p_quantity:"0.00000001",p_fees:"0",p_taxes:"0"});
     assert.equal(preciseClose.status,200,JSON.stringify(preciseClose.body));
     assert.equal(Number(preciseClose.body[0].open_quantity),0);
     assert.equal(sql(`select count(*) from public.outcome_position_events where position_id='${preciseId}' and event_type='FINAL_EXIT_CONFIRMED'`),"1","the position closed cleanly rather than stranding");
@@ -405,7 +415,7 @@ async function main(){
       ["closed position with a nine-decimal quantity",{p_event_type:"PARTIAL_EXIT_CONFIRMED",p_quantity:"1.000000001",p_price:"120"}],
       ["note carrying an out-of-range fee",{p_event_type:"OWNER_NOTE",p_fees:"10000000000000000"}],
     ]) {
-      const refused=await append({p_position_id:positionId,p_idempotency_key:uuid(),p_broker_confirmed:true,p_broker_effective_at:"2026-09-06T00:00:00Z",...over});
+      const refused=await append({p_position_id:positionId,p_idempotency_key:uuid(),p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T04:00:00Z",...over});
       assert.ok(!refused.ok,`append: ${label} must be refused`);
       assert.match(JSON.stringify(refused.body),/precision contract/i,`append: ${label} must fail precision before the semantic guard`);
     }
@@ -417,6 +427,190 @@ async function main(){
     assert.equal(g2Reused.body[0].replayed,false);
     // Canonical equivalence survives the reorder: 10 and 10.00000000 still replay.
     assert.equal((await create({...createBody(g2Key,"IDEM"),p_entry_price:"100",p_entry_quantity:"10",p_fees:"10.0",p_taxes:"0.000"})).body[0].replayed,true);
+
+    // ==========================================================================
+    // G-1b Absolute time bounds on the two remaining caller-supplied instants.
+    //      analysis_created_at <= captured_at, broker_effective_at <= created_at.
+    //      Both right-hand sides are database-generated and caller-unreachable,
+    //      so a wholly future but internally coherent record has nothing else
+    //      standing in its way.
+    // ==========================================================================
+    const FUTURE="2030-01-01T00:00:00Z";
+    // Every rejection below is proved atomic: no snapshot, provenance, position
+    // or event survives it, and the idempotency key it carried stays unburnt.
+    const rejects=async(label,body,call)=>{
+      const before=residue();
+      const refused=await (call||append)(body);
+      assert.ok(!refused.ok,`${label} must be rejected`);
+      assert.equal(residue(),before,`${label} must leave no snapshot, provenance, position or event`);
+      return refused;
+    };
+
+    // A coherent future-dated decision: the execution follows the analysis, so
+    // every relative rule holds and only the absolute bound can refuse it.
+    await rejects("a coherent future-dated analysis snapshot",{...createBody(uuid(),"B1"),p_analysis_created_at:FUTURE,p_broker_effective_at:"2030-01-01T01:00:00Z"},create);
+    // A historical decision with a future ENTRY execution.
+    await rejects("a future broker-effective ENTRY",{...createBody(uuid(),"B2"),p_broker_effective_at:FUTURE},create);
+    // A rejected future request burns no idempotency key.
+    const b2Key=uuid();
+    await rejects("a repeated future ENTRY",{...createBody(b2Key,"B2R"),p_broker_effective_at:FUTURE},create);
+    const b2Reused=await create(createBody(b2Key,"B2R"));
+    assert.equal(b2Reused.status,200,"a time-rejected request must not consume the idempotency key");
+    assert.equal(b2Reused.body[0].replayed,false);
+
+    // Only an upper bound exists: historical and current records stay valid.
+    assert.equal((await create({...createBody(uuid(),"B3"),p_analysis_created_at:"2020-01-01T00:00:00Z",p_broker_effective_at:"2020-01-01T01:00:00Z"})).status,200,"a historical decision and execution must be accepted");
+    const nowAnalysis=new Date(Date.now()-120000).toISOString(); const nowExecution=new Date(Date.now()-60000).toISOString();
+    assert.equal((await create({...createBody(uuid(),"B4"),p_analysis_created_at:nowAnalysis,p_broker_effective_at:nowExecution})).status,200,"a current decision and execution must be accepted");
+
+    // Future exits, for both exit kinds, on an otherwise valid open position.
+    const boundPos=await create(createBody(uuid(),"B5")); const boundId=boundPos.body[0].position_id;
+    const exitBody=(over)=>({p_position_id:boundId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T02:00:00Z",p_price:"120",p_quantity:"4",p_fees:"0",p_taxes:"0",...over});
+    await rejects("a future broker-effective PARTIAL_EXIT",exitBody({p_broker_effective_at:FUTURE}));
+    await rejects("a future broker-effective FINAL_EXIT",exitBody({p_broker_effective_at:FUTURE,p_event_type:"FINAL_EXIT_CONFIRMED",p_quantity:"10"}));
+    const b5Key=uuid();
+    await rejects("a repeated future PARTIAL_EXIT",exitBody({p_idempotency_key:b5Key,p_broker_effective_at:FUTURE}));
+    const b5Reused=await append(exitBody({p_idempotency_key:b5Key}));
+    assert.equal(b5Reused.status,200,"a time-rejected exit must not consume the idempotency key");
+    assert.equal(b5Reused.body[0].replayed,false);
+    // Historical and current executions are accepted, and the relative ordering
+    // rules still hold on top of the new absolute bound.
+    assert.equal((await append(exitBody({p_event_type:"FINAL_EXIT_CONFIRMED",p_quantity:"6",p_broker_effective_at:new Date(Date.now()-30000).toISOString()}))).status,200,"a current final execution must be accepted");
+
+    // Determinism at each boundary. Neither RPC can name captured_at or
+    // created_at, so both CHECKs are probed directly: equal is accepted, one
+    // microsecond past is not. `probe` reports rather than aborting the session.
+    const probePos=await create(createBody(uuid(),"BPRB")); const probeId=probePos.body[0].position_id;
+    const snapProbe=(capturedAt,analysisAt)=>sql(`create temp table probe(result text); do $probe$ begin insert into public.outcome_decision_snapshots(user_id,symbol,market,analysis_contract_version,analysis_created_at,captured_at,thesis_text,invalidation_condition,planned_horizon,shariah_state) values('${userId}','BNDS','US','probe-v1','${analysisAt}','${capturedAt}','probe thesis','probe invalidation','swing','UNKNOWN'); insert into probe values('accepted'); exception when others then insert into probe values('rejected:'||sqlstate); end $probe$; select result from probe`);
+    const clearSnapProbe=()=>sql(`delete from public.outcome_decision_snapshots where analysis_contract_version='probe-v1'`);
+    const eventProbe=(createdAt,effectiveAt)=>sql(`create temp table probe(result text); do $probe$ begin insert into public.outcome_position_events(position_id,user_id,sequence_no,event_type,client_idempotency_key,request_fingerprint,broker_confirmed,broker_effective_at,price,quantity,fees,taxes,result_open_quantity,result_realized_pl,created_at) values('${probeId}','${userId}',900,'PARTIAL_EXIT_CONFIRMED',gen_random_uuid(),repeat('a',64),true,'${effectiveAt}',1,1,0,0,0,0,'${createdAt}'); insert into probe values('accepted'); exception when others then insert into probe values('rejected:'||sqlstate); end $probe$; select result from probe`);
+    const clearEventProbe=()=>sql(`delete from public.outcome_position_events where position_id='${probeId}' and sequence_no=900`);
+    clearSnapProbe();
+    assert.equal(snapProbe("2026-09-03T00:00:00Z","2026-09-03T00:00:00Z"),"accepted","an analysis instant exactly equal to captured_at is accepted");
+    clearSnapProbe();
+    assert.equal(snapProbe("2026-09-03T00:00:00Z","2026-09-03T00:00:00.000001Z"),"rejected:23514","one microsecond past captured_at is refused by the check constraint");
+    clearSnapProbe();
+    clearEventProbe();
+    assert.equal(eventProbe("2026-09-03T00:00:00Z","2026-09-03T00:00:00Z"),"accepted","an execution instant exactly equal to created_at is accepted");
+    clearEventProbe();
+    assert.equal(eventProbe("2026-09-03T00:00:00Z","2026-09-03T00:00:00.000001Z"),"rejected:23514","one microsecond past created_at is refused by the check constraint");
+    clearEventProbe();
+
+    // Load-bearing, per bound: capture the exact definition, remove only that
+    // one constraint, prove the identical fixture then succeeds, clean up,
+    // restore from the captured text, prove restoration is byte-identical, and
+    // prove the fixture is refused again.
+    const snapBound="outcome_decision_snapshots_not_future";
+    const snapDef=sql(`select pg_get_constraintdef(oid) from pg_constraint where conname='${snapBound}'`);
+    assert.match(snapDef,/captured_at/,"the decision bound must exist before it can be proved load-bearing");
+    assert.equal(snapProbe("2026-09-03T00:00:00Z",FUTURE),"rejected:23514","the decision bound refuses the future fixture");
+    clearSnapProbe();
+    sql(`alter table public.outcome_decision_snapshots drop constraint ${snapBound}`);
+    assert.equal(snapProbe("2026-09-03T00:00:00Z",FUTURE),"accepted","with the decision bound dropped the identical future fixture must succeed");
+    clearSnapProbe();
+    sql(`alter table public.outcome_decision_snapshots add constraint ${snapBound} ${snapDef}`);
+    assert.equal(sql(`select pg_get_constraintdef(oid) from pg_constraint where conname='${snapBound}'`),snapDef,"the decision bound must be restored identically");
+    assert.equal(snapProbe("2026-09-03T00:00:00Z",FUTURE),"rejected:23514","the restored decision bound must refuse the future fixture again");
+    clearSnapProbe();
+
+    const eventBound="outcome_position_events_not_future";
+    const eventDef=sql(`select pg_get_constraintdef(oid) from pg_constraint where conname='${eventBound}'`);
+    assert.match(eventDef,/created_at/,"the execution bound must exist before it can be proved load-bearing");
+    const mutPos=await create(createBody(uuid(),"BMUT")); const mutId=mutPos.body[0].position_id;
+    const futureExit=()=>append({p_position_id:mutId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:FUTURE,p_price:"120",p_quantity:"4",p_fees:"0",p_taxes:"0"});
+    assert.ok(!(await futureExit()).ok,"the execution bound refuses the future fixture");
+    sql(`alter table public.outcome_position_events drop constraint ${eventBound}`);
+    const bypassedExit=await futureExit();
+    assert.equal(bypassedExit.status,200,"with the execution bound dropped the identical future fixture must succeed");
+    sql(`delete from public.outcome_position_events where id=${bypassedExit.body[0].event_id}`);
+    sql(`alter table public.outcome_position_events add constraint ${eventBound} ${eventDef}`);
+    assert.equal(sql(`select pg_get_constraintdef(oid) from pg_constraint where conname='${eventBound}'`),eventDef,"the execution bound must be restored identically");
+    assert.ok(!(await futureExit()).ok,"the restored execution bound must refuse the future fixture again");
+
+    // ==========================================================================
+    // G-3  OWNER_NOTE and HIDDEN_BY_OWNER reject every execution field by name.
+    //      Nothing is silently discarded, and rejection precedes fingerprinting,
+    //      sequence allocation and insertion.
+    // ==========================================================================
+    const notePos=await create(createBody(uuid(),"G3P")); const noteId=notePos.body[0].position_id;
+    const noteState=()=>sql(`select count(*)::text||'|'||coalesce(max(e.sequence_no),0)::text from public.outcome_position_events e where e.position_id='${noteId}'`);
+    // Valid non-execution events, every execution field null, still succeed.
+    assert.equal((await append({p_position_id:noteId,p_idempotency_key:uuid(),p_event_type:"OWNER_NOTE",p_owner_note:"a legitimate owner note"})).status,200,"a note with no execution fields must succeed");
+    assert.equal((await append({p_position_id:noteId,p_idempotency_key:uuid(),p_event_type:"HIDDEN_BY_OWNER"})).status,200,"a hidden event with no execution fields must succeed");
+
+    const prohibited={p_broker_effective_at:"2026-09-03T02:00:00Z",p_fees:"2",p_price:"120",p_quantity:"1",p_taxes:"3"};
+    const columnOf={p_broker_effective_at:"broker_effective_at",p_fees:"fees",p_price:"price",p_quantity:"quantity",p_taxes:"taxes"};
+    // Every prohibited field independently, on both non-execution event types.
+    for (const eventType of ["OWNER_NOTE","HIDDEN_BY_OWNER"]) {
+      for (const field of Object.keys(prohibited)) {
+        const column=columnOf[field]; const label=`${eventType} carrying ${column}`;
+        const idempotencyKey=uuid(); const stateBefore=noteState(); const before=residue();
+        const body={p_position_id:noteId,p_idempotency_key:idempotencyKey,p_event_type:eventType,[field]:prohibited[field]};
+        const refused=await append(body);
+        assert.ok(!refused.ok,`${label} must be rejected`);
+        assert.match(JSON.stringify(refused.body),new RegExp(`execution field not permitted on non-execution event: ${column}`,"i"),`${label} must name ${column}`);
+        assert.equal(residue(),before,`${label} must leave no snapshot, provenance, position or event`);
+        assert.equal(noteState(),stateBefore,`${label} must allocate no sequence number`);
+        // Repeating a rejected request stays residue-free.
+        assert.ok(!(await append(body)).ok,`${label} must stay rejected on repeat`);
+        assert.equal(residue(),before,`${label} must leave no residue when repeated`);
+        assert.equal(noteState(),stateBefore,`${label} must allocate no sequence number when repeated`);
+        // And the key it carried was never consumed.
+        const reused=await append({p_position_id:noteId,p_idempotency_key:idempotencyKey,p_event_type:eventType,p_owner_note:`${label} key survived`});
+        assert.equal(reused.status,200,`${label} must not consume the idempotency key`);
+        assert.equal(reused.body[0].replayed,false);
+      }
+    }
+    // Combinations. The first offender is deterministic and alphabetical, and
+    // fees-only and taxes-only are the two cases the pre-fix body never caught.
+    for (const [label,over,expected] of [
+      ["fees only",{p_fees:"2"},"fees"],
+      ["taxes only",{p_taxes:"3"},"taxes"],
+      ["fees and taxes",{p_fees:"2",p_taxes:"3"},"fees"],
+      ["price and quantity",{p_price:"120",p_quantity:"1"},"price"],
+      ["quantity and taxes",{p_quantity:"1",p_taxes:"3"},"quantity"],
+      ["broker time and taxes",{p_broker_effective_at:"2026-09-03T02:00:00Z",p_taxes:"3"},"broker_effective_at"],
+      ["every execution field",{...prohibited},"broker_effective_at"],
+    ]) {
+      const stateBefore=noteState(); const before=residue();
+      const refused=await append({p_position_id:noteId,p_idempotency_key:uuid(),p_event_type:"OWNER_NOTE",p_owner_note:label,...over});
+      assert.ok(!refused.ok,`a note with ${label} must be rejected`);
+      assert.match(JSON.stringify(refused.body),new RegExp(`execution field not permitted on non-execution event: ${expected}`,"i"),`${label} must name ${expected} first`);
+      assert.equal(residue(),before,`${label} must leave no residue`);
+      assert.equal(noteState(),stateBefore,`${label} must allocate no sequence number`);
+    }
+    // Execution events are unaffected: fees and taxes remain required there.
+    assert.equal((await append({p_position_id:noteId,p_idempotency_key:uuid(),p_event_type:"PARTIAL_EXIT_CONFIRMED",p_broker_confirmed:true,p_broker_effective_at:"2026-09-03T02:00:00Z",p_price:"120",p_quantity:"1",p_fees:"2",p_taxes:"3"})).status,200,"an execution event still carries its execution fields");
+
+    // Load-bearing old-body proof. The G-3 assertion is delimited in the stored
+    // body, so the pre-fix implementation can be reconstructed exactly: it
+    // ACCEPTS the identical fees-only and taxes-only notes and stores NULL,
+    // which is precisely the silent discard this correction removes.
+    const APPEND_SIGNATURE="public.append_outcome_position_event(uuid,uuid,text,boolean,timestamptz,numeric,numeric,numeric,numeric,text,text,text,text)";
+    const readAppendDef=()=>sql(`select pg_get_functiondef('${APPEND_SIGNATURE}'::regprocedure)`);
+    const appendDef=readAppendDef();
+    const OPEN="-- >>> G-3 non-execution execution-field rejection";
+    const CLOSE="-- <<< G-3 non-execution execution-field rejection";
+    const from=appendDef.indexOf(OPEN); const to=appendDef.indexOf(CLOSE);
+    assert.ok(from>0&&to>from,"the G-3 assertion must be delimited in the stored function body");
+    const preFixDef=appendDef.slice(0,from)+appendDef.slice(to+CLOSE.length);
+    assert.doesNotMatch(preFixDef,/execution field not permitted/,"the reconstructed pre-fix body must not contain the assertion");
+    sql(preFixDef);
+    const silentFees=await append({p_position_id:noteId,p_idempotency_key:uuid(),p_event_type:"OWNER_NOTE",p_owner_note:"pre-fix fees",p_fees:"2"});
+    assert.equal(silentFees.status,200,"the pre-fix body accepted a fees-only note");
+    assert.equal(sql(`select coalesce(e.fees::text,'DISCARDED') from public.outcome_position_events e where e.id=${silentFees.body[0].event_id}`),"DISCARDED","the pre-fix body discarded the fee it accepted");
+    const silentTaxes=await append({p_position_id:noteId,p_idempotency_key:uuid(),p_event_type:"OWNER_NOTE",p_owner_note:"pre-fix taxes",p_taxes:"3"});
+    assert.equal(silentTaxes.status,200,"the pre-fix body accepted a taxes-only note");
+    assert.equal(sql(`select coalesce(e.taxes::text,'DISCARDED') from public.outcome_position_events e where e.id=${silentTaxes.body[0].event_id}`),"DISCARDED","the pre-fix body discarded the tax it accepted");
+    sql(`delete from public.outcome_position_events where id in (${silentFees.body[0].event_id},${silentTaxes.body[0].event_id})`);
+    sql(appendDef);
+    assert.equal(readAppendDef(),appendDef,"the corrected function must be restored identically");
+    const refusedAgainFees=await append({p_position_id:noteId,p_idempotency_key:uuid(),p_event_type:"OWNER_NOTE",p_owner_note:"pre-fix fees",p_fees:"2"});
+    assert.ok(!refusedAgainFees.ok,"the restored assertion must refuse the fees-only note again");
+    assert.match(JSON.stringify(refusedAgainFees.body),/execution field not permitted on non-execution event: fees/i);
+    const refusedAgainTaxes=await append({p_position_id:noteId,p_idempotency_key:uuid(),p_event_type:"OWNER_NOTE",p_owner_note:"pre-fix taxes",p_taxes:"3"});
+    assert.ok(!refusedAgainTaxes.ok,"the restored assertion must refuse the taxes-only note again");
+    assert.match(JSON.stringify(refusedAgainTaxes.body),/execution field not permitted on non-execution event: taxes/i);
 
     console.log("Outcome ledger atomic RPC, idempotency, arithmetic, concurrency and storage-boundary contracts passed.");
   } finally { if(userId) await admin(`/auth/v1/admin/users/${userId}`,{method:"DELETE"}); }
