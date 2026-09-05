@@ -328,6 +328,65 @@ jobs:
           set -euo pipefail
           "$GITHUB_WORKSPACE/.github/scripts/run-offline.sh" visual "$VISUAL_LOG" npm run test:visual
 
+      # The visual phase is the ONLY authoritative source of visual proof, so
+      # it must prove it actually compared — and must not have been silently
+      # turned off. The reporter now requires the proof by DEFAULT, so a run can
+      # only be non-proving by carrying the explicit opt-out
+      # AZALENS_EXPECT_VISUAL_COMPARISONS=0. This step rejects that opt-out here,
+      # and requires the positive exact-set marker, so neither an accidental
+      # edit to the npm script nor a reporter that quietly stopped asserting can
+      # pass as a green visual phase.
+      #
+      # Fixed strings, matched with grep -F -e; neither contains $, a backslash
+      # or a backtick, so double quotes expand to the literals.
+      - name: Prove the visual phase required and produced comparison proof
+        if: always()
+        env:
+          VISUAL_LOG: ${{ runner.temp }}/visual-run.log
+        run: |
+          set -euo pipefail
+          if [ ! -f "$VISUAL_LOG" ]; then
+            echo "::error::Visual log $VISUAL_LOG is missing; the visual-proof gate could not run."
+            exit 1
+          fi
+          if grep -F -q -e "VISUAL_COMPARISON_PROOF=intentionally-disabled" "$VISUAL_LOG"; then
+            echo "::error::The authoritative visual phase opted out of visual-comparison proof."
+            grep -F -n -e "VISUAL_COMPARISON_PROOF=intentionally-disabled" "$VISUAL_LOG"
+            exit 1
+          fi
+          if ! grep -F -q -e "VISUAL_COMPARISON_PROOF=exact-set:24/24" "$VISUAL_LOG"; then
+            echo "::error::The visual phase did not emit VISUAL_COMPARISON_PROOF=exact-set:24/24."
+            grep -F -n -e "VISUAL_COMPARISON_PROOF=" "$VISUAL_LOG" || echo "(no VISUAL_COMPARISON_PROOF line at all)"
+            exit 1
+          fi
+          echo "Visual phase required the proof and emitted exact-set:24/24."
+
+      # The browser phase deliberately excludes @visual, so it cannot produce
+      # comparisons and carries the explicit opt-out. Requiring the marker here
+      # is what stops that opt-out from being invisible: a phase that disables
+      # the proof must say so in the log, every run.
+      - name: Prove the browser phase declared its intentional opt-out
+        if: always()
+        env:
+          E2E_LOG: ${{ runner.temp }}/e2e-run.log
+        run: |
+          set -euo pipefail
+          if [ ! -f "$E2E_LOG" ]; then
+            echo "::error::Browser log $E2E_LOG is missing; the opt-out marker gate could not run."
+            exit 1
+          fi
+          if ! grep -F -q -e "VISUAL_COMPARISON_PROOF=intentionally-disabled" "$E2E_LOG"; then
+            echo "::error::The browser phase did not declare an intentional visual-proof opt-out."
+            grep -F -n -e "VISUAL_COMPARISON_PROOF=" "$E2E_LOG" || echo "(no VISUAL_COMPARISON_PROOF line at all)"
+            exit 1
+          fi
+          if grep -F -q -e "VISUAL_COMPARISON_PROOF=exact-set:" "$E2E_LOG"; then
+            echo "::error::The browser phase emitted an exact-set proof; it must not compare screenshots."
+            grep -F -n -e "VISUAL_COMPARISON_PROOF=exact-set:" "$E2E_LOG"
+            exit 1
+          fi
+          echo "Browser phase declared its intentional opt-out and produced no comparison proof."
+
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@v6
