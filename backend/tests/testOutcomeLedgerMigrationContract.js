@@ -64,20 +64,42 @@ const RAW_NUMERIC = /p_(?:entry_price|entry_quantity|fees|taxes|price|quantity|i
 const G3_OPEN = "-- >>> G-3 non-execution execution-field rejection";
 const G3_CLOSE = "-- <<< G-3 non-execution execution-field rejection";
 
+/*
+  Every locator below is an indexOf, which finds the FIRST occurrence and is
+  blind to a second one. A duplicated object definition is therefore invisible
+  to the checks that follow: a second, unhardened `create function
+  public.create_outcome_position` appended after the first `revoke all on
+  function` would never be sliced, never be scanned, and the whole inspection
+  would still return []. Counting first is what makes every later indexOf mean
+  "the definition" rather than "one of the definitions".
+*/
+const occurrences = (sql, needle) => sql.split(needle).length - 1;
+
 function inspect(sql) {
   const errors = [];
   for (const table of tables) {
-    if (!sql.includes(`create table public.${table}`)) errors.push(`missing table ${table}`);
+    const defined = occurrences(sql, `create table public.${table}`);
+    if (defined === 0) errors.push(`missing table ${table}`);
+    if (defined > 1) errors.push(`ambiguous table definition ${table} (${defined} occurrences)`);
     if (!sql.includes(`alter table public.${table} enable row level security`)) errors.push(`RLS not enabled ${table}`);
     if (!sql.includes(`alter table public.${table} force row level security`)) errors.push(`RLS not forced ${table}`);
     if (!sql.includes(`revoke all on public.${table} from public, anon, authenticated, service_role`)) errors.push(`incomplete revoke ${table}`);
     if (!sql.includes(`create policy ${table}_select_own`)) errors.push(`missing owner policy ${table}`);
   }
   for (const rpc of rpcs) {
-    const start = sql.indexOf(`create function public.${rpc}`);
-    if (start < 0) { errors.push(`missing RPC ${rpc}`); continue; }
-    const end = sql.indexOf("revoke all on function", start);
-    const body = sql.slice(start, end < 0 ? sql.length : end);
+    const defined = occurrences(sql, `create function public.${rpc}`);
+    if (defined > 1) errors.push(`ambiguous RPC definition ${rpc} (${defined} occurrences)`);
+    if (defined === 0) { errors.push(`missing RPC ${rpc}`); continue; }
+    /*
+      Exact boundaries, via the slicer below, not "this function's start to the
+      first revoke". Both functions are defined before the first `revoke all on
+      function`, so that slice ran from create_outcome_position's start clear
+      through the end of append_outcome_position_event: a hardening clause
+      present in EITHER function satisfied the check for BOTH, and dropping
+      `set search_path = ''` from one of them was invisible.
+    */
+    const body = rpcBody(sql, rpc);
+    if (body === "") { errors.push(`unsliceable RPC ${rpc}`); continue; }
     if (!body.includes("security definer set search_path = ''")) errors.push(`unhardened RPC ${rpc}`);
     if (!body.includes("auth.uid()")) errors.push(`RPC does not derive auth.uid ${rpc}`);
     if (/p_user(?:_id)?\b/i.test(body)) errors.push(`caller-owned user id ${rpc}`);
@@ -274,3 +296,11 @@ assert.match(up, /posture = 'LONG_CASH_EQUITY'/);
 assert.doesNotMatch(up, /personal_risk_limit_versions|create_personal_risk_limit_version|risk_limit_version_id/);
 assert.doesNotMatch(down, /personal_risk_limit_versions|create_personal_risk_limit_version/);
 console.log("Outcome ledger migration and mutation contracts passed.");
+
+/*
+  Exported so tests/testOutcomeLedgerContractHelpers.js can prove the detectors
+  themselves - their exactness, their ambiguity handling, their determinism and
+  the fact that every mutation above really is a mutation. Requiring this file
+  re-runs the assertions above, which read two files and touch nothing else.
+*/
+module.exports = { inspect, rpcBody, occurrences, up, down, mutations, tables, rpcs, NAME };
