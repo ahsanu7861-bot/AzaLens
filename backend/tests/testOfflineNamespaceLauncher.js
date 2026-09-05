@@ -404,12 +404,18 @@ const gid = process.getgid();
     !forwarded.includes("stub-must-not-cross"),
     "no value of an unforwarded variable may appear in the isolated environment",
   );
-  // The environment is the allowlist and nothing else.
+  /*
+    The environment is the allowlist and nothing else. `_`, `PWD`, `OLDPWD` and
+    `SHLVL` are excluded because the child shell creates them itself rather than
+    inheriting them, and which of them it exports is a bash-version detail:
+    bash 4+ exports OLDPWD after the `cd`, bash 3.2 does not.
+  */
+  const SHELL_GENERATED = new Set(["_", "PWD", "OLDPWD", "SHLVL"]);
   const names = forwarded
     .split("\n")
     .filter(Boolean)
     .map((line) => line.slice(0, line.indexOf("=")))
-    .filter((name) => name !== "" && name !== "_" && name !== "PWD" && name !== "SHLVL");
+    .filter((name) => name !== "" && !SHELL_GENERATED.has(name));
   assert.deepEqual(
     [...new Set(names)].sort(),
     [
