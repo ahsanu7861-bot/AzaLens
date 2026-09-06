@@ -149,6 +149,17 @@ jobs:
           node tests/testOutcomeLedgerRpc.js &&
           node tests/testOutcomeLedgerRls.js
 
+      # Migration 005. `authenticated` holds a direct table INSERT grant on
+      # public.watchlists, so the 100-symbol cap cannot be enforced in Node:
+      # count-then-insert is a time-of-check/time-of-use race, and a token
+      # holder reaches PostgREST without passing through the service at all.
+      # This drives the real endpoint as a real signed-in user and includes
+      # three repeated 12-way concurrency rounds - a single round passes even
+      # with the advisory lock removed, so repetition is the point.
+      - name: Prove the watchlist cap is a database invariant
+        working-directory: backend
+        run: npm run test:watchlist-cap
+
       - name: Prove the migrations reverse cleanly
         run: bash scripts/verifyMigrationReversibility.sh
 
