@@ -26,11 +26,13 @@ function portfolioFile() {
   portfolio-intelligence route was unmounted, no portfolio route can
   reach any paid provider.
 
-  100 holdings is ~16 KB at the measured 163 bytes per record. The
-  portfolio has no bulk import, no broker sync and no automated
-  ingestion, so every record is entered by hand.
+  The founder-approved product boundary is 50 concurrent current
+  holdings per owner. Closed-position history belongs in the outcome
+  ledger. The database independently enforces the same limit once
+  persistence moves there; this JSON guard keeps the current API
+  contract aligned without beginning that persistence work.
 */
-const PORTFOLIO_RECORD_LIMIT = 100;
+const PORTFOLIO_RECORD_LIMIT = 50;
 
 function limitError(current) {
   const error = new Error("Portfolio record limit reached.");

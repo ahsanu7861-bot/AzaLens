@@ -147,5 +147,17 @@ if [ "$LEDGER_TABLES_AFTER" != 4 ] || [ "$LEDGER_RPCS_AFTER" != 2 ] || \
     exit 1
 fi
 echo "   migration 004 restored: 4 tables, 2 RPCs, 4 owner policies, forced RLS, least privilege"
+
+PORTFOLIO_CAP_FUNCTIONS_AFTER="$(q "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='enforce_portfolio_holding_cap'")"
+PORTFOLIO_TRIGGERS_AFTER="$(q "select string_agg(t.tgname, ',' order by t.tgname) from pg_trigger t where t.tgrelid='public.portfolio_holdings'::regclass and not t.tgisinternal")"
+PORTFOLIO_BAD_EXECUTE_AFTER="$(q "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace cross join (values ('anon'),('authenticated'),('service_role'),('public')) r(role_name) where n.nspname='public' and p.proname='enforce_portfolio_holding_cap' and has_function_privilege(r.role_name,p.oid,'EXECUTE')")"
+
+if [ "$PORTFOLIO_CAP_FUNCTIONS_AFTER" != 1 ] || \
+   [ "$PORTFOLIO_TRIGGERS_AFTER" != "portfolio_holdings_enforce_record_cap,portfolio_holdings_set_updated_at" ] || \
+   [ "$PORTFOLIO_BAD_EXECUTE_AFTER" != 0 ]; then
+    echo "ERROR: migration 006 did not return with its exact function, trigger-coexistence and ACL contract."
+    exit 1
+fi
+echo "   migration 006 restored: dedicated cap function, both portfolio triggers, zero direct application-role EXECUTE"
 echo ""
 echo "REVERSIBILITY CHECK PASSED"

@@ -160,6 +160,13 @@ jobs:
         working-directory: backend
         run: npm run test:watchlist-cap
 
+      # Migration 006. Direct authenticated PostgREST inserts must obey the
+      # founder-approved 50-current-holding boundary under bulk and repeated
+      # concurrent writes while preserving the migration-002 updated_at trigger.
+      - name: Prove the portfolio holding cap is a database invariant
+        working-directory: backend
+        run: npm run test:portfolio-cap && npm run test:portfolio-cap-mutations
+
       - name: Prove the migrations reverse cleanly
         run: bash scripts/verifyMigrationReversibility.sh
 
