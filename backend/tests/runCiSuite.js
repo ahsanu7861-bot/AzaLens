@@ -42,6 +42,7 @@ const deterministicSuites = [
   "testPhase45Stability.js",
   "testRemovedRoutesContract.js",
   "testPortfolioRouterFactory.js",
+  "testPortfolioCapMutationContract.js",
   "testProviderAdapter.js",
   "testProviderCacheNamespaces.js",
   "testProviderNumericSafety.js",
