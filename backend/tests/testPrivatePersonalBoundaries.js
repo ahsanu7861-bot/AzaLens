@@ -30,7 +30,17 @@ require.cache[verifierPath] = { id: verifierPath, filename: verifierPath, loaded
   },
 } };
 require.cache[clientPath] = { id: clientPath, filename: clientPath, loaded: true, exports: {
-  createUserSupabaseClient: () => Object.freeze({ fixture: true }),
+  createUserSupabaseClient: () => Object.freeze({
+    from: () => {
+      const query = {
+        select: () => query,
+        eq: () => query,
+        order: () => query,
+        then: (resolve, reject) => Promise.resolve({ data: [{ symbol: "NVDA", note: null, added_at: "2026-01-01T00:00:00Z" }], error: null }).then(resolve, reject),
+      };
+      return query;
+    },
+  }),
 } };
 
 const SENTINELS = [910001.123, 920002.234, 930003.345, 940004.456, 950005.567];

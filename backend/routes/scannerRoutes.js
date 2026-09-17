@@ -13,7 +13,7 @@ const router = express.Router();
 router.post("/", async (req, res) => {
   try {
     const symbols = normalizeSymbols(req.body?.symbols);
-    const watchlist = await getWatchlist();
+    const watchlist = await getWatchlist({ db: req.db, userId: req.user?.id });
     const allowed = new Set(
       watchlist.map((item) =>
         String(item?.symbol || "").trim().toUpperCase()

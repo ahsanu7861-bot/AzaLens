@@ -138,6 +138,10 @@ jobs:
         working-directory: backend
         run: npm run test:rls-coverage
 
+      - name: Prove authenticated personal persistence and exact decimal round trip
+        working-directory: backend
+        run: npm run test:personal-persistence-db
+
       - name: Prove atomic Twelve Data credit reservations
         working-directory: backend
         run: node tests/testTwelveDataCreditRpc.js

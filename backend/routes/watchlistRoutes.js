@@ -1,132 +1,71 @@
-const express = require("express");
+"use strict";
 
-const {
-  getWatchlist,
-  addSymbol,
-  removeSymbol,
-} = require("../services/watchlistService");
+const express = require("express");
+const { addSymbol, getWatchlist, removeSymbol, updateNote } = require("../services/watchlistService");
 
 const router = express.Router();
+const isValidSymbol = (symbol) => /^[A-Z0-9.\-]{1,12}$/.test(symbol);
 
-function isValidSymbol(symbol) {
-  return /^[A-Z0-9.\-]{1,15}$/.test(symbol);
+function context(req) {
+  return { db: req.db, userId: req.user?.id };
 }
 
-// GET /api/watchlist
+function sendError(res, error, fallback) {
+  const contracts = {
+    DUPLICATE_WATCHLIST_SYMBOL: [409, error.message],
+    WATCHLIST_NOT_FOUND: [404, error.message],
+    PERSISTENCE_FORBIDDEN: [403, "The watchlist operation is not permitted."],
+    PERSISTENCE_UNAVAILABLE: [503, "Personal persistence is temporarily unavailable."],
+    WATCHLIST_LIMIT_REACHED: [422, error.message],
+  };
+  const [status, message] = contracts[error?.code] || [500, fallback];
+  const body = { success: false, code: error?.code || "PERSISTENCE_FAILURE", message };
+  if (error?.code === "WATCHLIST_LIMIT_REACHED") {
+    body.error = { code: error.code, message, limit: 100, current: 100 };
+  }
+  return res.status(status).json(body);
+}
+
 router.get("/", async (req, res) => {
   try {
-    const watchlist = await getWatchlist();
-
-    return res.status(200).json({
-      success: true,
-      message: "Watchlist retrieved successfully.",
-      data: watchlist,
-    });
+    return res.status(200).json({ success: true, message: "Watchlist retrieved successfully.", data: await getWatchlist(context(req)) });
   } catch (error) {
-    console.error("Watchlist GET error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Unable to retrieve watchlist.",
-    });
+    return sendError(res, error, "Unable to retrieve watchlist.");
   }
 });
 
-// POST /api/watchlist
 router.post("/", async (req, res) => {
+  const symbol = typeof req.body?.symbol === "string" ? req.body.symbol.trim().toUpperCase() : "";
+  const note = req.body?.note ?? null;
+  if (!isValidSymbol(symbol)) return res.status(400).json({ success: false, message: "Symbol format is invalid." });
+  if (note !== null && (typeof note !== "string" || note.length > 280)) return res.status(400).json({ success: false, message: "Note must contain at most 280 characters." });
   try {
-    const rawSymbol = req.body?.symbol;
-
-    if (typeof rawSymbol !== "string" || !rawSymbol.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "A valid symbol is required.",
-      });
-    }
-
-    const symbol = rawSymbol.trim().toUpperCase();
-
-    if (!isValidSymbol(symbol)) {
-      return res.status(400).json({
-        success: false,
-        message: "Symbol format is invalid.",
-      });
-    }
-
-    const item = await addSymbol(symbol);
-
-    return res.status(201).json({
-      success: true,
-      message: `${symbol} added to watchlist.`,
-      data: item,
-    });
+    const data = await addSymbol({ ...context(req), symbol, note });
+    return res.status(201).json({ success: true, message: `${symbol} added to watchlist.`, data });
   } catch (error) {
-    /*
-      422, not 409: the body is well formed and passes validation, and
-      it does not conflict with an existing symbol - 409 stays
-      reserved for duplicates so a client can tell the two apart. Not
-      5xx: this is a deliberate product limit the caller can clear by
-      removing a symbol.
-
-      `message` stays at the top level because that is the field every
-      existing client reads; `error` carries the stable
-      machine-readable contract.
-    */
-    if (error.code === "WATCHLIST_LIMIT_REACHED") {
-      return res.status(422).json({
-        success: false,
-        message: error.message,
-        error: {
-          code: error.code,
-          message: error.message,
-          limit: error.limit,
-          current: error.current,
-        },
-      });
-    }
-
-    const statusCode =
-      error.message === "Symbol already exists in watchlist." ? 409 : 500;
-
-    return res.status(statusCode).json({
-      success: false,
-      message:
-        statusCode === 409
-          ? error.message
-          : "Unable to add symbol to watchlist.",
-    });
+    return sendError(res, error, "Unable to add symbol to watchlist.");
   }
 });
 
-// DELETE /api/watchlist/:symbol
-router.delete("/:symbol", async (req, res) => {
+router.put("/:symbol", async (req, res) => {
+  const symbol = String(req.params.symbol || "").trim().toUpperCase();
+  const note = req.body?.note ?? null;
+  if (!isValidSymbol(symbol)) return res.status(400).json({ success: false, message: "Symbol format is invalid." });
+  if (note !== null && (typeof note !== "string" || note.length > 280)) return res.status(400).json({ success: false, message: "Note must contain at most 280 characters." });
   try {
-    const symbol = req.params.symbol.trim().toUpperCase();
-
-    if (!isValidSymbol(symbol)) {
-      return res.status(400).json({
-        success: false,
-        message: "Symbol format is invalid.",
-      });
-    }
-
-    const updatedWatchlist = await removeSymbol(symbol);
-
-    return res.status(200).json({
-      success: true,
-      message: `${symbol} removed from watchlist.`,
-      data: updatedWatchlist,
-    });
+    return res.json({ success: true, message: "Watchlist note updated successfully.", data: await updateNote({ ...context(req), symbol, note }) });
   } catch (error) {
-    const statusCode = error.message === "Symbol not found." ? 404 : 500;
+    return sendError(res, error, "Unable to update watchlist note.");
+  }
+});
 
-    return res.status(statusCode).json({
-      success: false,
-      message:
-        statusCode === 404
-          ? error.message
-          : "Unable to remove symbol from watchlist.",
-    });
+router.delete("/:symbol", async (req, res) => {
+  const symbol = String(req.params.symbol || "").trim().toUpperCase();
+  if (!isValidSymbol(symbol)) return res.status(400).json({ success: false, message: "Symbol format is invalid." });
+  try {
+    return res.json({ success: true, message: `${symbol} removed from watchlist.`, data: await removeSymbol({ ...context(req), symbol }) });
+  } catch (error) {
+    return sendError(res, error, "Unable to remove symbol from watchlist.");
   }
 });
 

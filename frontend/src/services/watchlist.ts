@@ -2,6 +2,7 @@ import { api } from "./api";
 
 export interface WatchlistItem {
   symbol: string;
+  note?: string | null;
   addedAt?: string;
 }
 
@@ -50,4 +51,18 @@ export async function removeFromWatchlist(
     throw new Error(response.data?.message || "Unable to remove stock.");
   }
   return response.data.data;
+}
+
+export async function updateWatchlistNote(
+  symbol: string,
+  note: string | null,
+): Promise<WatchlistItem> {
+  const response = await api.put<WatchlistResponse>(
+    `/api/watchlist/${encodeURIComponent(symbol)}`,
+    { note },
+  );
+  if (response.data?.success !== true || !response.data.data) {
+    throw new Error(response.data?.message || "Unable to update watchlist note.");
+  }
+  return response.data.data as unknown as WatchlistItem;
 }

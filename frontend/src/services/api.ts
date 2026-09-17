@@ -40,12 +40,18 @@ api.interceptors.request.use(async (config) => {
 
 api.interceptors.response.use(undefined, async (error) => {
   const status = error?.response?.status;
-  const code = error?.response?.data?.code;
+  const code = error?.response?.data?.error?.code ?? error?.response?.data?.code;
   if (status === 401 && code === "CLOSED_DEMO_ACCESS_REQUIRED") {
     for (const listener of authenticationFailureListeners) listener({ status, code });
   } else if (status === 401 || (status === 403 && code === "OWNER_IDENTITY_REQUIRED")) {
     await signOutOwner();
     for (const listener of authenticationFailureListeners) listener({ status, code });
+  }
+  if (status === 422 && code === "WATCHLIST_LIMIT_REACHED") {
+    return Promise.reject(new Error("Your watchlist is limited to 100 stocks."));
+  }
+  if (status === 422 && code === "PORTFOLIO_LIMIT_REACHED") {
+    return Promise.reject(new Error("Your portfolio is limited to 50 current holdings."));
   }
   return Promise.reject(error);
 });

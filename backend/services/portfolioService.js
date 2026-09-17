@@ -1,226 +1,100 @@
-const crypto = require("crypto");
-const fs = require("fs").promises;
-const path = require("path");
+"use strict";
 
-/*
-  The storage directory is resolved per call, not captured at module
-  load, so a test can point it at a temporary directory after this
-  module has already been required. Production and development never
-  set AZALENS_STORAGE_DIR and keep the committed location.
-*/
-function storageDirectory() {
-  return (
-    String(process.env.AZALENS_STORAGE_DIR || "").trim() ||
-    path.join(__dirname, "../storage")
-  );
-}
-
-function portfolioFile() {
-  return path.join(storageDirectory(), "portfolios.json");
-}
-
-/*
-  Defence in depth against unbounded storage and the O(n) parse and
-  rewrite that every read and every mutation performs on the whole
-  collection. It is NOT a provider-cost control: since the
-  portfolio-intelligence route was unmounted, no portfolio route can
-  reach any paid provider.
-
-  The founder-approved product boundary is 50 concurrent current
-  holdings per owner. Closed-position history belongs in the outcome
-  ledger. The database independently enforces the same limit once
-  persistence moves there; this JSON guard keeps the current API
-  contract aligned without beginning that persistence work.
-*/
 const PORTFOLIO_RECORD_LIMIT = 50;
+const SELECT_COLUMNS = "symbol,shares,average_price,currency,opened_at,updated_at";
+const MAX_SAFE_SCALED_DECIMAL = BigInt(Number.MAX_SAFE_INTEGER);
 
-function limitError(current) {
-  const error = new Error("Portfolio record limit reached.");
-
-  error.code = "PORTFOLIO_LIMIT_REACHED";
-  error.limit = PORTFOLIO_RECORD_LIMIT;
-  error.current = current;
-
-  return error;
-}
-
-async function getPortfolio() {
-  try {
-    const data = await fs.readFile(portfolioFile(), "utf8");
-
-    if (!data.trim()) {
-      return [];
-    }
-
-    const portfolio = JSON.parse(data);
-
-    if (!Array.isArray(portfolio)) {
-      throw new Error("Portfolio storage must contain an array.");
-    }
-
-    return portfolio;
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      await savePortfolio([]);
-      return [];
-    }
-
-    if (error instanceof SyntaxError) {
-      throw new Error("Portfolio storage contains invalid JSON.");
-    }
-
+function requireContext(db, userId) {
+  if (!db || typeof db.from !== "function" || typeof userId !== "string" || !userId) {
+    const error = new Error("Personal persistence is temporarily unavailable.");
+    error.code = "PERSISTENCE_UNAVAILABLE";
     throw error;
   }
 }
 
-/*
-  Atomic replacement: write a temporary file, then rename it over the
-  destination. rename(2) is atomic within a filesystem, so a reader
-  sees either the whole previous file or the whole new one - never a
-  half-written collection.
-
-  The temporary name carries the pid and a random suffix. It used to
-  be a single fixed "portfolios.json.tmp" shared by every writer,
-  which meant concurrent writes raced: the first rename consumed the
-  shared temp file and the losers failed with ENOENT and returned
-  HTTP 500.
-
-  This fixes partial-file corruption and concurrent-temp collision.
-  It does NOT solve lost updates. Two concurrent read-modify-write
-  cycles still resolve last-write-wins, and the update read by the
-  loser is silently discarded. Locking or a database is the real
-  answer and is deliberately left as follow-up work.
-*/
-async function savePortfolio(portfolio) {
-  const destination = portfolioFile();
-  const temporaryFile = `${destination}.${process.pid}.${crypto
-    .randomUUID()
-    .slice(0, 8)}.tmp`;
-
-  try {
-    await fs.writeFile(
-      temporaryFile,
-      JSON.stringify(portfolio, null, 2),
-      "utf8"
-    );
-
-    await fs.rename(temporaryFile, destination);
-  } catch (error) {
-    await fs.rm(temporaryFile, { force: true }).catch(() => {});
-    throw error;
+function canonicalDecimal(value, field) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new TypeError(`${field} must be a finite decimal number.`);
   }
+  const text = String(value);
+  if (/e/i.test(text) || !/^\d+(?:\.\d{1,8})?$/.test(text) || value <= 0) {
+    throw new TypeError(`${field} must be greater than zero with at most eight decimal places.`);
+  }
+  const [whole, fraction = ""] = text.split(".");
+  const scaled = BigInt(whole + fraction.padEnd(8, "0"));
+  if (whole.length > 12 || scaled > MAX_SAFE_SCALED_DECIMAL) {
+    throw new TypeError(`${field} is outside the exact JSON number range.`);
+  }
+  return `${whole}.${fraction.padEnd(8, "0")}`;
 }
 
-async function addHolding({ symbol, shares, averagePrice }) {
-  const normalizedSymbol = symbol.trim().toUpperCase();
-  const portfolio = await getPortfolio();
-
-  const existingHolding = portfolio.find(
-    (holding) => holding.symbol === normalizedSymbol
-  );
-
-  /*
-    Duplicate detection runs BEFORE the cap check, deliberately. A
-    user at the limit re-adding a symbol they already hold must get
-    the accurate 409, not a misleading "limit reached".
-  */
-  if (existingHolding) {
-    const error = new Error(
-      "Symbol already exists in portfolio. Use the update endpoint instead."
-    );
-
-    error.code = "DUPLICATE_HOLDING";
-    throw error;
+function mapDatabaseError(error) {
+  if (!error) return;
+  if (error.code === "23505") {
+    const mapped = new Error("Symbol already exists in portfolio. Use the update endpoint instead.");
+    mapped.code = "DUPLICATE_HOLDING";
+    throw mapped;
   }
-
-  /*
-    Only the creation of a new distinct record is rejected. Reads,
-    updates and deletes are never blocked, so a collection that is
-    already over the limit stays fully readable and can be brought
-    back down one delete at a time.
-  */
-  if (portfolio.length >= PORTFOLIO_RECORD_LIMIT) {
-    throw limitError(portfolio.length);
+  if (error.code === "PT422" && error.message === "PORTFOLIO_LIMIT_REACHED") {
+    const mapped = new Error("Portfolio record limit reached.");
+    Object.assign(mapped, { code: "PORTFOLIO_LIMIT_REACHED", limit: 50, current: 50 });
+    throw mapped;
   }
-
-  const timestamp = new Date().toISOString();
-
-  const holding = {
-    symbol: normalizedSymbol,
-    shares,
-    averagePrice,
-    addedAt: timestamp,
-    updatedAt: timestamp,
-  };
-
-  portfolio.push(holding);
-  await savePortfolio(portfolio);
-
-  return holding;
+  const mapped = new Error(error.code === "42501" ? "The portfolio operation is not permitted." : "The portfolio operation failed.");
+  mapped.code = error.code === "42501" ? "PERSISTENCE_FORBIDDEN" : "PERSISTENCE_FAILURE";
+  throw mapped;
 }
 
-async function updateHolding(symbol, updates) {
-  const normalizedSymbol = symbol.trim().toUpperCase();
-  const portfolio = await getPortfolio();
+const toHolding = (row) => ({
+  symbol: row.symbol,
+  shares: Number(row.shares),
+  averagePrice: Number(row.average_price),
+  currency: row.currency,
+  openedAt: row.opened_at,
+  updatedAt: row.updated_at,
+});
 
-  const holdingIndex = portfolio.findIndex(
-    (holding) => holding.symbol === normalizedSymbol
-  );
-
-  if (holdingIndex === -1) {
-    const error = new Error("Holding not found.");
-    error.code = "HOLDING_NOT_FOUND";
-    throw error;
-  }
-
-  const currentHolding = portfolio[holdingIndex];
-
-  const updatedHolding = {
-    ...currentHolding,
-    shares:
-      updates.shares !== undefined
-        ? updates.shares
-        : currentHolding.shares,
-    averagePrice:
-      updates.averagePrice !== undefined
-        ? updates.averagePrice
-        : currentHolding.averagePrice,
-    updatedAt: new Date().toISOString(),
-  };
-
-  portfolio[holdingIndex] = updatedHolding;
-  await savePortfolio(portfolio);
-
-  return updatedHolding;
+async function getPortfolio({ db, userId }) {
+  requireContext(db, userId);
+  const { data, error } = await db.from("portfolio_holdings").select(SELECT_COLUMNS)
+    .eq("user_id", userId).order("opened_at", { ascending: true }).order("symbol", { ascending: true });
+  mapDatabaseError(error);
+  return (data || []).map(toHolding);
 }
 
-async function removeHolding(symbol) {
-  const normalizedSymbol = symbol.trim().toUpperCase();
-  const portfolio = await getPortfolio();
-
-  const holdingExists = portfolio.some(
-    (holding) => holding.symbol === normalizedSymbol
-  );
-
-  if (!holdingExists) {
-    const error = new Error("Holding not found.");
-    error.code = "HOLDING_NOT_FOUND";
-    throw error;
-  }
-
-  const updatedPortfolio = portfolio.filter(
-    (holding) => holding.symbol !== normalizedSymbol
-  );
-
-  await savePortfolio(updatedPortfolio);
-
-  return updatedPortfolio;
+async function addHolding({ db, userId, symbol, shares, averagePrice, currency = "USD" }) {
+  requireContext(db, userId);
+  const payload = { user_id: userId, symbol, shares: canonicalDecimal(shares, "Shares"), average_price: canonicalDecimal(averagePrice, "Average price"), currency };
+  const { data, error } = await db.from("portfolio_holdings").insert(payload).select(SELECT_COLUMNS).single();
+  mapDatabaseError(error);
+  return toHolding(data);
 }
 
-module.exports = {
-  PORTFOLIO_RECORD_LIMIT,
-  getPortfolio,
-  addHolding,
-  updateHolding,
-  removeHolding,
-};
+async function updateHolding({ db, userId, symbol, shares, averagePrice, currency = "USD" }) {
+  requireContext(db, userId);
+  const payload = { shares: canonicalDecimal(shares, "Shares"), average_price: canonicalDecimal(averagePrice, "Average price"), currency };
+  const { data, error } = await db.from("portfolio_holdings").update(payload)
+    .eq("user_id", userId).eq("symbol", symbol).select(SELECT_COLUMNS);
+  mapDatabaseError(error);
+  if (!data?.length) {
+    const missing = new Error("Holding not found.");
+    missing.code = "HOLDING_NOT_FOUND";
+    throw missing;
+  }
+  return toHolding(data[0]);
+}
+
+async function removeHolding({ db, userId, symbol }) {
+  requireContext(db, userId);
+  const { data, error } = await db.from("portfolio_holdings").delete()
+    .eq("user_id", userId).eq("symbol", symbol).select("symbol");
+  mapDatabaseError(error);
+  if (!data?.length) {
+    const missing = new Error("Holding not found.");
+    missing.code = "HOLDING_NOT_FOUND";
+    throw missing;
+  }
+  return getPortfolio({ db, userId });
+}
+
+module.exports = { PORTFOLIO_RECORD_LIMIT, addHolding, canonicalDecimal, getPortfolio, removeHolding, updateHolding };
