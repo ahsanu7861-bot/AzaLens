@@ -260,7 +260,12 @@ assert.deepEqual(
     };
     finnhubProvider.getFinnhubQuote = async (symbol) => {
       calls.finnhubQuote += 1;
-      return { success: true, provider: "Finnhub", symbol, data: { symbol } };
+      return {
+        success: true,
+        provider: "Finnhub",
+        symbol,
+        data: { symbol, price: 100, timestamp: Math.floor(Date.now() / 1000) },
+      };
     };
     finnhubProvider.searchListedEquities = async () => {
       calls.finnhubSearch += 1;
@@ -277,7 +282,12 @@ assert.deepEqual(
     };
     twelveDataProvider.getTwelveDataQuote = async (symbol) => {
       calls.twelveDataQuote += 1;
-      return { success: true, provider: "TwelveData", symbol, data: { symbol } };
+      return {
+        success: true,
+        provider: "TwelveData",
+        symbol,
+        data: { symbol, price: 100, timestamp: Math.floor(Date.now() / 1000) },
+      };
     };
     twelveDataProvider.searchTwelveDataEquities = async () => {
       calls.twelveDataSearch += 1;

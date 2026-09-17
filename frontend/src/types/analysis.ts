@@ -267,24 +267,27 @@ export interface HistoricalBar {
   volume: number
 }
 
-export type MarketDataProvenanceState =
-  | "REALTIME_CONSOLIDATION_UNVERIFIED"
-  | "REALTIME_LIMITED_VENUE"
-  | "EOD_CONSOLIDATED"
-  | "CACHE"
-  | "UNAVAILABLE"
-
 export interface MarketDataProvenance {
-  state: MarketDataProvenanceState
-  underlyingState: MarketDataProvenanceState
+  capability: "QUOTE" | "HISTORY"
   provider: string
-  sourceTimestamp: string | null
-  retrievalTimestamp: string
-  cache: { state: string; ageSeconds: number | null }
+  source_observation: "REALTIME" | "DELAYED" | "EOD" | "MARKET_CLOSED" | "UNAVAILABLE"
+  venue_scope: "LIMITED_VENUE" | "COMPOSITE_INDICATIVE" | "CONSOLIDATED_VERIFIED" | "CONSOLIDATION_UNVERIFIED" | "NOT_APPLICABLE" | "UNKNOWN"
   interval: string | null
-  displayEntitlement: string
-  brokerVerificationRequired: boolean
-  limitations: string[]
+  observed_at: string | null
+  delivery_state: "MISS" | "HIT" | "COALESCED" | "EXPIRED_REJECTED"
+  retrieved_at: string
+  original_retrieved_at: string
+  age_seconds: number
+  freshness_threshold_seconds: number
+  usable: boolean
+  entitlement_display: "UNRESOLVED"
+  entitlement_analysis: "UNRESOLVED"
+  entitlement_storage: "UNRESOLVED"
+  entitlement_attribution: "UNRESOLVED"
+  entitlement_authority: "UNKNOWN"
+  entitlement_assessed_at: string
+  authority_reference: "unknown"
+  limitation_codes: string[]
 }
 
 export interface HistoryResponse {

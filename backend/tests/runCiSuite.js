@@ -48,6 +48,7 @@ const deterministicSuites = [
   "testProviderNumericSafety.js",
   "testProviderSelectionObservability.js",
   "testProviderTransitionMatrix.js",
+  "testRuntimeMarketDataProvenance.js",
   "testTwelveDataProfileProvider.js",
   "testTwelveDataQuoteContract.js",
   "testTwelveDataQuoteRejectionSafety.js",
