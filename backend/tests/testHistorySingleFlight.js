@@ -99,20 +99,20 @@ async function testIdenticalRequestsCoalesceAndCache() {
   );
   assert.ok(results.every((result) => result.provider === "TwelveData"));
   const coalesced = results.filter((result) => result.cache === "COALESCED");
-  assert.ok(coalesced.every((result) => result.provenance.state === "CACHE"));
-  assert.ok(coalesced.every((result) => result.provenance.cache.state === "COALESCED"));
-  assert.ok(coalesced.every((result) => result.provenance.cache.ageSeconds === 0));
+  assert.ok(coalesced.every((result) => result.provenance.source_observation === "EOD"));
+  assert.ok(coalesced.every((result) => result.provenance.delivery_state === "COALESCED"));
+  assert.ok(coalesced.every((result) => result.provenance.age_seconds === 0));
 
   const cached = await getHistory("EXM", "1day");
   assert.equal(cached.cache, "HIT");
-  assert.equal(cached.provenance.state, "CACHE");
-  assert.equal(cached.provenance.cache.state, "HIT");
-  assert.ok(Number.isFinite(cached.provenance.cache.ageSeconds));
-  assert.equal(cached.provenance.sourceTimestamp, results[0].provenance.sourceTimestamp);
-  assert.ok(Date.parse(cached.provenance.retrievalTimestamp) >= Date.parse(results[0].provenance.retrievalTimestamp));
+  assert.equal(cached.provenance.source_observation, "EOD");
+  assert.equal(cached.provenance.delivery_state, "HIT");
+  assert.ok(Number.isFinite(cached.provenance.age_seconds));
+  assert.equal(cached.provenance.observed_at, results[0].provenance.observed_at);
+  assert.ok(Date.parse(cached.provenance.retrieved_at) >= Date.parse(results[0].provenance.retrieved_at));
   assert.equal(calls, 1, "a cache hit must buy no provider request");
   assert.equal(reservations, 1, "a warm cache hit must reserve zero new credits");
-  setGovernorForTests(null);
+  setGovernorForTests({ reserve: async (credits) => ({ credits }), snapshot: () => ({}) });
 }
 
 async function testRequestIdentityStaysSeparated() {
@@ -259,6 +259,7 @@ async function testInvalidInputBypassesTheProvider() {
     await testInvalidInputBypassesTheProvider();
     console.log("History single-flight tests passed.");
   } finally {
+    setGovernorForTests(null);
     axios.get = originalAxiosGet;
     clearAllCache();
 

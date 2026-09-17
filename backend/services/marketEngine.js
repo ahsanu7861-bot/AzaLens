@@ -644,8 +644,12 @@ async function getMarketDataUnobserved(symbol) {
 
 async function getMarketData(symbol) {
   const startedAt = Date.now();
-  const result =
+  const rawResult =
     await getMarketDataUnobserved(symbol);
+  const result = {
+    ...rawResult,
+    provenance: quoteProvenance(rawResult)
+  };
 
   recordProviderResult({
     provider:
@@ -1103,9 +1107,9 @@ async function getHistory(
       interval
     );
 
-  const result = rawResult?.provenance || getCapabilityProviders().history !== "twelve_data"
-    ? rawResult
-    : { ...rawResult, provenance: historyProvenance(rawResult) };
+  const result = normalizeInterval(rawResult?.interval)
+    ? { ...rawResult, provenance: historyProvenance(rawResult) }
+    : rawResult;
 
   recordProviderResult({
     provider:

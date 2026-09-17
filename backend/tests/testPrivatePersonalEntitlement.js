@@ -3,42 +3,42 @@
 const assert = require("node:assert/strict");
 const axios = require("axios");
 
-const { quoteProvenance, historyProvenance, STATES } = require("../contracts/marketDataProvenance");
+const { quoteProvenance, historyProvenance } = require("../contracts/marketDataProvenance");
 const { validateEnvironment } = require("../scripts/validateEnvironment");
 const { buildSharedHistorySummary } = require("../services/masterAnalysisService");
 
 const quote = quoteProvenance({
   success: true,
   provider: "Finnhub",
-  data: { timestamp: 1787356800 },
+  data: { timestamp: 1787356800 }, sourceObservation: "DELAYED",
   cache: { hit: false, status: "MISS", ageSeconds: 0 },
 });
-assert.equal(quote.state, STATES.REALTIME_CONSOLIDATION_UNVERIFIED);
-assert.equal(quote.brokerVerificationRequired, true);
-assert.match(quote.limitations.join(" "), /consolidation and NBBO status are unverified/i);
+assert.equal(quote.source_observation, "DELAYED");
+assert.ok(quote.limitation_codes.includes("BROKER_VERIFICATION_REQUIRED"));
+assert.ok(quote.limitation_codes.includes("CONSOLIDATION_UNVERIFIED"));
 assert.doesNotMatch(JSON.stringify(quote), /consolidated quote|NBBO quote/i);
 
 const cached = quoteProvenance({
-  success: true, provider: "Finnhub", data: { timestamp: 1787356800 },
+  success: true, provider: "Finnhub", data: { timestamp: 1787356800 }, sourceObservation: "DELAYED",
   cache: { hit: true, status: "HIT", ageSeconds: 4 },
 });
-assert.equal(cached.state, STATES.CACHE);
-assert.equal(cached.underlyingState, STATES.REALTIME_CONSOLIDATION_UNVERIFIED);
+assert.equal(cached.delivery_state, "HIT");
+assert.equal(cached.source_observation, "DELAYED");
 
 const failed = quoteProvenance({ success: false, cache: { status: "MISS" } });
-assert.equal(failed.state, STATES.UNAVAILABLE);
+assert.equal(failed.source_observation, "UNAVAILABLE");
 assert.doesNotMatch(JSON.stringify(failed), /stale success/i);
 
-const history = historyProvenance({ success: true, cache: "MISS", interval: "1day" });
-assert.equal(history.state, STATES.EOD_CONSOLIDATED);
-assert.equal(history.displayEntitlement, "NON_DISPLAY_DERIVED_ANALYTICS_ONLY");
+const history = historyProvenance({ success: true, provider: "AnyHistory", cache: "MISS", interval: "1day", metadata: { latestDate: "2026-08-21" } });
+assert.equal(history.source_observation, "EOD");
+assert.equal(history.entitlement_display, "UNRESOLVED");
 
 const inactiveTwelveQuote = quoteProvenance({
-  success: true, provider: "TwelveData", data: { timestamp: 1787356800 },
+  success: true, provider: "TwelveData", data: { timestamp: 1787356800 }, sourceObservation: "DELAYED",
   cache: { hit: false, status: "MISS" },
 });
-assert.equal(inactiveTwelveQuote.state, STATES.REALTIME_LIMITED_VENUE);
-assert.equal(inactiveTwelveQuote.displayEntitlement, "NON_DISPLAY_NOT_ACTIVATED");
+assert.equal(inactiveTwelveQuote.source_observation, "DELAYED");
+assert.equal(inactiveTwelveQuote.entitlement_display, "UNRESOLVED");
 assert.doesNotMatch(JSON.stringify(inactiveTwelveQuote), /display entitled|consolidated/i);
 
 const derived = buildSharedHistorySummary({

@@ -1,6 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict");
 const { readStatus, request, sql } = require("./helpers/localSupabase");
+const { buildProvenance } = require("../contracts/marketDataProvenance");
 
 const PASSWORD="azalens-local-ledger-rpc-password"; const RUN=Date.now();
 async function main(){
@@ -22,6 +23,19 @@ async function main(){
   const create=(body)=>rest("/rpc/create_outcome_position",token,{method:"POST",body});
   const append=(body)=>rest("/rpc/append_outcome_position_event",token,{method:"POST",body});
   try {
+    const runtimeRecordedAt="2026-09-03T00:00:02.000Z";
+    const runtimeCommon={delivery_state:"MISS",retrieved_at:"2026-09-03T00:00:01.000Z",original_retrieved_at:"2026-09-03T00:00:01.000Z",age_seconds:0,usable:true,entitlement_display:"UNRESOLVED",entitlement_analysis:"UNRESOLVED",entitlement_storage:"UNRESOLVED",entitlement_attribution:"UNRESOLVED",entitlement_authority:"UNKNOWN",entitlement_assessed_at:"2026-09-03T00:00:00.000Z",authority_reference:"unknown"};
+    const runtimePair=[
+      buildProvenance({capability:"QUOTE",provider:"RuntimeQuoteFixture",source_observation:"REALTIME",venue_scope:"CONSOLIDATION_UNVERIFIED",interval:null,observed_at:"2026-09-03T00:00:00.000Z",freshness_threshold_seconds:20,...runtimeCommon},{recordedAt:runtimeRecordedAt}),
+      buildProvenance({capability:"HISTORY",provider:"RuntimeHistoryFixture",source_observation:"EOD",venue_scope:"UNKNOWN",interval:"1day",observed_at:"2026-09-02T00:00:00.000Z",freshness_threshold_seconds:86400,...runtimeCommon},{recordedAt:runtimeRecordedAt}),
+    ];
+    const runtimeAccepted=await create(createBody(uuid(),"RTOK",{provenance:runtimePair}));
+    assert.equal(runtimeAccepted.status,200,JSON.stringify(runtimeAccepted.body));
+    assert.equal(sql(`select string_agg(capability||':'||provider||':'||source_observation||':'||delivery_state,'|' order by capability) from public.outcome_snapshot_provenance where snapshot_id='${runtimeAccepted.body[0].snapshot_id}'`),"HISTORY:RuntimeHistoryFixture:EOD:MISS|QUOTE:RuntimeQuoteFixture:REALTIME:MISS","runtime builder output must enter migration 004 without adaptation");
+    const legacyRuntime={...runtimePair[1],source_observation:"EOD_CONSOLIDATED"};
+    const runtimeRejected=await create(createBody(uuid(),"RTBAD",{provenance:[runtimePair[0],legacyRuntime]}));
+    assert.ok(!runtimeRejected.ok,"migration 004 must reject a legacy mutation of runtime output");
+
     const key=uuid(); const first=await create(createBody(key)); assert.equal(first.status,200,JSON.stringify(first.body));
     assert.equal(first.body[0].replayed,false); const positionId=first.body[0].position_id;
     const replay=await create(createBody(key)); assert.equal(replay.status,200); assert.equal(replay.body[0].replayed,true); assert.equal(replay.body[0].position_id,positionId);
