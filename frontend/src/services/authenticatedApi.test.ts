@@ -71,4 +71,15 @@ describe("centralized authenticated API boundary", () => {
   it("keeps demo unlock on the unauthenticated client", () => {
     expect(publicApi).not.toBe(api);
   });
+
+  it.each([
+    ["WATCHLIST_LIMIT_REACHED", "Your watchlist is limited to 100 stocks."],
+    ["PORTFOLIO_LIMIT_REACHED", "Your portfolio is limited to 50 current holdings."],
+  ])("converts structured 422 %s responses without exposing Axios text", async (code, message) => {
+    getCurrentSession.mockResolvedValue({ access_token: "fixture.access.token" });
+    const adapter = vi.fn(async () => {
+      throw { response: { status: 422, data: { error: { code, limit: code.startsWith("WATCH") ? 100 : 50 } } } };
+    });
+    await expect(api.post("/api/personal", {}, { adapter })).rejects.toThrow(message);
+  });
 });

@@ -91,6 +91,11 @@ const PORT = process.env.PORT || 5000;
 const environmentConfig =
   getEnvironmentConfig(process.env);
 const privatePersonalProviderMode = privatePersonalMode(process.env);
+let authenticatedUserMiddleware;
+const requireUser = (req, res, next) => {
+  authenticatedUserMiddleware ||= createRequireUser();
+  return authenticatedUserMiddleware(req, res, next);
+};
 const configuredTrustedFrontendOrigins = String(process.env.TRUSTED_FRONTEND_ORIGINS || "")
   .split(",").map((entry) => entry.trim()).filter(Boolean);
 
@@ -186,7 +191,7 @@ app.use(globalLimiter);
 registerClosedDemoRoutes(app);
 
 const ownerRouteBoundary = privatePersonalProviderMode
-  ? [closedDemoGate, createRequireUser()]
+  ? [closedDemoGate, requireUser]
   : [closedDemoGate];
 
 // Protect every provider-backed/product-data route, including legacy routes.
@@ -210,11 +215,14 @@ app.use([
 // ============================
 // API Routes
 // ============================
-app.use("/api/watchlist", watchlistRoutes);
+const requirePersonalPersistence = (req, res, next) =>
+  req.user?.id && req.db ? next() : requireUser(req, res, next);
+
+app.use("/api/watchlist", requirePersonalPersistence, watchlistRoutes);
 if (environmentConfig.featureFlags.scanner) {
   app.use("/api/scanner", strictLimiter, scannerRoutes);
 }
-app.use("/api/portfolio", portfolioRoutes);
+app.use("/api/portfolio", requirePersonalPersistence, portfolioRoutes);
 // ============================
 // Home
 // ============================

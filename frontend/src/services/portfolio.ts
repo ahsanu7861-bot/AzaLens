@@ -4,7 +4,8 @@ export interface PortfolioHolding {
   symbol: string;
   shares: number;
   averagePrice: number;
-  addedAt?: string;
+  currency?: string;
+  openedAt?: string;
   updatedAt?: string;
 }
 
@@ -33,6 +34,7 @@ export async function addHolding(input: {
   symbol: string;
   shares: number;
   averagePrice: number;
+  currency?: string;
 }) {
   const { data } = await api.post<PortfolioResponse>("/api/portfolio", input);
   return requireHolding(data);
@@ -40,7 +42,7 @@ export async function addHolding(input: {
 
 export async function updateHolding(
   symbol: string,
-  updates: { shares: number; averagePrice: number },
+  updates: { shares: number; averagePrice: number; currency?: string },
 ) {
   const { data } = await api.put<PortfolioResponse>(
     `/api/portfolio/${encodeURIComponent(symbol)}`,

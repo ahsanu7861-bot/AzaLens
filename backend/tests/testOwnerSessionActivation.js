@@ -17,7 +17,8 @@ assert.ok(boundary, "one shared owner route boundary must exist");
 for (const prefix of ["/api", "/stock", "/history", "/rsi", "/ema", "/sma", "/macd", "/bollinger", "/atr", "/adx", "/obv", "/rvol", "/volume-spike", "/candlestick"]) {
   assert.match(boundary[1], new RegExp(`"${prefix.replace("/", "\\/")}"`), `${prefix} must be protected`);
 }
-assert.match(server, /\[closedDemoGate, createRequireUser\(\)\]/, "demo lock must precede identity lock");
+assert.match(server, /authenticatedUserMiddleware \|\|= createRequireUser\(\)/);
+assert.match(server, /\? \[closedDemoGate, requireUser\]/, "demo lock must precede identity lock");
 assert.ok(server.indexOf("registerClosedDemoRoutes(app)") < server.indexOf("ownerRouteBoundary"));
 for (const publicPath of ["/", "/health", "/health/live", "/health/ready", "/version"]) {
   assert.match(server, new RegExp(`app\\.get\\(\\s*"${publicPath.replaceAll("/", "\\/")}"`), `${publicPath} remains public`);
@@ -45,7 +46,7 @@ assert.doesNotMatch(browserAuth, /console\.|fetch\(|axios|VITE_[A-Z_]*(SECRET|OW
 
 function mutationFailures({ serverSource = server, apiSource = api, middlewareSource = requireUser, authSource = browserAuth } = {}) {
   const failures = [];
-  if (!serverSource.includes("[closedDemoGate, createRequireUser()]")) failures.push("gate-order");
+  if (!serverSource.includes("[closedDemoGate, requireUser]")) failures.push("gate-order");
   if (!serverSource.includes('"/history"')) failures.push("route-coverage");
   if (!middlewareSource.includes("identity.userId.toLowerCase() !== ownerUserId")) failures.push("owner-comparison");
   if (!middlewareSource.includes("nodes > maxNodes || depth > maxDepth")) failures.push("scan-bounds");
@@ -58,7 +59,7 @@ function mutationFailures({ serverSource = server, apiSource = api, middlewareSo
 assert.deepEqual(mutationFailures(), []);
 assert.ok(mutationFailures({ middlewareSource: requireUser.replace("identity.userId.toLowerCase() !== ownerUserId", "false") }).includes("owner-comparison"));
 assert.ok(mutationFailures({ middlewareSource: requireUser.replace("nodes > maxNodes || depth > maxDepth", "false") }).includes("scan-bounds"));
-assert.ok(mutationFailures({ serverSource: server.replace("[closedDemoGate, createRequireUser()]", "[createRequireUser(), closedDemoGate]") }).includes("gate-order"));
+assert.ok(mutationFailures({ serverSource: server.replace("[closedDemoGate, requireUser]", "[requireUser, closedDemoGate]") }).includes("gate-order"));
 assert.ok(mutationFailures({ serverSource: server.replace('"/history"', '"/omitted-history"') }).includes("route-coverage"));
 assert.ok(mutationFailures({ apiSource: api.replace('config.headers.set("Authorization", `Bearer ${session.access_token}`)', "") }).includes("bearer"));
 assert.ok(mutationFailures({ apiSource: `${api}\nretry: true` }).includes("retry"));

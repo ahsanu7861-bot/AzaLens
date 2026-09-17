@@ -146,7 +146,9 @@ function duplicateAuthorization(port, cookie) {
 
     const serverSource = require("node:fs").readFileSync(require.resolve("../server"), "utf8");
     assert.match(serverSource, /\], \.\.\.ownerRouteBoundary\)/);
-    assert.ok(serverSource.indexOf("closedDemoGate, createRequireUser()") > -1);
+    assert.match(serverSource, /authenticatedUserMiddleware \|\|= createRequireUser\(\)/);
+    assert.match(serverSource, /app\.use\("\/api\/watchlist", requirePersonalPersistence, watchlistRoutes\)/);
+    assert.match(serverSource, /app\.use\("\/api\/portfolio", requirePersonalPersistence, portfolioRoutes\)/);
 
     console.error = originalError;
     console.log("Owner-first containment, exact owner identity, bounded scanning, strict bearer parsing, 100-request isolation and safe errors passed; provider calls: 0.");
