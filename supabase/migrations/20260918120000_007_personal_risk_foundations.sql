@@ -45,15 +45,15 @@ create table public.personal_risk_policy_versions (
   realized_pnl_cost_basis text not null
     check (realized_pnl_cost_basis = 'ACTUAL_ENTRY_AND_EXIT_FEES_AND_TAXES'),
   max_planned_loss_per_position_pct numeric(9,6) not null
-    check (max_planned_loss_per_position_pct > 0 and max_planned_loss_per_position_pct <= 100),
+    check (max_planned_loss_per_position_pct = 0.500000),
   max_aggregate_open_planned_loss_pct numeric(9,6) not null
-    check (max_aggregate_open_planned_loss_pct > 0 and max_aggregate_open_planned_loss_pct <= 100),
+    check (max_aggregate_open_planned_loss_pct = 2.000000),
   daily_realized_gross_loss_limit_pct numeric(9,6) not null
-    check (daily_realized_gross_loss_limit_pct > 0 and daily_realized_gross_loss_limit_pct <= 100),
+    check (daily_realized_gross_loss_limit_pct = 1.000000),
   weekly_realized_gross_loss_limit_pct numeric(9,6) not null
-    check (weekly_realized_gross_loss_limit_pct > 0 and weekly_realized_gross_loss_limit_pct <= 100),
+    check (weekly_realized_gross_loss_limit_pct = 2.500000),
   maximum_concurrent_open_positions smallint not null
-    check (maximum_concurrent_open_positions between 1 and 50),
+    check (maximum_concurrent_open_positions = 5),
   period_timezone text not null check (period_timezone = 'America/New_York'),
   realized_loss_aggregation text not null
     check (realized_loss_aggregation = 'LOSING_TRADES_GROSS_NO_WINNER_OFFSET'),
@@ -82,7 +82,7 @@ create table public.broker_equity_snapshots (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   account_equity numeric(24,8) not null check (account_equity > 0),
-  currency text not null check (currency = upper(currency) and currency ~ '^[A-Z]{3}$'),
+  currency text not null check (currency = 'USD'),
   broker_identifier text not null
     check (char_length(broker_identifier) between 1 and 80 and
            broker_identifier ~ '^[A-Za-z0-9][A-Za-z0-9 ._-]*$'),
@@ -110,6 +110,7 @@ create table public.daily_risk_equity_bases (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   period_start date not null,
+  basis_sequence bigint not null check (basis_sequence > 0),
   period_timezone text not null check (period_timezone = 'America/New_York'),
   source_snapshot_id uuid not null,
   previous_basis_id uuid,
@@ -118,6 +119,7 @@ create table public.daily_risk_equity_bases (
   recorded_at timestamptz not null default clock_timestamp(),
   unique (id, user_id),
   unique (user_id, source_snapshot_id),
+  unique (user_id, currency, period_start, basis_sequence),
   foreign key (source_snapshot_id, user_id)
     references public.broker_equity_snapshots(id, user_id) on delete cascade,
   foreign key (previous_basis_id, user_id)
@@ -129,6 +131,7 @@ create table public.weekly_risk_equity_bases (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   period_start date not null,
+  basis_sequence bigint not null check (basis_sequence > 0),
   period_timezone text not null check (period_timezone = 'America/New_York'),
   source_snapshot_id uuid not null,
   previous_basis_id uuid,
@@ -137,6 +140,7 @@ create table public.weekly_risk_equity_bases (
   recorded_at timestamptz not null default clock_timestamp(),
   unique (id, user_id),
   unique (user_id, source_snapshot_id),
+  unique (user_id, currency, period_start, basis_sequence),
   foreign key (source_snapshot_id, user_id)
     references public.broker_equity_snapshots(id, user_id) on delete cascade,
   foreign key (previous_basis_id, user_id)
@@ -145,9 +149,9 @@ create table public.weekly_risk_equity_bases (
 );
 
 create index daily_risk_equity_bases_owner_period_idx
-  on public.daily_risk_equity_bases(user_id, period_start, recorded_at desc, id desc);
+  on public.daily_risk_equity_bases(user_id, currency, period_start, basis_sequence desc);
 create index weekly_risk_equity_bases_owner_period_idx
-  on public.weekly_risk_equity_bases(user_id, period_start, recorded_at desc, id desc);
+  on public.weekly_risk_equity_bases(user_id, currency, period_start, basis_sequence desc);
 create index broker_equity_snapshots_owner_observed_idx
   on public.broker_equity_snapshots(user_id, observed_at desc, id desc);
 
@@ -239,13 +243,13 @@ begin
   v_weekly_pct := p_weekly_realized_gross_loss_limit_pct;
   v_slippage_bps := p_estimated_exit_slippage_bps;
 
-  if v_position_pct <= 0 or v_position_pct > 100 or
-     v_aggregate_pct <= 0 or v_aggregate_pct > 100 or
-     v_daily_pct <= 0 or v_daily_pct > 100 or
-     v_weekly_pct <= 0 or v_weekly_pct > 100 or
+  if v_position_pct <> 0.500000 or
+     v_aggregate_pct <> 2.000000 or
+     v_daily_pct <> 1.000000 or
+     v_weekly_pct <> 2.500000 or
      v_slippage_bps < 0 or v_slippage_bps > 1000 or
      p_maximum_concurrent_open_positions is null or
-     p_maximum_concurrent_open_positions not between 1 and 50 then
+     p_maximum_concurrent_open_positions <> 5 then
     raise exception using errcode = '22023', message = 'invalid risk policy';
   end if;
 
@@ -350,6 +354,8 @@ declare
   v_weekly_previous public.weekly_risk_equity_bases%rowtype;
   v_daily_equity numeric(24,8);
   v_weekly_equity numeric(24,8);
+  v_daily_sequence bigint;
+  v_weekly_sequence bigint;
   v_day date;
   v_week date;
 begin
@@ -365,8 +371,7 @@ begin
       message = 'numeric input exceeds equity precision contract: account_equity';
   end if;
   v_equity := p_account_equity;
-  if v_equity <= 0 or p_currency is null or
-     p_currency <> upper(p_currency) or p_currency !~ '^[A-Z]{3}$' or
+  if v_equity <= 0 or p_currency is distinct from 'USD' or
      p_broker_identifier is null or char_length(p_broker_identifier) not between 1 and 80 or
      p_broker_identifier !~ '^[A-Za-z0-9][A-Za-z0-9 ._-]*$' or
      p_confirmation_method not in ('OWNER_CONFIRMED_BROKER_VALUE','BROKER_INTEGRATION_CONFIRMED') or
@@ -410,11 +415,14 @@ begin
   select * into v_daily_previous
     from public.daily_risk_equity_bases
    where user_id = v_user and period_start = v_day and currency = p_currency
-   order by recorded_at desc, id desc limit 1;
+   order by basis_sequence desc limit 1;
   select * into v_weekly_previous
     from public.weekly_risk_equity_bases
    where user_id = v_user and period_start = v_week and currency = p_currency
-   order by recorded_at desc, id desc limit 1;
+   order by basis_sequence desc limit 1;
+
+  v_daily_sequence := coalesce(v_daily_previous.basis_sequence, 0) + 1;
+  v_weekly_sequence := coalesce(v_weekly_previous.basis_sequence, 0) + 1;
 
   v_daily_equity := least(v_equity, coalesce(v_daily_previous.effective_equity, v_equity));
   v_weekly_equity := least(v_equity, coalesce(v_weekly_previous.effective_equity, v_equity));
@@ -428,18 +436,18 @@ begin
   ) returning id into v_snapshot_id;
 
   insert into public.daily_risk_equity_bases(
-    user_id, period_start, period_timezone, source_snapshot_id, previous_basis_id,
+    user_id, period_start, basis_sequence, period_timezone, source_snapshot_id, previous_basis_id,
     effective_equity, currency
   ) values (
-    v_user, v_day, 'America/New_York', v_snapshot_id, v_daily_previous.id,
+    v_user, v_day, v_daily_sequence, 'America/New_York', v_snapshot_id, v_daily_previous.id,
     v_daily_equity, p_currency
   ) returning id into v_daily_id;
 
   insert into public.weekly_risk_equity_bases(
-    user_id, period_start, period_timezone, source_snapshot_id, previous_basis_id,
+    user_id, period_start, basis_sequence, period_timezone, source_snapshot_id, previous_basis_id,
     effective_equity, currency
   ) values (
-    v_user, v_week, 'America/New_York', v_snapshot_id, v_weekly_previous.id,
+    v_user, v_week, v_weekly_sequence, 'America/New_York', v_snapshot_id, v_weekly_previous.id,
     v_weekly_equity, p_currency
   ) returning id into v_weekly_id;
 

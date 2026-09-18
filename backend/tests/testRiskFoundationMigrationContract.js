@@ -39,6 +39,14 @@ assert.match(up, /stop_loosening_is_risk_increasing/);
 assert.match(up, /risk_reducing_exit_always_permitted/);
 assert.match(up, /estimated_exit_slippage_bps/);
 assert.match(up, /America\/New_York/);
+assert.match(up, /check \(max_planned_loss_per_position_pct = 0\.500000\)/);
+assert.match(up, /check \(max_aggregate_open_planned_loss_pct = 2\.000000\)/);
+assert.match(up, /check \(daily_realized_gross_loss_limit_pct = 1\.000000\)/);
+assert.match(up, /check \(weekly_realized_gross_loss_limit_pct = 2\.500000\)/);
+assert.match(up, /check \(maximum_concurrent_open_positions = 5\)/);
+assert.match(up, /currency text not null check \(currency = 'USD'\)/);
+assert.equal((up.match(/basis_sequence bigint not null/g) || []).length, 2);
+assert.equal((up.match(/order by basis_sequence desc limit 1/g) || []).length, 2);
 assert.match(up, /least\(v_equity, coalesce\(v_daily_previous\.effective_equity, v_equity\)\)/);
 assert.match(up, /least\(v_equity, coalesce\(v_weekly_previous\.effective_equity, v_equity\)\)/);
 
@@ -75,6 +83,9 @@ const mutations = [
   ["daily monotonic minimum removed", "least(v_equity, coalesce(v_daily_previous.effective_equity, v_equity))", "v_equity"],
   ["owner lock weakened", "pg_catalog.pg_advisory_xact_lock", "pg_catalog.pg_advisory_lock"],
   ["forced RLS removed", "force row level security", "enable row level security"],
+  ["authoritative sequence removed", "order by basis_sequence desc limit 1", "order by recorded_at desc, id desc limit 1"],
+  ["USD boundary removed", "p_currency is distinct from 'USD'", "p_currency is null"],
+  ["approved position limit loosened", "p_maximum_concurrent_open_positions <> 5", "p_maximum_concurrent_open_positions > 50"],
 ];
 
 for (const [name, needle, replacement] of mutations) {
@@ -86,6 +97,9 @@ for (const [name, needle, replacement] of mutations) {
   if (name === "daily monotonic minimum removed") assert.doesNotMatch(mutant, /least\(v_equity, coalesce\(v_daily_previous/);
   if (name === "owner lock weakened") assert.equal((mutant.match(/pg_catalog\.pg_advisory_xact_lock/g) || []).length, 0);
   if (name === "forced RLS removed") assert.equal((mutant.match(/force row level security/g) || []).length, 0);
+  if (name === "authoritative sequence removed") assert.equal((mutant.match(/order by basis_sequence desc limit 1/g) || []).length, 0);
+  if (name === "USD boundary removed") assert.doesNotMatch(mutant, /p_currency is distinct from 'USD'/);
+  if (name === "approved position limit loosened") assert.doesNotMatch(mutant, /p_maximum_concurrent_open_positions <> 5/);
 }
 
 console.log("Migration 007 foundation contract and mutation controls passed.");

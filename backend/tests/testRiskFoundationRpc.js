@@ -110,8 +110,8 @@ const equity = (key, amount, observedAt, extra = {}) => ({
       assert.equal(response.status, 200, JSON.stringify(response.body));
       snapshots.push(response.body[0]);
     }
-    assert.deepEqual(snapshots.map((x) => x.daily_effective_equity), ["100000.00000000", "90000.00000000", "90000.00000000"]);
-    assert.deepEqual(snapshots.map((x) => x.weekly_effective_equity), ["100000.00000000", "90000.00000000", "90000.00000000"]);
+    assert.deepEqual(snapshots.map((x) => Number(x.daily_effective_equity)), [100000, 90000, 90000]);
+    assert.deepEqual(snapshots.map((x) => Number(x.weekly_effective_equity)), [100000, 90000, 90000]);
 
     const basis = await rest("/daily_risk_equity_bases?select=id,previous_basis_id,effective_equity&period_start=eq.2026-09-17&order=recorded_at.asc", A.token);
     assert.equal(basis.status, 200);
@@ -136,6 +136,63 @@ const equity = (key, amount, observedAt, extra = {}) => ({
       method: "POST", body: policy(uuid(201), { p_max_planned_loss_per_position_pct: "0.5000001" }),
     });
     assert.equal(overprecision.status, 400, JSON.stringify(overprecision.body));
+
+    for (const [index, loosened] of [
+      { p_max_planned_loss_per_position_pct: "0.600000" },
+      { p_max_aggregate_open_planned_loss_pct: "2.100000" },
+      { p_daily_realized_gross_loss_limit_pct: "1.100000" },
+      { p_weekly_realized_gross_loss_limit_pct: "2.600000" },
+      { p_maximum_concurrent_open_positions: 6 },
+    ].entries()) {
+      const refused = await rest("/rpc/create_personal_risk_policy_version", A.token, {
+        method: "POST", body: policy(uuid(210 + index), loosened),
+      });
+      assert.equal(refused.status, 400, `looser approved policy accepted: ${JSON.stringify(refused.body)}`);
+    }
+
+    const nonUsd = await rest("/rpc/create_broker_equity_snapshot", A.token, {
+      method: "POST", body: equity(uuid(220), "100000", times[0], { p_currency: "EUR" }),
+    });
+    assert.equal(nonUsd.status, 400, JSON.stringify(nonUsd.body));
+
+    const sequenced = await rest("/daily_risk_equity_bases?select=basis_sequence&period_start=eq.2026-09-17&order=basis_sequence.asc", A.token);
+    assert.deepEqual(sequenced.body.map((row) => Number(row.basis_sequence)), [1, 2, 3]);
+
+    // Period derivation is IANA-zone based: UTC can be on the following date,
+    // and both DST discontinuities retain the correct New York civil day.
+    for (const [suffix, instant, expectedDay] of [
+      [230, "2026-09-18T02:00:00Z", "2026-09-17"],
+      [231, "2026-03-08T06:59:59Z", "2026-03-08"],
+      [232, "2026-03-08T07:00:00Z", "2026-03-08"],
+      [233, "2025-11-02T05:30:00Z", "2025-11-02"],
+      [234, "2025-11-02T06:30:00Z", "2025-11-02"],
+    ]) {
+      const made = await rest("/rpc/create_broker_equity_snapshot", A.token, {
+        method: "POST", body: equity(uuid(suffix), "80000", instant),
+      });
+      assert.equal(made.status, 200, JSON.stringify(made.body));
+      assert.equal(sql(`select period_start from public.daily_risk_equity_bases where id='${made.body[0].daily_basis_id}'`), expectedDay);
+    }
+
+    // An out-of-order observation appends after the authoritative sequence and
+    // can only tighten its historical period's global minimum.
+    const historical = await rest("/rpc/create_broker_equity_snapshot", A.token, {
+      method: "POST", body: equity(uuid(235), "85000", "2026-09-17T14:30:00Z"),
+    });
+    assert.equal(historical.status, 200, JSON.stringify(historical.body));
+    assert.equal(Number(historical.body[0].daily_effective_equity), 80000);
+    assert.equal(sql(`select basis_sequence from public.daily_risk_equity_bases where id='${historical.body[0].daily_basis_id}'`), "5");
+
+    // Independent transactions serialize into one unbranched append-only chain.
+    const concurrent = await Promise.all([0, 1, 2, 3, 4, 5].map((index) =>
+      rest("/rpc/create_broker_equity_snapshot", B.token, {
+        method: "POST",
+        body: equity(uuid(240 + index), String(70000 - index * 1000), "2026-09-17T18:00:00Z"),
+      })
+    ));
+    assert.ok(concurrent.every((response) => response.status === 200), JSON.stringify(concurrent));
+    assert.equal(sql(`select count(*) from public.daily_risk_equity_bases d left join public.daily_risk_equity_bases p on p.id=d.previous_basis_id where d.user_id='${B.id}' and d.basis_sequence > 1 and p.basis_sequence=d.basis_sequence-1`), "5");
+    assert.equal(sql(`select min(effective_equity) from public.daily_risk_equity_bases where user_id='${B.id}'`), "65000.00000000");
 
     for (const table of ["personal_risk_policy_versions", "broker_equity_snapshots", "daily_risk_equity_bases", "weekly_risk_equity_bases"]) {
       const hidden = await rest(`/${table}?select=*`, B.token);
