@@ -28,6 +28,22 @@ const EXPECTED = {
     policies: ["SELECT"],
     updatableColumns: [],
   },
+  personal_risk_policy_versions: {
+    policies: ["SELECT"],
+    updatableColumns: [],
+  },
+  broker_equity_snapshots: {
+    policies: ["SELECT"],
+    updatableColumns: [],
+  },
+  daily_risk_equity_bases: {
+    policies: ["SELECT"],
+    updatableColumns: [],
+  },
+  weekly_risk_equity_bases: {
+    policies: ["SELECT"],
+    updatableColumns: [],
+  },
   twelve_data_credit_ledger: {
     policies: [],
     updatableColumns: [],
@@ -281,10 +297,12 @@ const executable = rows(`
 `);
 
 check(
-  "authenticated can execute only the owner-ledger RPCs and anon can execute none",
+  "authenticated can execute only the approved owner RPCs and anon can execute none",
   executable.join(",") === [
     "append_outcome_position_event by authenticated",
+    "create_broker_equity_snapshot by authenticated",
     "create_outcome_position by authenticated",
+    "create_personal_risk_policy_version by authenticated",
   ].join(","),
   executable.join(", ")
 );

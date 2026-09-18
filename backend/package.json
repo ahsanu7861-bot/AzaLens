@@ -19,7 +19,7 @@
     "test:portfolio-cap": "node tests/testPortfolioCapInvariant.js",
     "test:portfolio-cap-mutations": "node tests/testPortfolioCapMutationContract.js && node tests/testPortfolioCapLockMutation.js && node tests/testPortfolioCapReversal.js",
     "test:personal-persistence-db": "node tests/testPersonalPersistenceDatabase.js",
-    "test:db": "npm run check:migrations && npm run check:migrations:down && node tests/testOutcomeLedgerMigrationContract.js && npm run test:tenant-isolation && npm run test:rls-coverage && node tests/testTwelveDataCreditRpc.js && node tests/testOutcomeLedgerRpc.js && node tests/testOutcomeLedgerRls.js && npm run test:watchlist-cap && npm run test:portfolio-cap",
+    "test:db": "npm run check:migrations && npm run check:migrations:down && node tests/testOutcomeLedgerMigrationContract.js && npm run test:tenant-isolation && npm run test:rls-coverage && node tests/testTwelveDataCreditRpc.js && node tests/testOutcomeLedgerRpc.js && node tests/testOutcomeLedgerRls.js && npm run test:watchlist-cap && npm run test:portfolio-cap && node tests/testRiskFoundationRpc.js",
     "test:compliance-gate": "node tests/testComplianceGate.js",
     "test:market-session": "node tests/testMarketSession.js",
     "test:rvol-session-awareness": "node tests/testRvolSessionAwareness.js",
