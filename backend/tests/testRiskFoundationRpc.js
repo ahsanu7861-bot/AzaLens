@@ -195,7 +195,7 @@ const equity = (key, amount, observedAt, extra = {}) => ({
     assert.equal(sql(`select min(effective_equity) from public.daily_risk_equity_bases where user_id='${B.id}'`), "65000.00000000");
 
     for (const table of ["personal_risk_policy_versions", "broker_equity_snapshots", "daily_risk_equity_bases", "weekly_risk_equity_bases"]) {
-      const hidden = await rest(`/${table}?select=*`, B.token);
+      const hidden = await rest(`/${table}?select=*&user_id=eq.${A.id}`, B.token);
       assert.equal(hidden.status, 200);
       assert.equal(hidden.body.length, 0, `${table} leaked across owners`);
       const directInsert = await rest(`/${table}`, A.token, { method: "POST", body: {} });
