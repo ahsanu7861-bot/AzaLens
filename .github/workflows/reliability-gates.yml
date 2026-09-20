@@ -150,8 +150,10 @@ jobs:
         working-directory: backend
         run: >-
           node tests/testOutcomeLedgerMigrationContract.js &&
+          node tests/testRiskLifecycleContract.js &&
           node tests/testRiskLifecycleRpc.js &&
-          node tests/testRiskLifecycleReversal.js
+          node tests/testRiskLifecycleReversal.js &&
+          node tests/testRiskFoundationRpc.js
 
       # Migration 005. `authenticated` holds a direct table INSERT grant on
       # public.watchlists, so the 100-symbol cap cannot be enforced in Node:
