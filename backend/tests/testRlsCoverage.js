@@ -12,6 +12,8 @@ const { sql } = require("./helpers/localSupabase");
 */
 
 const EXPECTED = {
+  broker_cost_schedule_components: { policies: ["SELECT"], updatableColumns: [] },
+  broker_cost_schedule_versions: { policies: ["SELECT"], updatableColumns: [] },
   outcome_decision_snapshots: {
     policies: ["SELECT"],
     updatableColumns: [],
@@ -20,6 +22,10 @@ const EXPECTED = {
     policies: ["SELECT"],
     updatableColumns: [],
   },
+  outcome_exit_cost_allocations: { policies: ["SELECT"], updatableColumns: [] },
+  outcome_position_increases: { policies: ["SELECT"], updatableColumns: [] },
+  outcome_position_risk_state: { policies: ["SELECT"], updatableColumns: [] },
+  outcome_protective_stop_changes: { policies: ["SELECT"], updatableColumns: [] },
   outcome_positions: {
     policies: ["SELECT"],
     updatableColumns: [],
@@ -32,6 +38,7 @@ const EXPECTED = {
     policies: ["SELECT"],
     updatableColumns: [],
   },
+  personal_risk_evaluations: { policies: ["SELECT"], updatableColumns: [] },
   broker_equity_snapshots: {
     policies: ["SELECT"],
     updatableColumns: [],
@@ -282,7 +289,7 @@ check(
 );
 
 // ------------------------------------------------------------
-// 8. Only the two narrow owner-ledger RPCs are executable by authenticated.
+// 8. Only approved owner RPCs are executable by authenticated.
 //    Helper/trigger/system functions remain unavailable.
 // ------------------------------------------------------------
 
@@ -299,13 +306,27 @@ const executable = rows(`
 check(
   "authenticated can execute only the approved owner RPCs and anon can execute none",
   executable.join(",") === [
-    "append_outcome_position_event by authenticated",
+    "append_risk_lifecycle_event by authenticated",
+    "change_outcome_protective_stop by authenticated",
+    "create_broker_cost_schedule_version by authenticated",
     "create_broker_equity_snapshot by authenticated",
-    "create_outcome_position by authenticated",
     "create_personal_risk_policy_version by authenticated",
+    "create_risk_enforced_outcome_position by authenticated",
+    "increase_risk_enforced_position by authenticated",
   ].join(","),
   executable.join(", ")
 );
+
+const forbiddenRiskExecutors = rows(`
+  select p.proname || ' by ' || r.rolname
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+   cross join (values ('anon'),('service_role')) r(rolname)
+   where n.nspname='public'
+     and p.proname in ('append_risk_lifecycle_event','change_outcome_protective_stop',
+       'create_broker_cost_schedule_version','create_risk_enforced_outcome_position','increase_risk_enforced_position')
+     and has_function_privilege(r.rolname,p.oid,'EXECUTE') order by 1
+`);
+check("anon and service_role cannot execute Migration 008 owner RPCs",forbiddenRiskExecutors.length===0,forbiddenRiskExecutors.join(", "));
 
 // ------------------------------------------------------------
 

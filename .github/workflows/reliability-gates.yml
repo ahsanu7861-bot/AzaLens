@@ -146,12 +146,12 @@ jobs:
         working-directory: backend
         run: node tests/testTwelveDataCreditRpc.js
 
-      - name: Prove outcome-ledger migration, RPC, arithmetic, concurrency, and RLS contracts
+      - name: Prove outcome-ledger and risk-lifecycle contracts through guarded reversal
         working-directory: backend
         run: >-
           node tests/testOutcomeLedgerMigrationContract.js &&
-          node tests/testOutcomeLedgerRpc.js &&
-          node tests/testOutcomeLedgerRls.js
+          node tests/testRiskLifecycleRpc.js &&
+          node tests/testRiskLifecycleReversal.js
 
       # Migration 005. `authenticated` holds a direct table INSERT grant on
       # public.watchlists, so the 100-symbol cap cannot be enforced in Node:
