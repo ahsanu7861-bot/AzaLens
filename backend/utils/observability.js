@@ -282,77 +282,84 @@ function recordHttpRequest({
   );
 }
 
-function requestObservability(req, res, next) {
-  const startedAt = process.hrtime.bigint();
-  const incomingRequestId =
-    typeof req.get === "function"
-      ? req.get("x-request-id")
-      : req.headers?.["x-request-id"];
-  const requestId = createRequestId(
-    incomingRequestId
-  );
-
-  req.requestId = requestId;
-  res.setHeader("X-Request-ID", requestId);
-  state.http.inFlight += 1;
-
-  let finalized = false;
-
-  const finalize = (closedEarly = false) => {
-    if (finalized) {
-      return;
-    }
-
-    finalized = true;
-    state.http.inFlight = Math.max(
-      0,
-      state.http.inFlight - 1
+function createRequestObservability({ logger = writeLog } = {}) {
+  if (typeof logger !== "function") {
+    throw new TypeError("logger must be a function");
+  }
+  return function requestObservability(req, res, next) {
+    const startedAt = process.hrtime.bigint();
+    const incomingRequestId =
+      typeof req.get === "function"
+        ? req.get("x-request-id")
+        : req.headers?.["x-request-id"];
+    const requestId = createRequestId(
+      incomingRequestId
     );
 
-    const durationMs =
-      Number(process.hrtime.bigint() - startedAt) /
-      1_000_000;
-    const statusCode = closedEarly
-      ? 499
-      : res.statusCode;
-    const route = resolveRouteKey(req);
+    req.requestId = requestId;
+    res.setHeader("X-Request-ID", requestId);
+    state.http.inFlight += 1;
 
-    recordHttpRequest({
-      route,
-      statusCode,
-      durationMs,
-    });
+    let finalized = false;
 
-    writeLog(
-      statusCode >= 500
-        ? "error"
-        : statusCode >= 400
-          ? "warn"
-          : "info",
-      "http_request",
-      {
-        requestId,
-        method: req.method,
+    const finalize = (closedEarly = false) => {
+      if (finalized) {
+        return;
+      }
+
+      finalized = true;
+      state.http.inFlight = Math.max(
+        0,
+        state.http.inFlight - 1
+      );
+
+      const durationMs =
+        Number(process.hrtime.bigint() - startedAt) /
+        1_000_000;
+      const statusCode = closedEarly
+        ? 499
+        : res.statusCode;
+      const route = resolveRouteKey(req);
+
+      recordHttpRequest({
         route,
         statusCode,
-        durationMs: round(durationMs),
-        outcome: closedEarly
-          ? "client_closed"
-          : "completed",
-      }
+        durationMs,
+      });
+
+      logger(
+        statusCode >= 500
+          ? "error"
+          : statusCode >= 400
+            ? "warn"
+            : "info",
+        "http_request",
+        {
+          requestId,
+          method: req.method,
+          route,
+          statusCode,
+          durationMs: round(durationMs),
+          outcome: closedEarly
+            ? "client_closed"
+            : "completed",
+        }
+      );
+    };
+
+    res.once("finish", () => finalize(false));
+    res.once("close", () => finalize(true));
+
+    requestContext.run(
+      {
+        requestId,
+      },
+      next
     );
   };
-
-  res.once("finish", () => finalize(false));
-  res.once("close", () => finalize(true));
-
-  requestContext.run(
-    {
-      requestId,
-    },
-    next
-  );
 }
+
+const requestObservability = createRequestObservability();
 
 function normalizeProviderCode(result) {
   const resultError = result?.error;
@@ -1018,6 +1025,7 @@ function getCurrentRequestId() {
 module.exports = {
   buildLivenessSnapshot,
   buildReadinessSnapshot,
+  createRequestObservability,
   createRequestId,
   getCurrentRequestId,
   getMetricsSnapshot,

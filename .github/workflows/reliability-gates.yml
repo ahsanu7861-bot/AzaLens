@@ -146,6 +146,10 @@ jobs:
         working-directory: backend
         run: node tests/testTwelveDataCreditRpc.js
 
+      - name: Prove authenticated personal-risk bootstrap API contracts
+        working-directory: backend
+        run: npm run test:personal-risk-bootstrap-db
+
       - name: Prove outcome-ledger and risk-lifecycle contracts through guarded reversal
         working-directory: backend
         run: >-
