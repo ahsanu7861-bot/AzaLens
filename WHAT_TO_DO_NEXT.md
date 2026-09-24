@@ -15,7 +15,7 @@ Companion documents: `docs/AUDIT_2026-07-30.md` (verification evidence), `docs/C
 
 ## THE SINGLE NEXT TASK
 
-**Step D IN PROGRESS — freeze and commit the reviewed Slice 2 tree locally; the feature PR and first native CI result remain pending.** The candidate-only Personal Risk visual spec now validates its output directory lazily inside its two candidate test bodies, so ordinary `--grep @visual` collection no longer requires candidate-mode configuration. Local Docker visual execution remains too slow and operationally unreliable to establish a canonical 24/24 result; accepted visual wiring therefore remains unchanged at 24/24, and the first native CI run must supply the next visual evidence. Do not push, open a PR, merge, deploy, access the authenticated Personal Risk API, or create live rows without separate authorization.
+**Step D IN PROGRESS — independently review the local PR #71 browser-selection correction before authorizing a corrected push and new CI run.** PR #71's first Reliability Gates run `35976581438`, attempt 1, failed on `6248a376452e78b0531cf37981a2f822518c9d6d`: ordinary `--grep-invert @visual` included six `@candidate` screenshot-producing cases, which failed initially and on Playwright Retry #1 because candidate output configuration is intentionally absent. The visual step was skipped, so that head has no native `exact-set:24/24` proof. The local correction excludes both `@visual` and `@candidate`; C2 remains deferred and accepted wiring remains 24/24. Do not push the correction, rerun CI, merge, deploy, access the authenticated Personal Risk API, or create live rows without separate authorization.
 
 ## Current repository position
 
@@ -74,6 +74,7 @@ This is a test-only synchronization correction. Both manually delivered auth eve
 - Mobile top evidence is a real 390×664 viewport at scroll `(0,0)`; mobile basis evidence is the same real viewport normally scrolled so the complete Current basis state card is unobstructed between the production fixed header and navigation.
 - **Lesson:** DOM containment is not capture containment. Stretched page captures, CSS-expanded confirmation captures, and tall-main locator captures with stitched fixed UI are rejected evidence and prohibited as baselines.
 - **Lesson:** Playwright imports excluded specs before grep filtering, so candidate-only configuration must be validated inside the selected test body rather than at module scope. A locator failure reporting a closed session can coexist with a target that visibly rendered; preserve traces and surrounding errors before assigning causality.
+- **Lesson:** an inverse grep includes every test whose title lacks the excluded tag. Ordinary browser selection must explicitly exclude both `@visual` and `@candidate`; candidate-only tests are not excluded merely because they live in a visual-spec file.
 
 ## Reliability status
 
@@ -103,6 +104,15 @@ This is a test-only synchronization correction. Both manually delivered auth eve
 - A subsequent positive candidate run wrote one review-only PNG, then the day-desktop candidate timed out even against pinned `main`; the container was deliberately stopped, producing exit 137. No OOM cause was established.
 - Do not erase these failures by local rerun. The next canonical checkpoint is the first native CI run for the exact committed feature tree, with 24/24 wiring unchanged and snapshot updates disabled.
 
+### PR #71 first native CI run
+
+- Classification: **FAILED — preserved first attempt; correction pending independent review**.
+- Reliability Gates run `35976581438`, attempt 1, ran on commit `6248a376452e78b0531cf37981a2f822518c9d6d`.
+- The ordinary browser command used `--grep-invert @visual`, which included six screenshot-producing `@candidate` cases across desktop and mobile. Each failed under the fail-closed candidate-directory guard and failed again on Playwright Retry #1.
+- The browser phase reported 32 passed, two skipped, and six failed. Its visual-regression step was skipped, so no `VISUAL_COMPARISON_PROOF=exact-set:24/24` exists for that head.
+- The smallest local correction changes only the ordinary browser selector to exclude `@visual|@candidate`. The canonical visual command, candidate tags, guard, reporter, configuration, accepted baselines, and comparison thresholds remain unchanged.
+- C2 Personal Risk baseline acceptance remains deferred. Authenticated live Personal Risk read/write evidence remains absent and pending after a future verified deployment.
+
 ## Current proof boundary
 
 **All Personal Risk browser behavior is fixture-backed.** The UI has never completed an authenticated request against the deployed Personal Risk API. No real Personal Risk policy, cost schedule, equity snapshot, daily basis, or weekly basis row exists; the Personal Risk tables remain empty. No real trade or outcome-ledger write occurred through this work. Core must not yet be described as `PRODUCTION-TRUSTED` or real-money validated.
@@ -118,7 +128,7 @@ Every step has exactly one live status. A future step is not done because its fi
 | A | **DONE** | Independently reviewed roadmap bytes (`f2b70dd19ffcc1770919653c13983b4fdc73be3df8aa252279f9fe99cfa09055`), reviewed pre-roadmap-update 15-path patch (`d03195a793d8df848d80117a232f141c2b4b4291a5cd61b442ab5a24fce173c5`), and reviewed initial 16-path roadmap patch (`22d3cae94db85d187f3a5b42808536dbc0c59f663110ea7e796173e7f242f739`) are time-bound historical review evidence that predates this status edit, not final current hashes. |
 | B | **DONE — fresh 16-path patch and standalone evidence manifest produced and independently reviewable outside the repository** | Final current identities are recorded in the standalone evidence manifest and checkpoint review report, not self-referentially in this roadmap. |
 | C | **DEFERRED — separate visual-baseline slice required** | The eight C1 candidates remain reviewed layout/geometry evidence, not accepted baselines. Accepted wiring remains 24/24; new CI-produced bytes require separate review before any future acceptance. |
-| D | **IN PROGRESS — exact local commit authorized; feature PR and first native CI pending** | The candidate guard is corrected and reviewed. Final non-browser verification and exact patch freezing precede one local commit. Local Docker visual failures remain recorded; accepted wiring stays 24/24, and native CI must provide the next visual result after separate PR authorization. |
+| D | **IN PROGRESS — PR #71 first CI failed; local selection correction pending review** | Run `35976581438`, attempt 1, failed because ordinary inverse-grep selection included six `@candidate` cases; all failed initially and on Retry #1, and the visual step was skipped. The local correction excludes `@visual|@candidate`. Accepted wiring stays 24/24; a corrected push and new CI run require separate authorization. |
 | E | **NOT STARTED** | Open the PR and require the initial GitHub Actions workflow run to pass; never manually rerun a failed workflow to manufacture green status. |
 | F | **NOT STARTED** | Report every Playwright framework-internal retry; do not hide a flaky first attempt behind a green job. Apply merge policy to the exact evidence. |
 | G | **NOT STARTED** | Produce a true merge commit; prove its tree equals the approved feature tree, its second-parent diff is empty, and path scope is exact. |
@@ -196,7 +206,7 @@ This remains a separate later module/model. It must not begin merely because Cor
 | Mobile pending recovery | **BLOCKED — original causal artifacts were overwritten** | Classification D — INCONCLUSIVE; preserve complete evidence on recurrence before rerun. |
 | Durable Playwright artifact retention | **NOT STARTED** | Requires separately reviewed implementation scope. |
 | Eight-baseline Personal Risk acceptance | **DEFERRED — separate visual-baseline slice required** | C1 candidates are reviewed and pinned but are not accepted baselines. Preserve 24/24 until new CI-produced bytes receive separate review. |
-| Slice 2 commit/PR/merge/deployment/backup | **IN PROGRESS — exact local commit authorized; PR and native CI pending** | The candidate-only collection guard is corrected and reviewed. Freeze and commit the exact 16-path tree locally; retain 24/24 accepted visual wiring and preserve all local Docker failures. Push/PR, native CI, merge, deployment, and backup remain separately gated. |
+| Slice 2 commit/PR/merge/deployment/backup | **IN PROGRESS — PR #71 first CI failed; correction local only** | Preserve run `35976581438`, attempt 1, as failed. Review the local two-path browser-selection correction before any corrected push. Native 24/24 visual proof, merge, deployment, authenticated live verification, and backup remain pending and separately gated. |
 | First authenticated read-only Personal Risk checkpoint | **NOT STARTED** | Fixture-backed UI is not live proof. |
 | First controlled policy/schedule/equity sequence | **NOT STARTED** | Must follow authenticated read-only and empty-state proof. |
 | Remaining Core slices | **NOT STARTED** | Scope separately after Slice 2 evidence closes. |
@@ -236,6 +246,10 @@ This is a narrow reconciliation against locally available repository evidence, n
 - Recorded that the pinned-base native Reliability Gates visual and proof steps were green, while the exact reporter line remains unavailable because approval to download the job log was rejected. No green conclusion is treated as a substitute for raw reporter evidence.
 - Completed the authorized non-browser checkpoint: the full frontend unit suite reported 32 files and 409 tests passed; lint reported only the pre-existing empty-pattern warning in the candidate spec; production build and CSP validation passed; and `git diff --check` passed. Accepted visual wiring remains 24/24 and no Personal Risk PNG is accepted.
 - Advanced Step D only to the exact local-commit checkpoint. The feature PR and first native CI run remain separately unauthorized, and no browser rerun was performed.
+- Pushed feature commit `6248a376452e78b0531cf37981a2f822518c9d6d` and opened PR #71 under separate authorization. Its first Reliability Gates run `35976581438`, attempt 1, genuinely failed and was not rerun.
+- Recorded the first CI cause: `--grep-invert @visual` selected six screenshot-producing `@candidate` cases across desktop and mobile; each failed under the intentionally unset candidate-directory guard and again on Playwright Retry #1. The visual step was skipped, so no native `exact-set:24/24` evidence exists for that head.
+- Corrected only the ordinary browser selector locally to use one quoted inverse-grep regex excluding both `@visual` and `@candidate`. Collection-only proof retains 32 functional/accessibility cases, the unchanged canonical visual command selects 12 visual tests that own 24 comparisons, and the explicitly targeted screenshot-producing candidate selection retains six cases without requiring its directory merely to list.
+- Kept C2 deferred, accepted baselines and reporter/workflow wiring at 24/24, and authenticated live Personal Risk verification pending. The correction remains local pending independent review and separate push/CI authorization.
 - No current roadmap hash is embedded here.
 
 ### 2026-09-23
