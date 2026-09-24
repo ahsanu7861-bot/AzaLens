@@ -534,6 +534,11 @@ table,
   color: var(--az-text-soft) !important;
 }
 
+/* Filled button labels must retain AA contrast against the brand surface. */
+[data-theme="day"] .app-shell button.bg-brand {
+  color: #fff !important;
+}
+
 [data-theme="day"] .app-shell .text-slate-500,
 [data-theme="day"] .app-shell .text-slate-600 {
   color: var(--az-text-muted) !important;

@@ -13,6 +13,7 @@ import {
   Sun,
 } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import {
   defaultLocalSettings,
@@ -131,13 +132,19 @@ export default function SettingsPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Your workspace</p>
           <h1 className="mt-1 font-display text-3xl font-semibold text-ink">Settings</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-ink-muted">
-            Personalize this browser. These preferences are saved only on this device until AzaLens accounts are introduced.
+            Personalize this browser and manage controls for the current private owner session.
           </p>
         </div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-6">
+          <Card>
+            <SectionHeading icon={ShieldCheck} title="Personal risk controls" description="Review and establish immutable owner-only policy, broker-cost and equity-basis foundations." />
+            <Link className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white" to="/settings/personal-risk">
+              Open personal risk controls
+            </Link>
+          </Card>
           <Card>
             <SectionHeading icon={Eye} title="Appearance" description={`Choose how AzaLens looks. Your current resolved theme is ${resolvedTheme}.`} />
             <div className="mt-5 grid gap-3 sm:grid-cols-3" role="group" aria-label="Color theme">
@@ -210,9 +217,9 @@ export default function SettingsPage() {
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <Card variant="brand">
             <div className="flex items-center gap-2 text-brand"><LockKeyhole size={17} /><h2 className="font-display font-semibold">Account status</h2></div>
-            <p className="mt-3 text-sm font-semibold text-ink">Local workspace</p>
-            <p className="mt-1 text-xs leading-5 text-ink-muted">Sign-in and cross-device sync are not available yet. Watchlists and portfolios are not user-isolated until accounts ship.</p>
-            <span className="mt-4 inline-flex rounded-full border border-caution/25 bg-caution/10 px-2.5 py-1 text-[11px] font-semibold text-caution">Planned for accounts phase</span>
+            <p className="mt-3 text-sm font-semibold text-ink">Private owner session</p>
+            <p className="mt-1 text-xs leading-5 text-ink-muted">You are signed in to the authenticated, owner-isolated workspace. Browser preferences remain local to this device.</p>
+            <span className="mt-4 inline-flex rounded-full border border-positive/25 bg-positive/10 px-2.5 py-1 text-[11px] font-semibold text-positive">Owner authenticated</span>
           </Card>
 
           <Card>

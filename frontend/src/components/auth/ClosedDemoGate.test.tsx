@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useOwnerSession } from "../../auth/OwnerSessionContext";
 
@@ -31,6 +31,8 @@ import ClosedDemoGate from "./ClosedDemoGate";
 
 describe("two-stage owner gate", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    authCallback.current = () => {};
     publicGet.mockResolvedValue({ data: { authorized: true } });
     getCurrentSession.mockResolvedValue(null);
     signInOwner.mockResolvedValue({ access_token: "fixture" });
@@ -52,9 +54,13 @@ describe("two-stage owner gate", () => {
     getCurrentSession.mockResolvedValue({ access_token: "fixture" });
     render(<ClosedDemoGate><div>workspace</div></ClosedDemoGate>);
     expect(await screen.findByText("workspace")).toBeInTheDocument();
-    authCallback.current("TOKEN_REFRESHED", { access_token: "refreshed" });
+    await act(async () => {
+      authCallback.current("TOKEN_REFRESHED", { access_token: "refreshed" });
+    });
     expect(screen.getByText("workspace")).toBeInTheDocument();
-    authCallback.current("SIGNED_OUT", null);
+    await act(async () => {
+      authCallback.current("SIGNED_OUT", null);
+    });
     expect(await screen.findByRole("heading", { name: "Owner sign in" })).toBeInTheDocument();
   });
 

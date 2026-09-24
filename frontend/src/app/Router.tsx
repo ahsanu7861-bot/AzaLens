@@ -27,6 +27,9 @@ const MethodologyPage = lazy(() => import("../pages/MethodologyPage"));
 const PortfolioPage = lazy(() => import("../pages/PortfolioPage"));
 const ScannerPage = lazy(() => import("../pages/ScannerPage"));
 const SettingsPage = lazy(() => import("../pages/SettingsPage"));
+const PersonalRiskSettingsPage = lazy(
+  () => import("../pages/PersonalRiskSettingsPage"),
+);
 const WatchlistPage = lazy(() => import("../pages/WatchlistPage"));
 
 function PageLoader() {
@@ -156,6 +159,10 @@ export default function Router() {
           <Route path="/portfolio" element={loadPage(<PortfolioPage />)} />
           <Route path="/watchlist" element={loadPage(<WatchlistPage />)} />
           <Route path="/settings" element={loadPage(<SettingsPage />)} />
+          <Route
+            path="/settings/personal-risk"
+            element={loadPage(<PersonalRiskSettingsPage />)}
+          />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -1,8 +1,12 @@
 # AzaLens — What To Do Next (Master Roadmap)
 
-**Date:** 2026-07-30 · **Baseline commit:** `92d483c` (`main`, clean, synced with origin)
-**Status vocabulary (Rule 7):** Verified / Partially Verified / Planned / Blocked / Not Built.
-**This file replaces the 2026-07-28 version entirely** — that version was stale in both directions (it denied the compliance gate, INTACT/VIOLATED, rate limiting and CI, all of which exist; full reconciliation in `docs/AUDIT_2026-07-30.md`).
+**Last updated:** 2026-09-24
+
+**Canonical purpose:** This is AzaLens's canonical continuation and handover roadmap for future Fable, Astra, Claude, Codex, new project chats, and human reviewers. Repository evidence, merged SHAs, CI results, deployment verification, and authenticated behavior take precedence over percentages and conversational summaries.
+
+**Evidence-state vocabulary:** `PLANNED`, `IMPLEMENTED LOCALLY`, `REVIEWED LOCALLY`, `COMMITTED`, `PR CI VERIFIED`, `MERGED`, `DEPLOYED`, `AUTHENTICATED LIVE-READ VERIFIED`, `CONTROLLED LIVE-WRITE VERIFIED`, `SHADOW-TRADING VERIFIED`, and `PRODUCTION-TRUSTED`. These states are distinct and must never be conflated. Fixture-backed tests are never live-API proof. A reviewer PASS applies only to the exact bytes and evidence reviewed. Every printed PASS must correspond to an executed assertion or validation. A successful rerun never erases an earlier failure; both remain evidence.
+
+**Historical note:** This file replaced the 2026-07-28 version on 2026-07-30 because that version was stale in both directions. The preserved historical archive below records why. Its former status labels and priorities are historical evidence, not current instructions.
 
 Companion documents: `docs/AUDIT_2026-07-30.md` (verification evidence), `docs/CONSTITUTION_COMPLIANCE.md` (rule-by-rule), `docs/DESIGN_SYSTEM.md` (visual plan).
 **Cost note convention:** every item states its provider/infrastructure cost. Budget reality as recorded on 2026-07-30: Halal Terminal free plan, ~177 tokens to 28 Aug 2026, ~5 tokens per screening (single data point); Render Free; Vercel free. Superseded on 2026-08-24 by the promotional Starter entitlement recorded under the production environment audit — see Finding 3 there, which also records why the application's internal budget value was left unchanged.
@@ -11,13 +15,250 @@ Companion documents: `docs/AUDIT_2026-07-30.md` (verification evidence), `docs/C
 
 ## THE SINGLE NEXT TASK
 
-**Phase 0 — Specialist Readiness** (Part 1 below), as one small session. Reason: both upcoming reviews — Mufti Ejaz Ahmed Samadani sahib and Tahir Khan sahib — depend on it; it is the largest credibility gain available; and it costs **zero provider tokens** (the only optional spend is deliberately pre-screening 2–3 demo tickers, ~10–15 tokens, only with your explicit go-ahead on the day).
+**Step D IN PROGRESS — freeze and commit the reviewed Slice 2 tree locally; the feature PR and first native CI result remain pending.** The candidate-only Personal Risk visual spec now validates its output directory lazily inside its two candidate test bodies, so ordinary `--grep @visual` collection no longer requires candidate-mode configuration. Local Docker visual execution remains too slow and operationally unreliable to establish a canonical 24/24 result; accepted visual wiring therefore remains unchanged at 24/24, and the first native CI run must supply the next visual evidence. Do not push, open a PR, merge, deploy, access the authenticated Personal Risk API, or create live rows without separate authorization.
 
-My honest sequencing recommendation, even where it differs from prior assumptions: **specialist readiness → crash fix + CI registration → docs truth sweep → design Phases 1–2 → accounts/DB/tiers as one project → beta gate.** Durable storage stays deliberately parked (below). Nothing design-signature or Momentum-Room-shaped before that.
+## Current repository position
+
+- Canonical merged `main`: `2480ee62a552f69716aea078cdf89a8e7485ac46`.
+- Canonical tree: `f9c10e8e99cc6fd64a655eab84d3fcea06bfc136`.
+- Active local branch: `feat/personal-risk-bootstrap-ui`.
+- Slice 2 Checkpoint A is authorized for one exact local feature commit in this checkpoint; it remains unpushed, unmerged, and undeployed.
+- Local feature-branch behavior must not be described as canonical `main` behavior.
+
+## Current working-tree scope
+
+### A. Personal Risk Checkpoint A — 14 paths
+
+1. `frontend/src/app/Router.tsx`
+2. `frontend/src/index.css`
+3. `frontend/src/pages/SettingsPage.tsx`
+4. `frontend/e2e/personal-risk-visual.spec.ts`
+5. `frontend/e2e/personal-risk.spec.ts`
+6. `frontend/src/lib/personalRiskDecimal.test.ts`
+7. `frontend/src/lib/personalRiskDecimal.ts`
+8. `frontend/src/lib/personalRiskPendingIntent.test.ts`
+9. `frontend/src/lib/personalRiskPendingIntent.ts`
+10. `frontend/src/pages/PersonalRiskSettingsPage.test.tsx`
+11. `frontend/src/pages/PersonalRiskSettingsPage.tsx`
+12. `frontend/src/services/personalRisk.test.ts`
+13. `frontend/src/services/personalRisk.ts`
+14. `frontend/src/types/personalRisk.ts`
+
+This local slice supplies an owner-only route and Settings entry; strict bootstrap and mutation response validation; immutable policy and cost-schedule workflows; repeatable equity snapshots; exact idempotency-key persistence and recovery; fixed-scale `BigInt` decimal validation; strict timestamp normalization; New York date/week and basis preview; irreversible daily/weekly tightening confirmation; fail-closed malformed authoritative basis handling; stale and out-of-order preview suppression; focus, keyboard, live-region, and responsive behavior; a fail-closed browser request policy; a genuine phone-viewport dialog action/obstruction test; and synthetic-only visual evidence.
+
+### B. Reliability correction — one separately authorized path
+
+15. `frontend/src/components/auth/ClosedDemoGate.test.tsx`
+
+This is a test-only synchronization correction. Both manually delivered auth events are wrapped in awaited React `act`; the refreshed-session transition flushes before `SIGNED_OUT`; and the hoisted callback and relevant mocks reset in `beforeEach`. Production `ClosedDemoGate.tsx` is unchanged. The corrected test is mutation-sensitive for the signed-out transition, passed 20/20 isolated first executions, and passed three independent full frontend runs at 409/409. Reviewed test SHA-256: `90be09d0f78b2f79b955c2b3ef71d524b27c03757f6177c19a43128472bca3a3`.
+
+## Review artifacts and pinning rules
+
+- Personal Risk reviewer ZIP SHA-256: `04d3ad3a2463f1946d8b4ade553e62e93e5eaf6b5aee360dfcb969f5d525f6be`. It is the final reviewer bundle for the reviewed 14-path Personal Risk Checkpoint A state. It predates the ClosedDemoGate correction and this roadmap refresh, remains a historical anchor for those exact 14 paths, and is not the final merge artifact for the expanded tree.
+- Reviewed 15-path complete patch: 98,878 bytes; SHA-256 `d03195a793d8df848d80117a232f141c2b4b4291a5cd61b442ab5a24fce173c5`. It covers the 14 Personal Risk paths plus the ClosedDemoGate test correction. It predates this roadmap change and becomes a historical pre-roadmap-update anchor once this file changes.
+- Reviewed initial 16-path roadmap patch: SHA-256 `22d3cae94db85d187f3a5b42808536dbc0c59f663110ea7e796173e7f242f739`. Together with the independently reviewed roadmap bytes at SHA-256 `f2b70dd19ffcc1770919653c13983b4fdc73be3df8aa252279f9fe99cfa09055`, this is time-bound historical review evidence that predates the present status reconciliation; neither is the final current patch or roadmap hash.
+- A fresh final patch/artifact must be pinned after every authorized correction. The exact commit proposed for PR must be pinned again.
+- Do not store individual mutable pre-merge source hashes as permanent roadmap truth. Per-file and patch hashes belong in time-bound evidence and the PR description.
+- Final current roadmap and complete-patch hashes live in the standalone evidence manifest and checkpoint review report, and later in the PR description pinned to the commit; they are intentionally not embedded here.
+
+## Visual state
+
+- C1 is **DONE** for exactly eight independently reviewed candidate states: day/night desktop complete pages, day/night mobile top viewports, day/night mobile Current basis state viewports, and desktop/mobile equity confirmations. These candidates were reviewed for layout and geometry; they are not accepted baselines.
+- C1 review evidence is pinned by ZIP SHA-256 `e32c00c640d98955c8dc8b9f4823e8d842a948bd6c531e93d1262144ab486d19` and reviewed source SHA-256 `e724384b50e2a82fbfe48e88bb5656756737f4be423145a04775996e47573205`.
+- C2 is **DEFERRED — separate visual-baseline slice required**: macOS candidate bytes and the Playwright comparator differ; mobile capture scale and resolved snapshot filenames were incompatible; and CI-native candidate generation requires a separate workflow and review. The failed first-attempt Linux visual run remains historical evidence and is not represented as a pass.
+- Accepted visual wiring remains exactly 24/24. A future visual slice may reuse the researched CI-native candidate plan, but it must obtain and review new CI-produced bytes before accepting any Personal Risk baseline.
+- The candidate collection guard is corrected locally: excluded candidate tests can be imported without candidate configuration, while each candidate test still fails closed inside its test body unless a validated `/private/tmp/` output directory is supplied.
+- Local Docker visual evidence remains non-canonical: the original run stopped at collection with 0/24; the corrected run reached 22/24 but three independent tests each timed out after 45 seconds under extreme slowness; and the latest positive candidate run wrote one review-only PNG before the day-desktop candidate timed out on `main`, after which the container was deliberately stopped and returned exit 137. Exit 137 is not evidence of an out-of-memory kill.
+- The retained 22/24 failure showed the landing heading rendered before its locator wait reported a closed page/context/browser. That contradiction leaves the landing-timeout root cause unresolved; it is neither a proven product regression nor a proven environmental flake.
+- Read-only GitHub evidence shows the pinned-base native Reliability Gates visual and proof steps succeeded, but the exact-base job log was not downloaded after approval to access it was rejected. A green conclusion is not substituted for the unavailable reporter line.
+- Mobile top evidence is a real 390×664 viewport at scroll `(0,0)`; mobile basis evidence is the same real viewport normally scrolled so the complete Current basis state card is unobstructed between the production fixed header and navigation.
+- **Lesson:** DOM containment is not capture containment. Stretched page captures, CSS-expanded confirmation captures, and tall-main locator captures with stitched fixed UI are rejected evidence and prohibited as baselines.
+- **Lesson:** Playwright imports excluded specs before grep filtering, so candidate-only configuration must be validated inside the selected test body rather than at module scope. A locator failure reporting a closed session can coexist with a target that visibly rendered; preserve traces and surrounding errors before assigning causality.
+
+## Reliability status
+
+### ClosedDemoGate
+
+- Original classification: confirmed test synchronization defect; a production defect was not established.
+- Cause: manually invoked mocked auth callbacks occurred outside awaited React `act`, with insufficient reset of hoisted callback/mock state.
+- Vitest has zero retries, so the defect could fail the first frontend CI gate.
+- The test-only correction is complete and independently reviewed. Production `ClosedDemoGate.tsx` remains byte-identical.
+- The mutation check failed for the intended reason, then the restored production implementation passed.
+- Twenty isolated executions and three complete 409/409 frontend suites passed on their first executions.
+
+### Mobile pending recovery
+
+- Classification: **D — INCONCLUSIVE**. The item remains **OPEN**.
+- Original failure artifacts were overwritten before inspection. The exact two-worker matrix and ten additional two-worker repetitions subsequently passed; these reruns do not erase the original failure.
+- No scripted preview-generation invalidation occurs after Retry. Current evidence justifies neither a product correction nor a test correction.
+- CI uses one Playwright worker and one configured framework retry.
+- A second occurrence requires evidence preservation and instrumentation before any rerun. Never rerun merely to manufacture green output.
+- **NOT IMPLEMENTED — REQUIRES SEPARATE REVIEWED SCOPE:** retain Personal Risk Playwright failure traces, screenshots, error context, request/response evidence, console/page errors, and final DOM locally and in CI before reruns can overwrite them.
+
+### Local Docker visual tooling
+
+- Classification: **OPEN — operationally unreliable for canonical visual proof on this host**.
+- The collection-time candidate-directory defect is corrected locally and independently reviewed; it is distinct from the subsequent runtime timeouts.
+- The retained corrected visual run executed 22 of 24 expected comparisons, then recorded three independent 45-second test timeouts under severe container slowness. The later tests did not merely inherit a deliberately closed shared session.
+- A subsequent positive candidate run wrote one review-only PNG, then the day-desktop candidate timed out even against pinned `main`; the container was deliberately stopped, producing exit 137. No OOM cause was established.
+- Do not erase these failures by local rerun. The next canonical checkpoint is the first native CI run for the exact committed feature tree, with 24/24 wiring unchanged and snapshot updates disabled.
+
+## Current proof boundary
+
+**All Personal Risk browser behavior is fixture-backed.** The UI has never completed an authenticated request against the deployed Personal Risk API. No real Personal Risk policy, cost schedule, equity snapshot, daily basis, or weekly basis row exists; the Personal Risk tables remain empty. No real trade or outcome-ledger write occurred through this work. Core must not yet be described as `PRODUCTION-TRUSTED` or real-money validated.
+
+No overall completion percentage is authoritative. Any preserved historical percentage is a **SUPERSEDED PLANNING ESTIMATE — NOT A VERIFIED PROGRESS MEASURE**.
+
+## Immediate next sequence
+
+Every step has exactly one live status. A future step is not done because its fixture or plan exists.
+
+| Step | Status | Action and completion evidence |
+|---|---|---|
+| A | **DONE** | Independently reviewed roadmap bytes (`f2b70dd19ffcc1770919653c13983b4fdc73be3df8aa252279f9fe99cfa09055`), reviewed pre-roadmap-update 15-path patch (`d03195a793d8df848d80117a232f141c2b4b4291a5cd61b442ab5a24fce173c5`), and reviewed initial 16-path roadmap patch (`22d3cae94db85d187f3a5b42808536dbc0c59f663110ea7e796173e7f242f739`) are time-bound historical review evidence that predates this status edit, not final current hashes. |
+| B | **DONE — fresh 16-path patch and standalone evidence manifest produced and independently reviewable outside the repository** | Final current identities are recorded in the standalone evidence manifest and checkpoint review report, not self-referentially in this roadmap. |
+| C | **DEFERRED — separate visual-baseline slice required** | The eight C1 candidates remain reviewed layout/geometry evidence, not accepted baselines. Accepted wiring remains 24/24; new CI-produced bytes require separate review before any future acceptance. |
+| D | **IN PROGRESS — exact local commit authorized; feature PR and first native CI pending** | The candidate guard is corrected and reviewed. Final non-browser verification and exact patch freezing precede one local commit. Local Docker visual failures remain recorded; accepted wiring stays 24/24, and native CI must provide the next visual result after separate PR authorization. |
+| E | **NOT STARTED** | Open the PR and require the initial GitHub Actions workflow run to pass; never manually rerun a failed workflow to manufacture green status. |
+| F | **NOT STARTED** | Report every Playwright framework-internal retry; do not hide a flaky first attempt behind a green job. Apply merge policy to the exact evidence. |
+| G | **NOT STARTED** | Produce a true merge commit; prove its tree equals the approved feature tree, its second-parent diff is empty, and path scope is exact. |
+| H | **NOT STARTED** | Confirm Vercel frontend redeploys and Render backend does not redeploy for frontend/test/document-only changes. |
+| I | **NOT STARTED** | Back up the canonical merge commit using the established authenticated Drive standard. |
+| J | **NOT STARTED** | In the owner's authenticated browser, load `/settings/personal-risk` read-only first. |
+| K | **NOT STARTED** | Create nothing if live status, ownership, origin, schema, or empty state differs from expectation. |
+| L | **NOT STARTED** | Create the immutable policy only after read-only proof. |
+| M | **NOT STARTED** | Re-read and verify the exact created policy. |
+| N | **NOT STARTED** | Create the cost schedule. |
+| O | **NOT STARTED** | Re-read and verify its four exact components and version. |
+| P | **NOT STARTED** | Obtain true broker-confirmed total USD account equity—not cash, buying power, position market value, or cost basis. |
+| Q | **NOT STARTED** | Preview the equity snapshot and resulting bases before writing. |
+| R | **NOT STARTED** | Create the first equity snapshot only after deliberate confirmation. |
+| S | **NOT STARTED** | Verify daily and weekly bases through authenticated live behavior. |
+| T | **NOT STARTED** | Preserve evidence without recording credentials or private financial information. |
+
+## Maintenance rule
+
+This roadmap is updated as work completes, not weeks afterward.
+
+Every item in the immediate next sequence and open-items register carries a status. When a step is completed and independently reviewed, its status is updated in this file during the same working session, with the evidence proving completion—for example, an approved patch hash, commit SHA, CI run, merge SHA/tree, deployment commit, authenticated live-read result, or controlled live-write result.
+
+A step is never marked complete from a plan, intention, unreviewed local change, or successful rerun that hides an earlier failure.
+
+If a step is abandoned, blocked, or superseded, its status and reason are recorded.
+
+Any model or person continuing AzaLens must update this roadmap before declaring a checkpoint closed.
+
+The standard merge/checkpoint checklist is:
+
+- pinned SHAs and tree;
+- authorized path scope;
+- first workflow-run CI evidence;
+- disclosed framework-internal retries/flakes;
+- true merge verification;
+- deployment verification;
+- authenticated Drive backup;
+- **Roadmap updated and evidence status reconciled**.
+
+## Readiness before Fable/Astra redesign
+
+Fable previously rated the interface approximately 6.4/10 and proposed a path toward 9.9/10. The latter is a design target, not a guaranteed or verified future score. The design handoff must not be triggered by a completion percentage.
+
+Before the full Fable/Astra handoff: obtain authenticated live-read and controlled live-write verification; verify policy/schedule/snapshot/basis persistence; safely exercise recovery behavior; complete remaining Core slices; perform product-wide truthfulness, functional, responsive, and accessibility review; conduct sufficient shadow trading to expose workflow weaknesses; and address material findings. The redesign must inspect a functioning product rather than a fixture-only demo.
+
+## Real-money readiness
+
+- Shadow trading precedes real-money trust.
+- Small controlled real positions, if later authorized, come only after shadow-trading evidence plus legal, Shariah, and risk readiness.
+- Cash, buying power, position market value, and cost basis must never be entered as total account equity. Only broker-confirmed total account equity qualifies.
+- **Synthetic illustration only—not personal account advice and not a new configured product rule:** at 0.50% planned loss per position and a 5% stop, a $1,000 position requires approximately $10,000 of risk-basis equity before costs.
+- Do not record actual or historical balances, brokerage figures, or private screenshots here.
+
+## Separate Gapper/Momentum Room
+
+This remains a separate later module/model. It must not begin merely because Core appears visually polished. Start only after Core reaches stable beta and has been exercised through shadow trading and any authorized controlled real use. It may share authentication, infrastructure, design primitives, and selected market-data plumbing, but it requires its own real-time premarket/intraday pipeline; gap scanner/ranking; relative-volume and momentum features; session/halt handling; liquidity/spread protections; intraday risk framework; APIs/caching; monitoring; and test/evidence strategy. It must not silently inherit Core risk assumptions.
+
+## Reviewer and model workflow
+
+- Codex implements and produces raw evidence.
+- Claude provides an independent second review.
+- Sol independently reviews implementation evidence and Claude's verdict.
+- Fable/Astra performs the later full-product design audit.
+- No verdict is followed blindly; disagreements are resolved against source, tests, artifacts, and repository identity.
+- Codex prompts remain one-click copyable.
+- Stop on identity/scope mismatch rather than finding a workaround.
+- After a reviewed slice, any newly found issue must be reported and separately authorized before implementation.
+
+## Current open-items register
+
+| Item | Status | Evidence boundary / next action |
+|---|---|---|
+| Repin/review ClosedDemoGate correction and roadmap | **DONE** | Time-bound historical review anchors are recorded; the fresh final 16-path patch and standalone evidence manifest are independently reviewable outside the repository. Final current hashes live in that manifest and the checkpoint review report. |
+| Mobile pending recovery | **BLOCKED — original causal artifacts were overwritten** | Classification D — INCONCLUSIVE; preserve complete evidence on recurrence before rerun. |
+| Durable Playwright artifact retention | **NOT STARTED** | Requires separately reviewed implementation scope. |
+| Eight-baseline Personal Risk acceptance | **DEFERRED — separate visual-baseline slice required** | C1 candidates are reviewed and pinned but are not accepted baselines. Preserve 24/24 until new CI-produced bytes receive separate review. |
+| Slice 2 commit/PR/merge/deployment/backup | **IN PROGRESS — exact local commit authorized; PR and native CI pending** | The candidate-only collection guard is corrected and reviewed. Freeze and commit the exact 16-path tree locally; retain 24/24 accepted visual wiring and preserve all local Docker failures. Push/PR, native CI, merge, deployment, and backup remain separately gated. |
+| First authenticated read-only Personal Risk checkpoint | **NOT STARTED** | Fixture-backed UI is not live proof. |
+| First controlled policy/schedule/equity sequence | **NOT STARTED** | Must follow authenticated read-only and empty-state proof. |
+| Remaining Core slices | **NOT STARTED** | Scope separately after Slice 2 evidence closes. |
+| Shadow trading | **NOT STARTED** | Requires functioning, verified Core workflows. |
+| Fable/Astra redesign | **BLOCKED — live-read/live-write, remaining Core, and shadow evidence absent** | Do not trigger from a percentage. |
+| Beta readiness | **BLOCKED — Core and non-code gates remain** | Requires product-wide functional, responsive, accessibility, truthfulness, and operational review. |
+| Legal, Shariah, regulatory/licensing, monitoring, and support readiness | **REQUIRES REVALIDATION** | Preserve the historical tracks below; establish current evidence before beta or money use. |
+| Later Gapper/Momentum Room | **BLOCKED — Core has not reached stable exercised beta** | Separate model and evidence program required. |
+
+### Older-item disposition
+
+This is a narrow reconciliation against locally available repository evidence, not a new broad technical audit.
+
+| Older item | Disposition | Evidence |
+|---|---|---|
+| Unmapped backend errors returning 503 without a logged code | **REQUIRES REVALIDATION** | Current routes include generic 503 mappings and many error logs, but this checkpoint did not reconstruct every error path. Preserve as possible debt, not a confirmed defect. |
+| Backend Shariah-path suites not gating CI | **CONFIRMED OPEN** | Several named package scripts remain outside `backend/tests/runCiSuite.js`; current registration is incomplete for the historical list. |
+| Workflow ↔ `package.json` parity | **REQUIRES REVALIDATION** | Both are present and extensively wired, but no locally identified exhaustive parity assertion closes the historical concern. |
+| Migration 007 `CONFLICTING_AUTHORITIES` design | **REQUIRES REVALIDATION** | The exact design label is not present in current Migration 007 or focused repository search; preserve the decision question without asserting a defect. |
+| Production-cap behavioral proof | **COMPLETED — CI-wired database invariant suites** | Workflow runs watchlist cap plus portfolio cap/mutation suites; package scripts identify their focused tests. This is repository/CI coverage, not a fresh production write. |
+| Local `.env` provider-pair mismatch | **REQUIRES REVALIDATION** | Local secrets/configuration were intentionally not inspected or printed in this documentation checkpoint. |
+
+## Change log
+
+### 2026-09-24
+
+- Closed C1 for the final eight-state Personal Risk visual design using reviewed ZIP SHA-256 `e32c00c640d98955c8dc8b9f4823e8d842a948bd6c531e93d1262144ab486d19` and source SHA-256 `e724384b50e2a82fbfe48e88bb5656756737f4be423145a04775996e47573205`.
+- Recorded the truthful capture boundary: complete desktop pages; real mobile top viewports at scroll zero; real mobile basis viewports with the complete card between fixed shell regions; and production-scroll confirmation viewports.
+- Recorded the lesson “DOM containment is not capture containment” and permanently rejected stretched mobile pages, CSS-expanded confirmations, and tall-main locator captures with stitched fixed UI.
+- Deferred C2 to a separate visual-baseline slice because macOS candidate bytes and the Playwright comparator differ, mobile capture scale and resolved snapshot filenames were incompatible, and CI-native candidate generation requires a separate workflow and review. The failed first-attempt Linux visual run remains historical evidence, not a pass.
+- Restored accepted visual wiring to 24/24. The eight reviewed C1 candidates remain layout/geometry evidence rather than accepted baselines; any future visual slice must obtain and review new CI-produced bytes before acceptance.
+- Moved the single next task to Slice 2 commit/PR preparation, subject to final verification and independent review. Personal Risk still has no completed authenticated live API read and no live policy, schedule, snapshot, basis, trade, or outcome row.
+- Stopped that transition when the first canonical non-writing Linux visual execution failed during test collection: the candidate-only Personal Risk visual spec unconditionally required `AZALENS_PERSONAL_RISK_CANDIDATE_DIR` although `--grep @visual` excluded its tests. No comparison executed; the reporter emitted 0/24. The run was not retried, source was not corrected, and commit/PR preparation remains blocked pending separate authorization.
+- Corrected only the candidate collection boundary by moving the same validated `/private/tmp/` output-directory requirement into the two candidate test bodies. Excluded candidate specs now collect without candidate configuration, while selected candidate tests still fail closed.
+- Preserved the corrected local Docker visual failure at 22/24: three tests independently exhausted their 45-second timeouts under severe slowness. The landing heading was present even though its locator wait reported a closed page/context/browser, so the root cause remains unresolved rather than labelled a product regression or environmental flake.
+- Preserved the later positive candidate failure: one review-only PNG was written, the day-desktop candidate then timed out against pinned `main`, and deliberate container shutdown returned exit 137 without proving an OOM kill.
+- Recorded that the pinned-base native Reliability Gates visual and proof steps were green, while the exact reporter line remains unavailable because approval to download the job log was rejected. No green conclusion is treated as a substitute for raw reporter evidence.
+- Completed the authorized non-browser checkpoint: the full frontend unit suite reported 32 files and 409 tests passed; lint reported only the pre-existing empty-pattern warning in the candidate spec; production build and CSP validation passed; and `git diff --check` passed. Accepted visual wiring remains 24/24 and no Personal Risk PNG is accepted.
+- Advanced Step D only to the exact local-commit checkpoint. The feature PR and first native CI run remain separately unauthorized, and no browser rerun was performed.
+- No current roadmap hash is embedded here.
+
+### 2026-09-23
+
+- Recorded Slice 2 Checkpoint A's local 14-path implementation and corrections, plus its final reviewed Personal Risk bundle.
+- Recorded the reliability investigation and the separately reviewed ClosedDemoGate test-only synchronization correction.
+- Recorded mutation sensitivity, 20/20 isolated first-pass stability, and three independent 409/409 full frontend passes.
+- Corrected the proof boundary: Personal Risk browser evidence is fixture-backed, local, uncommitted, unmerged, and undeployed.
+- Additively refreshed this roadmap with evidence states, current pinning, visual status, ordered next actions, maintenance discipline, readiness gates, and a status-bearing open register.
+- Marked the former 2026-07-30 immediate sequence and old Parts 1–5 ordering as historical because later merged work superseded their chronology. No durable release record or still-useful Fable rationale was removed.
+- Removed the former “Phase 0 — Specialist Readiness” single-task paragraph and its `specialist readiness → crash fix → docs → design → accounts → beta` immediate ordering because subsequent merged authentication, persistence, migration, and risk-foundation work made that ordering factually stale. The specialist, truthfulness, cost-control, legal, and design rationale remains preserved in the historical archive.
+- Replaced the old 2026-07-30 baseline/status header because it could misstate local feature work as current canonical behavior; its original audit context remains in the historical note and archive.
+- Closed Step A using the independently reviewed roadmap bytes plus the reviewed historical 15-path and initial 16-path patch anchors; these anchors predate this status reconciliation and are not final current hashes.
+- Closed Step B by producing a fresh final 16-path patch and standalone evidence manifest outside the repository. Final current hashes live in the manifest and checkpoint review report, and later belong in the commit-pinned PR description.
+- Set Step C as the single next decision after independent review of the Step B artifact: explicit acceptance of the six reviewed visual candidates and the 24/24 → 30/30 wiring change. Baseline acceptance remains unauthorized at this checkpoint.
+
+## Historical roadmap archive
+
+Everything below is retained for rationale, chronology, and durable release evidence. Labels such as “do first,” “next,” “planned,” and the `92d483c` baseline describe their historical checkpoint only. They do not override the current state and sequence above.
 
 ---
 
-## PART 1 — PHASE 0: SPECIALIST READINESS (do first)
+## PART 1 — PHASE 0: SPECIALIST READINESS (historical; originally “do first”)
 
 | # | Item | Status today | Rules | Cost |
 |---|---|---|---|---|
@@ -933,7 +1174,7 @@ distributed-coordinator build follows from this record.
 
 ---
 
-## PART 2 — FIX (correctness and truth, after Phase 0)
+## PART 2 — FIX (historical correctness-and-truth register)
 
 | # | Item | Status | Rules | Cost |
 |---|---|---|---|---|
@@ -976,7 +1217,7 @@ locators are file and symbol names; line numbers are observed references at comm
 **Not fixed in PR 2 by explicit instruction.** PR 2 was scoped to canonical evidence
 vocabulary and payload ownership with zero behaviour, wording or snapshot change.
 
-## PART 3 — ADD (in order)
+## PART 3 — ADD (historical ordering)
 
 | # | Item | Status | Rules | Cost |
 |---|---|---|---|---|
@@ -988,10 +1229,10 @@ vocabulary and payload ownership with zero behaviour, wording or snapshot change
 | 3.6 | Historical verdict evaluation (store verdicts + outcomes for honesty review) | Not Built | 18, 22 | Needs 3.3's database first |
 | 3.7 | Design Phases 3–4 (density/motion; signature aperture) — beauty last, per your own rule | Planned | 18 | None |
 
-### [PENDING BEFORE PUBLIC LAUNCH] Durable storage (carried forward deliberately — do not start yet)
+### [HISTORICAL PENDING ITEM] Durable storage (original wording: carried forward deliberately — do not start yet)
 Paid Render Key Value (Valkey) or Supabase-backed storage is intentionally parked: at one user with 177 tokens the problem does not exist, and it must be built **once, together with accounts (3.3), not twice**. When resumed, the requirements stand as previously specified: durable Shariah cache with TTL and versioned keys (symbol + provider + contract version); atomic token reservation with UTC monthly rollover that cannot carry spend across months or reset early; multi-instance concurrency safety; authoritative-vs-estimated balance labelling preserved (`locallyEstimatedUsed`/`locallyEstimatedRemaining`, provider dashboard authoritative); fail-closed behaviour on storage/provider outage (no unreserved live call, degraded/unknown screening, verdict withheld — never guessed); zero-network tests for hit/miss/TTL/restart/concurrency/rollover/outage; rollout behind explicit env config with staged verification. **Cost when built:** small paid Valkey instance or Supabase paid tier — approve explicitly at that time. Current reality it mitigates: the in-memory Shariah cache dies on every Render spin-down (so the 24h cache rarely helps), and a wiped ledger makes the budget guard *more permissive*, not dangerous.
 
-## PART 4 — REMOVE / STOP CLAIMING
+## PART 4 — REMOVE / STOP CLAIMING (historical register)
 
 - The **"AzaLens Pro" upsell** (1.2) — stop claiming a paid tier exists.
 - The landing **BUY mockup** (1.1) — stop displaying a verdict style the product forbids.
@@ -999,13 +1240,13 @@ Paid Render Key Value (Valkey) or Supabase-backed storage is intentionally parke
 - Dead code: `App.tsx`, `LiveAnalysisTest.tsx`, legacy dashboard panels, stale `design/colors.ts`/`typography.ts`, empty feature dirs (1.9, 2.10).
 - `backend/fixtures/shariah/` either gets real fixture files (from the recorded META response, sanitized) or fixture mode should say clearly it has no data (audit V10).
 
-## PART 5 — NON-CODE TRACKS (run in parallel, gate launches)
+## PART 5 — NON-CODE TRACKS (historical rationale; current status requires revalidation)
 
 - **Track A — Scholarly review** (Mufti Ejaz Ahmed Samadani sahib): prerequisite artifacts = Phase 0 items 1.1–1.4; frame as review/correction, never endorsement (Rule 25); afterwards, record his corrections as roadmap items.
 - **Track B — UAE regulatory memo** (Tahir Khan sahib): written perimeter memo covering permitted activities, licensing, wording, countries, entity type (Rule 26). **Hard gate:** no external beta, no payments, until it exists. Product boundaries determine the licence — not vice versa (his review of the current no-execution/no-custody/no-advice posture in audit Part 3-B is the starting evidence).
 - **Track C — Controlled beta gate** (Rule 20): opens only after Phase 0 + 2.1–2.5 + 3.2 + Track B, with incident ownership named.
 
-## OPEN-ITEMS REGISTER (all seven originals + audit additions)
+## OPEN-ITEMS REGISTER (historical originals + audit additions)
 
 | Item | Where handled |
 |---|---|
@@ -1018,7 +1259,7 @@ Paid Render Key Value (Valkey) or Supabase-backed storage is intentionally parke
 | 7. `trust proxy = 3` fragility | 2.8 |
 | New: stranger token-drain (N1), unused intelligence endpoint (N2), cold-start (N3), no legal pages (N4), landing divergence (N5), provider attribution (N6), watchlist cap (N7) | 2.5, 2.4, 1.8, 3.2, 1.1, 2.11, 2.12 |
 
-## WHAT IS GENUINELY DONE AND HOLDS (carry no anxiety about these)
+## WHAT IS GENUINELY DONE AND HOLDS (historical proof at `92d483c`)
 
 Verified at `92d483c` (evidence in the audit): the server-side Shariah compliance gate on every verdict-bearing surface; INTACT/VIOLATED/REVIEW end to end with CI-registered tests; CORS allowlist (project-and-account-scoped previews, no `*.vercel.app`); layered rate limiting with a genuinely shared strict budget and verified `trust proxy = 3`; the cost-safe scanner (server-side membership + 20-cap, one history call per symbol, zero Shariah calls); the honest dashboard with no auto-analysis token leak; functional local settings; equities-only dynamic search; the fail-closed Shariah runtime with dev guard and budget ledger; blocking CI on every push/PR.
 
