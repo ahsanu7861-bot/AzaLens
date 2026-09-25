@@ -1,9 +1,12 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const { createUserSupabaseClient } = require("../services/createUserSupabaseClient");
 const { createEquity, createPolicy, createSchedule, getStatus } = require("../services/personalRiskBootstrapService");
-const { readStatus, request, sql } = require("./helpers/localSupabase");
+const { databaseContainer, readStatus, request, sql } = require("./helpers/localSupabase");
 
 const { apiUrl, publishableKey, secretKey } = readStatus();
 const env = { SUPABASE_URL: apiUrl, SUPABASE_PUBLISHABLE_KEY: publishableKey };
@@ -38,6 +41,22 @@ async function user(label) {
     assert.deepEqual([s1.versionNo, s2.versionNo].sort(), ["1", "2"], "schedule versions remain exact strings");
     assert.equal(sql(`select string_agg(component_code,',' order by component_code) from public.broker_cost_schedule_components where schedule_id='${s2.scheduleVersionId}'`),
       "CLOSE_COMMISSION,FINRA_TAF_REFERENCE,REGULATORY_ALLOWANCE,SEC_REFERENCE");
+    assert.equal(sql(`select broker_legal_entity from public.broker_cost_schedule_versions where id='${s2.scheduleVersionId}'`), "Saxo Bank");
+    assert.equal(sql(`select source_effective_from from public.broker_cost_schedule_components where schedule_id='${s2.scheduleVersionId}' and component_code='FINRA_TAF_REFERENCE'`), "2026-01-01");
+    assert.equal(sql(`select evidence_limitations like '%not represented as a FINRA assessment billed by Saxo%' from public.broker_cost_schedule_components where schedule_id='${s2.scheduleVersionId}' and component_code='FINRA_TAF_REFERENCE'`), "t");
+    assert.equal(sql(`select evidence_limitations like '%contracting-entity clause has not been verified%' from public.broker_cost_schedule_versions where id='${s2.scheduleVersionId}'`), "t");
+    assert.equal(sql(`select evidence_limitations like '%fixed 0.20 USD term per modeled exit and is subject to a 0.50 USD floor%' from public.broker_cost_schedule_versions where id='${s2.scheduleVersionId}'`), "t");
+    assert.equal(sql(`select evidence_limitations not like '%1,006.80%' and evidence_limitations not like '%0.22 USD%' from public.broker_cost_schedule_versions where id='${s2.scheduleVersionId}'`), "t");
+    const root = path.resolve(__dirname, "../..");
+    const correctionUp = fs.readFileSync(path.join(root, "supabase/migrations/20260925120000_009_correct_broker_cost_schedule_contract.sql"), "utf8");
+    const correctionDown = fs.readFileSync(path.join(root, "db/down-migrations/20260925120000_009_correct_broker_cost_schedule_contract.sql"), "utf8");
+    const refusal = (source) => spawnSync("docker", ["exec", "-i", databaseContainer(), "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-q", "-f", "-"], { input: source, encoding: "utf8" });
+    const upRefusal = refusal(correctionUp);
+    assert.notEqual(upRefusal.status, 0);
+    assert.match(upRefusal.stderr, /migration 009 refused: broker cost schedule evidence already exists/);
+    const downRefusal = refusal(correctionDown);
+    assert.notEqual(downRefusal.status, 0);
+    assert.match(downRefusal.stderr, /migration 009 reversal refused: broker cost schedule evidence exists/);
     const scheduleReplay = await createSchedule({ db: a.db, userId: a.id, idempotencyKey: key(3) });
     assert.equal(scheduleReplay.scheduleVersionId, s1.scheduleVersionId);
     assert.equal(scheduleReplay.replayed, true);
@@ -102,7 +121,7 @@ async function user(label) {
     console.log("PASS database: application RPC/readback used only createUserSupabaseClient(owner JWT + publishable key); elevated credentials were limited to disposable-user setup and cleanup.");
     console.log("PASS database: same-key replay and conflicting replay; distinct concurrent keys created successive policy and schedule versions.");
     console.log("PASS database: atomic equity snapshot plus daily/weekly bases; lower basis tightened and higher snapshot did not raise it.");
-    console.log("PASS database: applicable schedule has exactly CLOSE_COMMISSION, FINRA_TAF_REFERENCE, REGULATORY_ALLOWANCE and SEC_REFERENCE.");
+    console.log("PASS database: applicable Saxo Bank schedule has exactly four components, FINRA source-effective date 2026-01-01 and explicit evidence limitations.");
     console.log("Personal-risk bootstrap database, RLS, replay, concurrency and basis contracts passed.");
   } finally {
     for (const id of made) {
