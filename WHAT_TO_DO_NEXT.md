@@ -1,6 +1,6 @@
 # AzaLens — What To Do Next (Master Roadmap)
 
-**Last updated:** 2026-09-24
+**Last updated:** 2026-09-25
 
 **Canonical purpose:** This is AzaLens's canonical continuation and handover roadmap for future Fable, Astra, Claude, Codex, new project chats, and human reviewers. Repository evidence, merged SHAs, CI results, deployment verification, and authenticated behavior take precedence over percentages and conversational summaries.
 
@@ -13,9 +13,17 @@ Companion documents: `docs/AUDIT_2026-07-30.md` (verification evidence), `docs/C
 
 ---
 
+## Personal Risk cost-schedule correction — local review slice
+
+Migration 009 is implemented locally and remains uncommitted, unpushed and unapplied to production. Migration 008 remains byte-identical. The correction is guarded by the verified production precondition that no broker cost schedule or component exists: it refuses both forward application and reversal after immutable schedule evidence appears.
+
+The proposed schedule now stores `Saxo Bank`, the broker name printed on the owner's Account Statement, Cost Overview Report and Personal Information export. This evidence does **not** verify the account agreement's contracting-entity clause, and no client identifier or other personal detail is stored. The RPC fingerprint contract advances to version 2 and includes the corrected broker name and FINRA source-effective date. The FINRA reference insertion records `2026-01-01`; the documented 2026-10-01 through 2026-12-31 TAF pause remains disclosed while the founder-approved allowance stays deliberately conservative and is not represented as a FINRA assessment or charge billed by Saxo. The four formulas, API shape, permissions and policy version 1 are unchanged.
+
+**Stop boundary:** independent review is required before commit, push, production migration, deployment, authenticated API mutation or creation of the first cost schedule.
+
 ## THE SINGLE NEXT TASK
 
-**Step D IN PROGRESS — independently review the local PR #71 browser-selection correction before authorizing a corrected push and new CI run.** PR #71's first Reliability Gates run `35976581438`, attempt 1, failed on `6248a376452e78b0531cf37981a2f822518c9d6d`: ordinary `--grep-invert @visual` included six `@candidate` screenshot-producing cases, which failed initially and on Playwright Retry #1 because candidate output configuration is intentionally absent. The visual step was skipped, so that head has no native `exact-set:24/24` proof. The local correction excludes both `@visual` and `@candidate`; C2 remains deferred and accepted wiring remains 24/24. Do not push the correction, rerun CI, merge, deploy, access the authenticated Personal Risk API, or create live rows without separate authorization.
+**Independently review the uncommitted Personal Risk cost-schedule correction before authorizing commit or production application.** Review Migration 009's empty-schedule guards, `Saxo Bank` evidence wording, contract-2 idempotency fingerprint, FINRA `2026-01-01` source-effective date, guarded reversal, backend readback validation and retained four-component arithmetic. Do not commit, push, deploy, access the authenticated Personal Risk API or create a cost-schedule row without separate authorization.
 
 ## Current repository position
 

@@ -31,6 +31,11 @@ const SCHEDULE_ARGUMENTS = Object.freeze({
   p_allowance_approval_reference: "founder-approval://azalens/personal-risk-contract/2026-09-19",
 });
 
+const SCHEDULE_CONTRACT = Object.freeze({
+  brokerLegalEntity: "Saxo Bank",
+  finraSourceEffectiveFrom: "2026-01-01",
+});
+
 const EQUITY_CONSTANTS = Object.freeze({
   currency: "USD",
   brokerIdentifier: "Saxo MENA",
@@ -160,7 +165,10 @@ async function createSchedule({ db, userId, idempotencyKey }) {
   });
   const { ids: [id], replayed } = requireMutationIds(rpcRow, ["schedule_version_id"]);
   const row = restoreTextCasts(await exactlyOne(db.from(OPERATION_TABLES.COST_SCHEDULE)
-    .select("id,version_no_text:version_no::text").eq("user_id", userId).eq("id", id).limit(2)), [], ["version_no"]);
+    .select("id,version_no_text:version_no::text,broker_legal_entity").eq("user_id", userId).eq("id", id).limit(2)), [], ["version_no"]);
+  if (row.broker_legal_entity !== SCHEDULE_CONTRACT.brokerLegalEntity) {
+    throw new PersonalRiskError("PERSONAL_RISK_RESPONSE_INVALID");
+  }
   return { scheduleVersionId: requireUuid(row.id), versionNo: row.version_no, replayed };
 }
 
@@ -261,12 +269,19 @@ async function getStatus({ db, userId, observedAt, operation, idempotencyKey }) 
   ]);
   let costSchedule = null;
   if (schedule) {
+    if (schedule.broker_legal_entity !== SCHEDULE_CONTRACT.brokerLegalEntity) {
+      throw new PersonalRiskError("PERSONAL_RISK_RESPONSE_INVALID");
+    }
     const { data, error } = await db.from("broker_cost_schedule_components")
       .select(TEXT_CASTS.component)
       .eq("user_id", userId).eq("schedule_id", schedule.id).order("component_code", { ascending: true });
     mapDatabaseError(error);
     const codes = (data || []).map((row) => row.component_code);
     if (JSON.stringify(codes) !== JSON.stringify(EXPECTED_COMPONENTS)) {
+      throw new PersonalRiskError("PERSONAL_RISK_RESPONSE_INVALID");
+    }
+    const finra = data.find((row) => row.component_code === "FINRA_TAF_REFERENCE");
+    if (finra.source_effective_from !== SCHEDULE_CONTRACT.finraSourceEffectiveFrom) {
       throw new PersonalRiskError("PERSONAL_RISK_RESPONSE_INVALID");
     }
     costSchedule = { ...restoreTextCasts(schedule, ["maximum_modeled_sell_proceeds", "maximum_modeled_exit_quantity"], ["version_no"]),
@@ -284,6 +299,6 @@ async function getStatus({ db, userId, observedAt, operation, idempotencyKey }) 
 
 module.exports = {
   EQUITY_CONSTANTS, EXPECTED_COMPONENTS, OPERATION_TABLES, POLICY_ARGUMENTS, RPC_NAMES,
-  SCHEDULE_ARGUMENTS, PersonalRiskError, createEquity, createPolicy, createSchedule,
+  SCHEDULE_ARGUMENTS, SCHEDULE_CONTRACT, PersonalRiskError, createEquity, createPolicy, createSchedule,
   getStatus, mapDatabaseError, newYorkPeriods,
 };
