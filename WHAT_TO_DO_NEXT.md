@@ -1,6 +1,6 @@
 # AzaLens — What To Do Next (Master Roadmap)
 
-**Last updated:** 2026-09-25
+**Last updated:** 2026-09-26
 
 **Canonical purpose:** This is AzaLens's canonical continuation and handover roadmap for future Fable, Astra, Claude, Codex, new project chats, and human reviewers. Repository evidence, merged SHAs, CI results, deployment verification, and authenticated behavior take precedence over percentages and conversational summaries.
 
@@ -13,52 +13,35 @@ Companion documents: `docs/AUDIT_2026-07-30.md` (verification evidence), `docs/C
 
 ---
 
-## Personal Risk cost-schedule correction — local review slice
+## Personal Risk bootstrap — authenticated production evidence
 
-Migration 009 is implemented locally and remains uncommitted, unpushed and unapplied to production. Migration 008 remains byte-identical. The correction is guarded by the verified production precondition that no broker cost schedule or component exists: it refuses both forward application and reversal after immutable schedule evidence appears.
+PR #72 merged as true merge commit `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8`, tree `f63f8a202015dd5ef08195b0c7ccc9c405d71efc`. Migration `20260925120000` (Migration 009) is present exactly once in production. The matching frontend and backend release was verified, and backend liveness/readiness identify the merge commit with HTTP 200, `ready=true` and `strict=true`.
 
-The proposed schedule now stores `Saxo Bank`, the broker name printed on the owner's Account Statement, Cost Overview Report and Personal Information export. This evidence does **not** verify the account agreement's contracting-entity clause, and no client identifier or other personal detail is stored. The RPC fingerprint contract advances to version 2 and includes the corrected broker name and FINRA source-effective date. The FINRA reference insertion records `2026-01-01`; the documented 2026-10-01 through 2026-12-31 TAF pause remains disclosed while the founder-approved allowance stays deliberately conservative and is not represented as a FINRA assessment or charge billed by Saxo. The four formulas, API shape, permissions and policy version 1 are unchanged.
+An authenticated owner-scoped production audit on 2026-09-26 ran inside `BEGIN TRANSACTION READ ONLY` and returned `transaction_read_only=on`; the owner was resolved without recording or printing its identifier. It verified exactly one active policy version 1; exactly one `Saxo Bank` Classic schedule version 1 with the four reviewed components and FINRA source-effective date `2026-01-01`; exactly one `2784.95000000 USD` equity snapshot observed at `2026-09-25T22:07:30Z`; and exactly one New York daily basis for `2026-09-25` plus one weekly basis for `2026-09-21`, both `2784.95000000 USD`, sequence 1, linked to that snapshot. The owner separately observed Account value `$2,784.95 USD` and cash `$2,784.99 USD`; the snapshot correctly used Account value. Bootstrap status is complete with no pending intent. All nine actual Migration 004/008 outcome-ledger, position-risk and evaluation tables contain zero owner rows.
 
-**Stop boundary:** independent review is required before commit, push, production migration, deployment, authenticated API mutation or creation of the first cost schedule.
+The schedule continues to use the broker name printed on the owner's Account Statement, Cost Overview Report and Personal Information export. This evidence does **not** verify the account agreement's contracting-entity clause. The documented 2026-10-01 through 2026-12-31 TAF pause remains disclosed while the founder-approved allowance remains predictive conservatism, not a FINRA assessment or a charge proven to be billed by Saxo.
 
 ## THE SINGLE NEXT TASK
 
-**Independently review the uncommitted Personal Risk cost-schedule correction before authorizing commit or production application.** Review Migration 009's empty-schedule guards, `Saxo Bank` evidence wording, contract-2 idempotency fingerprint, FINRA `2026-01-01` source-effective date, guarded reversal, backend readback validation and retained four-component arithmetic. Do not commit, push, deploy, access the authenticated Personal Risk API or create a cost-schedule row without separate authorization.
+**Scope the next Core risk-flow slice.** Preserve the verified Personal Risk bootstrap as the starting state, define the smallest independently reviewable increment, and keep live trade, position, risk-evaluation and outcome-ledger writes separately authorized.
 
 ## Current repository position
 
-- Canonical merged `main`: `2480ee62a552f69716aea078cdf89a8e7485ac46`.
-- Canonical tree: `f9c10e8e99cc6fd64a655eab84d3fcea06bfc136`.
-- Active local branch: `feat/personal-risk-bootstrap-ui`.
-- Slice 2 Checkpoint A is authorized for one exact local feature commit in this checkpoint; it remains unpushed, unmerged, and undeployed.
-- Local feature-branch behavior must not be described as canonical `main` behavior.
+- Canonical merged `main` / `origin/main`: `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8`.
+- Canonical tree: `f63f8a202015dd5ef08195b0c7ccc9c405d71efc`.
+- Merge parents, in order: `6e6ae248fe6e7a63f1f95a7319816e3c8d7c29c4`, `c514b366892be3c95b1f9f53bd4ae6bd617a4f34`.
+- At the 2026-09-26 review checkpoint, this production-evidence reconciliation remained a local documentation-only change pending final commit authorization.
 
 ## Current working-tree scope
 
-### A. Personal Risk Checkpoint A — 14 paths
+At the 2026-09-26 review checkpoint, the proposed change was limited to this roadmap; no implementation, migration, test, baseline or configuration file was changed.
 
-1. `frontend/src/app/Router.tsx`
-2. `frontend/src/index.css`
-3. `frontend/src/pages/SettingsPage.tsx`
-4. `frontend/e2e/personal-risk-visual.spec.ts`
-5. `frontend/e2e/personal-risk.spec.ts`
-6. `frontend/src/lib/personalRiskDecimal.test.ts`
-7. `frontend/src/lib/personalRiskDecimal.ts`
-8. `frontend/src/lib/personalRiskPendingIntent.test.ts`
-9. `frontend/src/lib/personalRiskPendingIntent.ts`
-10. `frontend/src/pages/PersonalRiskSettingsPage.test.tsx`
-11. `frontend/src/pages/PersonalRiskSettingsPage.tsx`
-12. `frontend/src/services/personalRisk.test.ts`
-13. `frontend/src/services/personalRisk.ts`
-14. `frontend/src/types/personalRisk.ts`
+## Private backup and Drive recovery state
 
-This local slice supplies an owner-only route and Settings entry; strict bootstrap and mutation response validation; immutable policy and cost-schedule workflows; repeatable equity snapshots; exact idempotency-key persistence and recovery; fixed-scale `BigInt` decimal validation; strict timestamp normalization; New York date/week and basis preview; irreversible daily/weekly tightening confirmation; fail-closed malformed authoritative basis handling; stale and out-of-order preview suppression; focus, keyboard, live-region, and responsive behavior; a fail-closed browser request policy; a genuine phone-viewport dialog action/obstruction test; and synthetic-only visual evidence.
-
-### B. Reliability correction — one separately authorized path
-
-15. `frontend/src/components/auth/ClosedDemoGate.test.tsx`
-
-This is a test-only synchronization correction. Both manually delivered auth events are wrapped in awaited React `act`; the refreshed-session transition flushes before `SIGNED_OUT`; and the hoisted callback and relevant mocks reset in `beforeEach`. Production `ClosedDemoGate.tsx` is unchanged. The corrected test is mutation-sensitive for the signed-out transition, passed 20/20 isolated first executions, and passed three independent full frontend runs at 409/409. Reviewed test SHA-256: `90be09d0f78b2f79b955c2b3ef71d524b27c03757f6177c19a43128472bca3a3`.
+- Canonical merge `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8` is backed up as `AzaLens-2026-09-26-526e1c4.zip` (7,503,531 bytes; SHA-256 `174e415b5c3edfba5ed2cdfb8fa34b75587967805acd87a48e47a53c6973c5f2`) and `AzaLens-2026-09-26-526e1c4.sha256` (97 bytes; SHA-256 `411ca16ace01532795ad765822b58dbf29305da0f10963b924e3778b5fd10875`). Immutable-ID `copyid` readback proved byte identity, ZIP integrity and reconstructed tree `f63f8a202015dd5ef08195b0c7ccc9c405d71efc`; both objects are owner-only and `shared:false`.
+- Before that upload, 64 direct backup ZIPs and seven `Plans/` records were found in Drive trash. All 71 confirmed AzaLens objects were restored to their original parents without deletion, relocation or sharing changes. Active counts moved from 61 to 125 direct and 68 to 139 recursive; in-scope trash moved from 71 to zero. The later canonical backup produced the verified active deltas 125 to 127 direct and 139 to 141 recursive, with trash remaining zero and no original immutable ID missing or changed.
+- Available metadata/activity evidence did not identify who or what caused the mass trashing; storage usage did not prove a quota-cleanup explanation. Do not infer one.
+- Four legacy archives have no sidecars and therefore are **not fully verified backups**: `AzaLens_Backup_2026-08-01_ca61241.zip`, `AzaLens_2026-07-31_4f80c13.zip`, `AzaLens_Phase0_Production_2122bdd_2026-07-31.zip`, and `AzaLens-2026-07-30.zip`.
 
 ## Review artifacts and pinning rules
 
@@ -112,18 +95,16 @@ This is a test-only synchronization correction. Both manually delivered auth eve
 - A subsequent positive candidate run wrote one review-only PNG, then the day-desktop candidate timed out even against pinned `main`; the container was deliberately stopped, producing exit 137. No OOM cause was established.
 - Do not erase these failures by local rerun. The next canonical checkpoint is the first native CI run for the exact committed feature tree, with 24/24 wiring unchanged and snapshot updates disabled.
 
-### PR #71 first native CI run
+### PR #71 and PR #72 release record
 
-- Classification: **FAILED — preserved first attempt; correction pending independent review**.
-- Reliability Gates run `35976581438`, attempt 1, ran on commit `6248a376452e78b0531cf37981a2f822518c9d6d`.
-- The ordinary browser command used `--grep-invert @visual`, which included six screenshot-producing `@candidate` cases across desktop and mobile. Each failed under the fail-closed candidate-directory guard and failed again on Playwright Retry #1.
-- The browser phase reported 32 passed, two skipped, and six failed. Its visual-regression step was skipped, so no `VISUAL_COMPARISON_PROOF=exact-set:24/24` exists for that head.
-- The smallest local correction changes only the ordinary browser selector to exclude `@visual|@candidate`. The canonical visual command, candidate tags, guard, reporter, configuration, accepted baselines, and comparison thresholds remain unchanged.
-- C2 Personal Risk baseline acceptance remains deferred. Authenticated live Personal Risk read/write evidence remains absent and pending after a future verified deployment.
+- PR #71's first run `35976581438` on `6248a376452e78b0531cf37981a2f822518c9d6d` remains a genuine failure. The corrected-head run `35979740951`, attempt 1, passed all five jobs, and the first main run `35980677862`, attempt 1, emitted `VISUAL_COMPARISON_PROOF=exact-set:24/24`.
+- PR #71 merged as `6e6ae248fe6e7a63f1f95a7319816e3c8d7c29c4`; its production frontend release and exact-commit private backup were verified.
+- PR #72 corrected the prospective cost schedule through forward Migration 009 and matching application code. It merged as `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8`; Migration 009 is applied once and the matching frontend/backend release is live.
+- C2 Personal Risk baseline acceptance remains deferred. Accepted visual wiring remains 24/24.
 
 ## Current proof boundary
 
-**All Personal Risk browser behavior is fixture-backed.** The UI has never completed an authenticated request against the deployed Personal Risk API. No real Personal Risk policy, cost schedule, equity snapshot, daily basis, or weekly basis row exists; the Personal Risk tables remain empty. No real trade or outcome-ledger write occurred through this work. Core must not yet be described as `PRODUCTION-TRUSTED` or real-money validated.
+The Personal Risk bootstrap is now **CONTROLLED LIVE-WRITE VERIFIED** and independently re-read through authenticated owner-scoped production access. Exactly one policy, schedule, snapshot, daily basis and weekly basis exist with the reviewed values recorded above. This does not establish trading correctness: no position, trade, risk evaluation or outcome-ledger row exists, and Core must not yet be described as `PRODUCTION-TRUSTED`, shadow-trading verified or real-money validated.
 
 No overall completion percentage is authoritative. Any preserved historical percentage is a **SUPERSEDED PLANNING ESTIMATE — NOT A VERIFIED PROGRESS MEASURE**.
 
@@ -136,23 +117,23 @@ Every step has exactly one live status. A future step is not done because its fi
 | A | **DONE** | Independently reviewed roadmap bytes (`f2b70dd19ffcc1770919653c13983b4fdc73be3df8aa252279f9fe99cfa09055`), reviewed pre-roadmap-update 15-path patch (`d03195a793d8df848d80117a232f141c2b4b4291a5cd61b442ab5a24fce173c5`), and reviewed initial 16-path roadmap patch (`22d3cae94db85d187f3a5b42808536dbc0c59f663110ea7e796173e7f242f739`) are time-bound historical review evidence that predates this status edit, not final current hashes. |
 | B | **DONE — fresh 16-path patch and standalone evidence manifest produced and independently reviewable outside the repository** | Final current identities are recorded in the standalone evidence manifest and checkpoint review report, not self-referentially in this roadmap. |
 | C | **DEFERRED — separate visual-baseline slice required** | The eight C1 candidates remain reviewed layout/geometry evidence, not accepted baselines. Accepted wiring remains 24/24; new CI-produced bytes require separate review before any future acceptance. |
-| D | **IN PROGRESS — PR #71 first CI failed; local selection correction pending review** | Run `35976581438`, attempt 1, failed because ordinary inverse-grep selection included six `@candidate` cases; all failed initially and on Retry #1, and the visual step was skipped. The local correction excludes `@visual|@candidate`. Accepted wiring stays 24/24; a corrected push and new CI run require separate authorization. |
-| E | **NOT STARTED** | Open the PR and require the initial GitHub Actions workflow run to pass; never manually rerun a failed workflow to manufacture green status. |
-| F | **NOT STARTED** | Report every Playwright framework-internal retry; do not hide a flaky first attempt behind a green job. Apply merge policy to the exact evidence. |
-| G | **NOT STARTED** | Produce a true merge commit; prove its tree equals the approved feature tree, its second-parent diff is empty, and path scope is exact. |
-| H | **NOT STARTED** | Confirm Vercel frontend redeploys and Render backend does not redeploy for frontend/test/document-only changes. |
-| I | **NOT STARTED** | Back up the canonical merge commit using the established authenticated Drive standard. |
-| J | **NOT STARTED** | In the owner's authenticated browser, load `/settings/personal-risk` read-only first. |
-| K | **NOT STARTED** | Create nothing if live status, ownership, origin, schema, or empty state differs from expectation. |
-| L | **NOT STARTED** | Create the immutable policy only after read-only proof. |
-| M | **NOT STARTED** | Re-read and verify the exact created policy. |
-| N | **NOT STARTED** | Create the cost schedule. |
-| O | **NOT STARTED** | Re-read and verify its four exact components and version. |
-| P | **NOT STARTED** | Obtain true broker-confirmed total USD account equity—not cash, buying power, position market value, or cost basis. |
-| Q | **NOT STARTED** | Preview the equity snapshot and resulting bases before writing. |
-| R | **NOT STARTED** | Create the first equity snapshot only after deliberate confirmation. |
-| S | **NOT STARTED** | Verify daily and weekly bases through authenticated live behavior. |
-| T | **NOT STARTED** | Preserve evidence without recording credentials or private financial information. |
+| D | **DONE** | PR #71 first CI failure is preserved; the corrected-head first run and exact-merge main run passed with native 24/24 proof. |
+| E | **DONE** | PR #71 and its corrected first-attempt CI evidence were reviewed without manually rerunning the failed earlier head. |
+| F | **DONE** | Playwright retry/skip evidence was reported without recasting the original failed run as green. |
+| G | **DONE** | PR #71 and PR #72 were true-merge verified, culminating in canonical merge `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8`. |
+| H | **DONE** | Matching production frontend and backend deployments for PR #72 were verified; backend health identifies the canonical merge. |
+| I | **DONE** | The canonical merge was archived and immutable-ID read back from the private Drive folder with exact bytes/tree and owner-only permissions. |
+| J | **DONE** | Authenticated Personal Risk status was read before writes and showed the expected empty state. |
+| K | **DONE** | Ownership, origin, schema and empty-state gates matched before controlled writes. |
+| L | **DONE** | Immutable policy version 1 was created under separate authorization. |
+| M | **DONE** | Policy version 1 was refreshed and re-read with exact approved values. |
+| N | **DONE** | `Saxo Bank` Classic cost-schedule version 1 was created after Migration 009 and matching-code deployment. |
+| O | **DONE** | Authenticated audit verified the schedule and exactly four reviewed components, including FINRA effective `2026-01-01`. |
+| P | **DONE** | Broker-confirmed total account equity `2784.95000000 USD` was used; cash and buying power were not substituted. |
+| Q | **DONE** | The snapshot and resulting New York bases were previewed before the controlled write. |
+| R | **DONE** | One equity snapshot was created under deliberate confirmation. |
+| S | **DONE** | One daily and one weekly basis were authenticated-owner re-read with exact values, sequence and snapshot relationship. |
+| T | **DONE** | Evidence is recorded without owner UUIDs, row IDs, credentials, tokens or personal-document contents. |
 
 ## Maintenance rule
 
@@ -175,6 +156,7 @@ The standard merge/checkpoint checklist is:
 - true merge verification;
 - deployment verification;
 - authenticated Drive backup;
+- Drive backup inventory proof that active direct-child count increases by exactly two, in-scope trashed count is zero before and after, and the new ZIP and sidecar pass the established private immutable-ID readback and integrity checks; a count that includes trashed objects is never proof of this invariant;
 - **Roadmap updated and evidence status reconciled**.
 
 ## Readiness before Fable/Astra redesign
@@ -214,12 +196,13 @@ This remains a separate later module/model. It must not begin merely because Cor
 | Mobile pending recovery | **BLOCKED — original causal artifacts were overwritten** | Classification D — INCONCLUSIVE; preserve complete evidence on recurrence before rerun. |
 | Durable Playwright artifact retention | **NOT STARTED** | Requires separately reviewed implementation scope. |
 | Eight-baseline Personal Risk acceptance | **DEFERRED — separate visual-baseline slice required** | C1 candidates are reviewed and pinned but are not accepted baselines. Preserve 24/24 until new CI-produced bytes receive separate review. |
-| Slice 2 commit/PR/merge/deployment/backup | **IN PROGRESS — PR #71 first CI failed; correction local only** | Preserve run `35976581438`, attempt 1, as failed. Review the local two-path browser-selection correction before any corrected push. Native 24/24 visual proof, merge, deployment, authenticated live verification, and backup remain pending and separately gated. |
-| First authenticated read-only Personal Risk checkpoint | **NOT STARTED** | Fixture-backed UI is not live proof. |
-| First controlled policy/schedule/equity sequence | **NOT STARTED** | Must follow authenticated read-only and empty-state proof. |
-| Remaining Core slices | **NOT STARTED** | Scope separately after Slice 2 evidence closes. |
+| Slice 2 commit/PR/merge/deployment/backup | **DONE** | PR #71 and PR #72 are merged and deployed; canonical merge `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8` has an exact private Drive backup. Preserve the genuine failed first PR #71 run alongside later passing evidence. |
+| First authenticated read-only Personal Risk checkpoint | **DONE** | Live owner-scoped status and the subsequent read-only database audit match the deployed schema and expected state. |
+| First controlled policy/schedule/equity sequence | **DONE** | Exact version-1 policy/schedule and snapshot/bases are live and authenticated-owner re-read; no risk or ledger row was created. |
+| Roadmap production-evidence reconciliation | **DONE** | Content review accepted the roadmap-only reconciliation on 2026-09-26; commit and push remain separately gated. |
+| Remaining Core slices | **NEXT — SCOPE REQUIRED** | Scope the next independently reviewable risk-flow slice without creating live trade/risk rows prematurely. |
 | Shadow trading | **NOT STARTED** | Requires functioning, verified Core workflows. |
-| Fable/Astra redesign | **BLOCKED — live-read/live-write, remaining Core, and shadow evidence absent** | Do not trigger from a percentage. |
+| Fable/Astra redesign | **BLOCKED — remaining Core and shadow-trading evidence absent** | Live Personal Risk bootstrap read/write evidence now exists; do not trigger redesign from that bootstrap milestone or from a percentage. |
 | Beta readiness | **BLOCKED — Core and non-code gates remain** | Requires product-wide functional, responsive, accessibility, truthfulness, and operational review. |
 | Legal, Shariah, regulatory/licensing, monitoring, and support readiness | **REQUIRES REVALIDATION** | Preserve the historical tracks below; establish current evidence before beta or money use. |
 | Later Gapper/Momentum Room | **BLOCKED — Core has not reached stable exercised beta** | Separate model and evidence program required. |
@@ -238,6 +221,15 @@ This is a narrow reconciliation against locally available repository evidence, n
 | Local `.env` provider-pair mismatch | **REQUIRES REVALIDATION** | Local secrets/configuration were intentionally not inspected or printed in this documentation checkpoint. |
 
 ## Change log
+
+### 2026-09-26
+
+- Reconciled the canonical repository position to PR #72 merge `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8`, tree `f63f8a202015dd5ef08195b0c7ccc9c405d71efc`, and recorded that Migration 009 is applied exactly once with matching production frontend/backend code.
+- Recorded the authenticated owner-scoped, read-only production audit: `transaction_read_only=on`; one exact policy v1; one `Saxo Bank` Classic schedule v1 with four reviewed components and FINRA effective `2026-01-01`; one exact equity snapshot; linked daily/weekly bases; complete bootstrap; no pending intent; and zero owner rows across all nine outcome/risk/evaluation tables.
+- Recorded the exact private backup of the canonical merge, including archive/sidecar hashes, immutable-ID readback, reconstructed tree and owner-only permissions.
+- Recorded the Drive incident and recovery without inventing causality: 64 direct ZIPs plus seven `Plans/` records were restored, expected active inventories were recovered, and trash returned to zero before backup.
+- Recorded the four legacy ZIPs without sidecars as unpaired and not fully verified.
+- Recorded completion of content review and moved the single next task to scoping the next Core risk-flow slice. No implementation, deployment, database write or new backup is authorized by this edit.
 
 ### 2026-09-24
 
