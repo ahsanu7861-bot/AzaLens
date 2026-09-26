@@ -17,7 +17,7 @@
     "test:fonts:dist": "node scripts/checkLocalFonts.mjs --dist",
     "test:csp-hashes": "node scripts/checkCspHashes.mjs",
     "lint": "oxlint",
-    "test": "vitest run && node scripts/checkBrandAssets.mjs",
+    "test": "vitest run --exclude 'shadow-tests/**' && node scripts/checkBrandAssets.mjs",
     "test:brand": "node scripts/checkBrandAssets.mjs",
     "preview": "vite preview",
     "test:privilege": "node scripts/checkPrivilegeContainment.mjs",

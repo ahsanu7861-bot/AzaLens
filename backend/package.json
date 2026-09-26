@@ -21,7 +21,8 @@
     "test:personal-persistence-db": "node tests/testPersonalPersistenceDatabase.js",
     "test:personal-risk-bootstrap": "node tests/testPersonalRiskBootstrapRoutes.js && node tests/testPersonalRiskBootstrapService.js && node tests/testPersonalRiskBootstrapStatic.js",
     "test:personal-risk-bootstrap-db": "node tests/testPersonalRiskBootstrapDatabase.js",
-    "test:db": "npm run check:migrations && npm run check:migrations:down && node tests/testOutcomeLedgerMigrationContract.js && node tests/testRiskLifecycleContract.js && npm run test:tenant-isolation && npm run test:rls-coverage && node tests/testTwelveDataCreditRpc.js && node tests/testRiskLifecycleRpc.js && node tests/testRiskLifecycleReversal.js && npm run test:watchlist-cap && npm run test:portfolio-cap && node tests/testRiskFoundationRpc.js && npm run test:personal-risk-bootstrap-db",
+    "test:risk-shadow-parity": "node tests/testRiskShadowArithmeticParity.js",
+    "test:db": "npm run check:migrations && npm run check:migrations:down && node tests/testOutcomeLedgerMigrationContract.js && node tests/testRiskLifecycleContract.js && npm run test:risk-shadow-parity && npm run test:tenant-isolation && npm run test:rls-coverage && node tests/testTwelveDataCreditRpc.js && node tests/testRiskLifecycleRpc.js && node tests/testRiskLifecycleReversal.js && npm run test:watchlist-cap && npm run test:portfolio-cap && node tests/testRiskFoundationRpc.js && npm run test:personal-risk-bootstrap-db",
     "test:compliance-gate": "node tests/testComplianceGate.js",
     "test:market-session": "node tests/testMarketSession.js",
     "test:rvol-session-awareness": "node tests/testRvolSessionAwareness.js",
@@ -74,6 +75,7 @@
     "yahoo-finance2": "^2.13.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "typescript": "6.0.3"
   }
 }
