@@ -1,0 +1,19 @@
+[
+  {"name":"hand-anchor-loss","quantity":"10","entryPrice":"100","protectiveStop":"90","entryFee":"2","entryTax":"1","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"hand-anchor-zero-floor","quantity":"1","entryPrice":"90","protectiveStop":"100","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"negative-half-unit-rounding","quantity":"0.5","entryPrice":"0.99999999","protectiveStop":"4","entryFee":"0","entryTax":"0","slippageBps":"0","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"commission-below-floor","quantity":"1","entryPrice":"1000","protectiveStop":"1249.99999999","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"commission-at-floor","quantity":"1","entryPrice":"1000","protectiveStop":"1250","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"commission-above-floor","quantity":"1","entryPrice":"1000","protectiveStop":"1250.00000625","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"allowance-below-crossover","quantity":"3","entryPrice":"5000","protectiveStop":"4844.90270000","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"allowance-nearest-below-crossover","quantity":"3","entryPrice":"5000","protectiveStop":"4844.90291262","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"allowance-above-crossover","quantity":"3","entryPrice":"5000","protectiveStop":"4844.90310000","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"quantity-allowance-1538","quantity":"1538","entryPrice":"1","protectiveStop":"0.00000001","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"quantity-allowance-1539","quantity":"1539","entryPrice":"1","protectiveStop":"0.00000001","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"eight-decimal-rounding","quantity":"1.23456789","entryPrice":"17.87654321","protectiveStop":"13.33333333","entryFee":"0.12345678","entryTax":"0.00000001","slippageBps":"25.0000","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"proceeds-envelope-exact","quantity":"1","entryPrice":"100000","protectiveStop":"100000","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"proceeds-envelope-above","quantity":"1","entryPrice":"100000.00000001","protectiveStop":"100000.00000001","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"quantity-envelope-exact","quantity":"10000","entryPrice":"1","protectiveStop":"1","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"quantity-envelope-above","quantity":"10000.00000001","entryPrice":"1","protectiveStop":"1","entryFee":"0","entryTax":"0","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"},
+  {"name":"missing-stop-structural","quantity":"10","entryPrice":"100","protectiveStop":null,"entryFee":"2","entryTax":"1","slippageBps":"25","maximumModeledSellProceeds":"100000","maximumModeledExitQuantity":"10000"}
+]
