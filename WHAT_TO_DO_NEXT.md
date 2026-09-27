@@ -29,16 +29,22 @@ Corrected-head PR run `36272559294`, attempt 1, and first-main run `36272831375`
 
 This proof is informational and deliberately labelled `SHADOW_PREVIEW`: the unwired preview matches `_risk008_calculate` only for the reviewed arithmetic fixtures and numeric fields. It establishes **no** rejection-code or decision-precedence parity, runtime risk-flow integration, live position write, or trade execution.
 
+## Roadmap and Personal Risk test-readiness release evidence
+
+PR #75 was documentation-only and merged as true merge commit `bcaae1f436d404dcf53eeb8719bd576aaf57e9af`. Its first main Reliability Gates run `36302337862`, attempt 1, remains a genuine failure and was not rerun: while bootstrap status was still loading, the Personal Risk page test found **Create policy version** in the DOM but clicked it while the control was disabled, so the expected **Confirm and submit** dialog did not open. The failure was a test synchronization race; it is not recorded as a passing run or as evidence of a production defect.
+
+PR #76 changed only `frontend/src/pages/PersonalRiskSettingsPage.test.tsx` so gated controls are located, awaited until enabled, and only then clicked before the resulting dialog or state is awaited. It merged as true merge commit `d7c3900cd4126df6009422a9e81d9ebc6099f4dc`, tree `5144aa02cec3b46336a03c76dab908f421c0fb09`. Corrected-head PR run `36304706626`, attempt 1, and first-main run `36304981261`, attempt 1, both passed all five Reliability Gates jobs; the latter retained native `VISUAL_COMPARISON_PROOF=exact-set:24/24`. Release Health classified `backendChanged=false`; Render remained healthy on `4c74803216b4cd37fd50b44dffe9200323969582`, while Vercel completed the production frontend result without requiring asset hashes to change. The exact merge is privately backed up with owner-only ZIP and sidecar, immutable-ID byte readback, archive/tree and credential checks, active direct-child inventory `131 → 133`, and in-scope trash `0 → 0`.
+
 ## THE SINGLE NEXT TASK
 
 **Read-only scope decision parity using the actual three new-risk RPCs in disposable transactions guaranteed to roll back.** Cover overlapping rejection conditions and authoritative precedence, and include independence checks showing broker-confirmed exits and stop tightening remain available when new-risk policy/reference lookup or approval calculation fails while their own database path is healthy. Distinguish recording an exit or stop change in AzaLens from executing it at Saxo. Do not add runtime wiring, durable position/risk/outcome rows, provider calls or trade execution in this scoping task.
 
 ## Current repository position
 
-- Canonical merged `main` / `origin/main`: `4c74803216b4cd37fd50b44dffe9200323969582`.
-- Canonical tree: `7f9153b3d270e88fca91753ea9fb64b422c7111c`.
-- Merge parents, in order: `040b52cea31dd0ffa2dc133081b10201236c2b4a`, `027b89fd9f42d63d6ce61629f2b9dc554daebf07`.
-- PR #74's reviewed shadow arithmetic slice is merged, deployed and privately backed up; decision-parity scoping remains read-only and separately reviewable.
+- Canonical merged `main` / `origin/main`: `d7c3900cd4126df6009422a9e81d9ebc6099f4dc`.
+- Canonical tree: `5144aa02cec3b46336a03c76dab908f421c0fb09`.
+- Merge parents, in order: `bcaae1f436d404dcf53eeb8719bd576aaf57e9af`, `d6d89d4361b447494c896feca33ba849698f9522`.
+- PR #74's reviewed shadow arithmetic slice and PR #76's one-file test-readiness correction are merged and privately backed up; decision-parity scoping remains read-only and separately reviewable.
 
 ## Current working-tree scope
 
@@ -48,6 +54,7 @@ This 2026-09-27 documentation checkpoint is limited to this roadmap; no implemen
 
 - Canonical merge `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8` is backed up as `AzaLens-2026-09-26-526e1c4.zip` (7,503,531 bytes; SHA-256 `174e415b5c3edfba5ed2cdfb8fa34b75587967805acd87a48e47a53c6973c5f2`) and `AzaLens-2026-09-26-526e1c4.sha256` (97 bytes; SHA-256 `411ca16ace01532795ad765822b58dbf29305da0f10963b924e3778b5fd10875`). Immutable-ID `copyid` readback proved byte identity, ZIP integrity and reconstructed tree `f63f8a202015dd5ef08195b0c7ccc9c405d71efc`; both objects are owner-only and `shared:false`.
 - Canonical merge `4c74803216b4cd37fd50b44dffe9200323969582` is backed up as `AzaLens-2026-09-27-4c74803.zip` (7,513,019 bytes; SHA-256 `2cfcba85761e4a58776c73c5170fa9ed8de6b04ad7be967fc0c2ce2bd663bb82`) and `AzaLens-2026-09-27-4c74803.sha256` (97 bytes; SHA-256 `2db2211a488e3630f643a2de021de3bf6d1b2ca7aabfd319f278a8ba16b37c5f`). Immutable-ID readback proved byte identity, ZIP integrity, exact tracked paths and modes, and reconstructed tree `7f9153b3d270e88fca91753ea9fb64b422c7111c`; both objects are owner-only and `shared:false`. Active direct-child inventory moved `129 → 131`, recursive inventory moved `143 → 145`, and in-scope trash remained `0 → 0`.
+- Canonical merge `d7c3900cd4126df6009422a9e81d9ebc6099f4dc` is backed up as `AzaLens-2026-09-27-d7c3900.zip` (7,514,637 bytes; SHA-256 `c6855cc4fbb8d9752f2903319b92517e14890c89a749eaa6afade65799983132`) and `AzaLens-2026-09-27-d7c3900.sha256` (97 bytes; SHA-256 `77ff0c564aa22ace9d039962f491040d2bf69c6662486b3766c175a21470147c`). Immutable-ID readback proved byte identity; ZIP integrity, exact tracked paths and modes, credential audit and reconstruction verified tree `5144aa02cec3b46336a03c76dab908f421c0fb09`. Both objects are owner-only and `shared:false`; active direct-child inventory moved `131 → 133` and in-scope trash remained `0 → 0`.
 - Before the 2026-09-26 backup, 64 direct backup ZIPs and seven `Plans/` records were found in Drive trash. All 71 confirmed AzaLens objects were restored to their original parents without deletion, relocation or sharing changes. Active counts moved from 61 to 125 direct and 68 to 139 recursive; in-scope trash moved from 71 to zero. The later canonical backup produced the verified active deltas 125 to 127 direct and 139 to 141 recursive, with trash remaining zero and no original immutable ID missing or changed.
 - Available metadata/activity evidence did not identify who or what caused the mass trashing; storage usage did not prove a quota-cleanup explanation. Do not infer one.
 - Four legacy archives have no sidecars and therefore are **not fully verified backups**: `AzaLens_Backup_2026-08-01_ca61241.zip`, `AzaLens_2026-07-31_4f80c13.zip`, `AzaLens_Phase0_Production_2122bdd_2026-07-31.zip`, and `AzaLens-2026-07-30.zip`.
@@ -104,12 +111,14 @@ This 2026-09-27 documentation checkpoint is limited to this roadmap; no implemen
 - A subsequent positive candidate run wrote one review-only PNG, then the day-desktop candidate timed out even against pinned `main`; the container was deliberately stopped, producing exit 137. No OOM cause was established.
 - Do not erase these failures by local rerun. The next canonical checkpoint is the first native CI run for the exact committed feature tree, with 24/24 wiring unchanged and snapshot updates disabled.
 
-### PR #71, PR #72 and PR #74 release record
+### PR #71, PR #72, PR #74, PR #75 and PR #76 release record
 
 - PR #71's first run `35976581438` on `6248a376452e78b0531cf37981a2f822518c9d6d` remains a genuine failure. The corrected-head run `35979740951`, attempt 1, passed all five jobs, and the first main run `35980677862`, attempt 1, emitted `VISUAL_COMPARISON_PROOF=exact-set:24/24`.
 - PR #71 merged as `6e6ae248fe6e7a63f1f95a7319816e3c8d7c29c4`; its production frontend release and exact-commit private backup were verified.
 - PR #72 corrected the prospective cost schedule through forward Migration 009 and matching application code. It merged as `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8`; Migration 009 is applied once and the matching frontend/backend release is live.
 - PR #74's original run `36270527058`, attempt 1, remains a genuine failure caused by the database job's missing frontend runner. The reviewed in-process Option 1 correction passed corrected-head run `36272559294`, attempt 1; PR #74 then merged as `4c74803216b4cd37fd50b44dffe9200323969582`, tree `7f9153b3d270e88fca91753ea9fb64b422c7111c`, and first-main run `36272831375`, attempt 1, passed all five jobs. Matching Vercel and Render deployments and the exact-merge private backup were verified.
+- PR #75 merged the roadmap-only reconciliation as `bcaae1f436d404dcf53eeb8719bd576aaf57e9af`. Its first-main run `36302337862`, attempt 1, genuinely failed when the Personal Risk test clicked **Create policy version** while it was disabled during status loading; that run remains failed and was not rerun.
+- PR #76 corrected only the affected Personal Risk test synchronization. Corrected-head PR run `36304706626`, attempt 1, and first-main run `36304981261`, attempt 1, passed all five jobs; true merge `d7c3900cd4126df6009422a9e81d9ebc6099f4dc` retained the reviewed one-file scope. Release Health reported `backendChanged=false`, Render stayed healthy on `4c74803216b4cd37fd50b44dffe9200323969582`, Vercel completed its production result, and the exact merge's private backup moved active inventory `131 → 133` with trash `0 → 0`.
 - C2 Personal Risk baseline acceptance remains deferred. Accepted visual wiring remains 24/24.
 
 ## Current proof boundary
@@ -145,7 +154,8 @@ Every step has exactly one live status. A future step is not done because its fi
 | S | **DONE** | One daily and one weekly basis were authenticated-owner re-read with exact values, sequence and snapshot relationship. |
 | T | **DONE** | Evidence is recorded without owner UUIDs, row IDs, credentials, tokens or personal-document contents. |
 | U | **DONE** | PR #74 released the unwired arithmetic-only `SHADOW_PREVIEW`; both first-attempt passing CI runs proved 16 fixtures and 192 numeric-field comparisons, while the original missing-runner failure remains preserved. |
-| V | **NEXT — READ-ONLY SCOPE REQUIRED** | Scope authoritative rejection-code and precedence parity through the actual three new-risk RPCs inside disposable transactions guaranteed to roll back, with overlapping-condition cases and independent exit/stop-tightening checks. Recording in AzaLens must remain distinct from Saxo execution. |
+| V | **DONE** | PR #75's documentation-only merge and genuine failed first-main run remain recorded; PR #76's reviewed one-file readiness correction passed its first PR and first-main attempts, retained `backendChanged=false`, and was privately backed up. |
+| W | **NEXT — READ-ONLY SCOPE REQUIRED** | Scope authoritative rejection-code and precedence parity through the actual three new-risk RPCs inside disposable transactions guaranteed to roll back, with overlapping-condition cases and independent exit/stop-tightening checks. Recording in AzaLens must remain distinct from Saxo execution. |
 
 ## Maintenance rule
 
@@ -154,6 +164,8 @@ This roadmap is updated as work completes, not weeks afterward.
 Every item in the immediate next sequence and open-items register carries a status. When a step is completed and independently reviewed, its status is updated in this file during the same working session, with the evidence proving completion—for example, an approved patch hash, commit SHA, CI run, merge SHA/tree, deployment commit, authenticated live-read result, or controlled live-write result.
 
 A step is never marked complete from a plan, intention, unreviewed local change, or successful rerun that hides an earlier failure.
+
+Tests must await enablement before interacting with a gated control. A control's presence in the DOM is not readiness evidence. This standing rule applies to both the earlier `ClosedDemoGate` synchronization race and the Personal Risk **Create policy version** race: find the control, assert or await that it is enabled, then interact and await the resulting state.
 
 If a step is abandoned, blocked, or superseded, its status and reason are recorded.
 
@@ -213,6 +225,7 @@ This remains a separate later module/model. It must not begin merely because Cor
 | First controlled policy/schedule/equity sequence | **DONE** | Exact version-1 policy/schedule and snapshot/bases are live and authenticated-owner re-read; no risk or ledger row was created. |
 | Roadmap production-evidence reconciliation | **DONE** | The reviewed roadmap-only reconciliation completed its PR #73 release on 2026-09-26. |
 | Shadow arithmetic parity | **DONE — ARITHMETIC ONLY** | PR #74 proves the unwired `SHADOW_PREVIEW` matches `_risk008_calculate` on 16 synthetic fixtures and 192 numeric-field comparisons, including negative half-unit rounding. It does not prove lifecycle decisions or runtime integration. |
+| PR #75/#76 roadmap and test readiness | **DONE** | PR #75's first-main run `36302337862` remains failed; PR #76 corrected only the gated-control test synchronization, passed first-attempt PR/main CI, retained the unchanged healthy Render deployment, and has a verified private backup. |
 | Decision parity | **NEXT — READ-ONLY SCOPE REQUIRED** | Use the actual three new-risk RPCs only in disposable transactions guaranteed to roll back; cover overlapping rejection conditions and precedence, plus exit/stop-tightening independence while their own database path is healthy. Do not confuse AzaLens recording with Saxo execution. |
 | Remaining Core slices | **NOT STARTED — AFTER DECISION-PARITY SCOPE** | Preserve risk-reducing paths independently and do not create live trade/risk rows prematurely. |
 | Shadow trading | **NOT STARTED** | Requires functioning, verified Core workflows. |
@@ -238,6 +251,9 @@ This is a narrow reconciliation against locally available repository evidence, n
 
 ### 2026-09-27
 
+- Recorded PR #75's docs-only true merge `bcaae1f436d404dcf53eeb8719bd576aaf57e9af` and preserved first-main run `36302337862`, attempt 1, as failed: the Personal Risk test clicked **Create policy version** while the gated control was disabled during status loading.
+- Recorded PR #76's one-file test-readiness correction, true merge `d7c3900cd4126df6009422a9e81d9ebc6099f4dc`, first-attempt passing PR run `36304706626` and main run `36304981261`, `backendChanged=false`, unchanged healthy Render commit, completed Vercel result, and verified private backup with active inventory `131 → 133` and trash `0 → 0`.
+- Added the standing test rule to await enablement before interacting with any gated control, covering the `ClosedDemoGate` and Personal Risk synchronization races.
 - Recorded PR #74's genuine first-attempt failure `36270527058`: the database job had backend-only dependencies while the original parity harness attempted to spawn the absent frontend Vitest runner. The failure was preserved and was not rerun.
 - Recorded the reviewed Option 1 correction, corrected-head PR run `36272559294`, first-main run `36272831375`, true merge `4c74803216b4cd37fd50b44dffe9200323969582`, tree `7f9153b3d270e88fca91753ea9fb64b422c7111c`, matching Vercel/Render deployment, and exact private backup with active direct-child inventory `129 → 131` and trash `0 → 0`.
 - Fixed the proof boundary: the unwired `SHADOW_PREVIEW` matches `_risk008_calculate` across 16 synthetic fixtures and 192 numeric-field comparisons, including negative half-unit rounding; rejection-code/precedence parity, runtime integration, live position writes and trade execution remain unproved.
