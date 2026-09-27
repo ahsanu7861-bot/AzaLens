@@ -1,6 +1,6 @@
 # AzaLens — What To Do Next (Master Roadmap)
 
-**Last updated:** 2026-09-27
+**Last updated:** 2026-09-28
 
 **Canonical purpose:** This is AzaLens's canonical continuation and handover roadmap for future Fable, Astra, Claude, Codex, new project chats, and human reviewers. Repository evidence, merged SHAs, CI results, deployment verification, and authenticated behavior take precedence over percentages and conversational summaries.
 
@@ -29,6 +29,16 @@ Corrected-head PR run `36272559294`, attempt 1, and first-main run `36272831375`
 
 This proof is informational and deliberately labelled `SHADOW_PREVIEW`: the unwired preview matches `_risk008_calculate` only for the reviewed arithmetic fixtures and numeric fields. It establishes **no** rejection-code or decision-precedence parity, runtime risk-flow integration, live position write, or trade execution.
 
+## Decision parity — released evidence
+
+Step W is **DONE**. PR #78 merged as true merge commit `271ff3f3c34e5d25dd2357068901be47cf4c4845`. Its disposable-database harness invoked the actual Migration 008 opening, increase and stop-loosening RPCs across 37 completed cases, proving rejection tuples and precedence under overlapping failures plus the independence of broker-confirmed exit recording and stop tightening while their own database paths are healthy. Explicit success-path rollback and connection-close rollback on failure were checked from a separate backend connection with a different `pg_backend_pid()`; exact before/after counts matched and fixture markers remained zero.
+
+First-attempt PR Reliability Gates run `36351300421` and first-main run `36351681789` both passed all five jobs without rerun. Main emitted `DECISION_PARITY_CASES_COMPLETED=37`, the separate-connection rollback proof, `REVERSIBILITY CHECK PASSED`, and `VISUAL_COMPARISON_PROOF=exact-set:24/24`. Release Health run `36351919342`, attempt 1, classified `backendChanged=true`, expected the full merge SHA, and configured at most 30 deployment-health polls at 15-second intervals; poll attempt 1 observed the matching backend commit. The classifier exposes no `frontendChanged` field. Vercel's `azalens` production deployment completed successfully.
+
+The exact merge is privately backed up as owner-only, unshared `AzaLens-2026-09-28-271ff3f.zip` and its SHA-256 sidecar. Immutable-ID readback was byte-identical, all 477 reconstructed blobs matched the merge tree, credential and Git-metadata audits were clean, active direct-child inventory moved `135 → 137`, and trash remained `0 → 0`.
+
+This closes database decision and recording parity only. It does **not** establish runtime wiring, shadow trading, live position writes, or Saxo execution. AzaLens recording an exit or stop change remains distinct from executing an order at Saxo.
+
 ## Roadmap and Personal Risk test-readiness release evidence
 
 PR #75 was documentation-only and merged as true merge commit `bcaae1f436d404dcf53eeb8719bd576aaf57e9af`. Its first main Reliability Gates run `36302337862`, attempt 1, remains a genuine failure and was not rerun: while bootstrap status was still loading, the Personal Risk page test found **Create policy version** in the DOM but clicked it while the control was disabled, so the expected **Confirm and submit** dialog did not open. The failure was a test synchronization race; it is not recorded as a passing run or as evidence of a production defect.
@@ -37,24 +47,25 @@ PR #76 changed only `frontend/src/pages/PersonalRiskSettingsPage.test.tsx` so ga
 
 ## THE SINGLE NEXT TASK
 
-**Read-only scope decision parity using the actual three new-risk RPCs in disposable transactions guaranteed to roll back.** Cover overlapping rejection conditions and authoritative precedence, and include independence checks showing broker-confirmed exits and stop tightening remain available when new-risk policy/reference lookup or approval calculation fails while their own database path is healthy. Distinguish recording an exit or stop change in AzaLens from executing it at Saxo. Do not add runtime wiring, durable position/risk/outcome rows, provider calls or trade execution in this scoping task.
+**Scope the next remaining Core slice after decision parity.** Start with a separately reviewed, non-production design for runtime wiring that preserves the proven database decision and recording contracts. Do not begin shadow trading, create live position writes, call production lifecycle RPCs, or imply Saxo execution without separate authorization and evidence.
 
 ## Current repository position
 
-- Canonical merged `main` / `origin/main`: `d7c3900cd4126df6009422a9e81d9ebc6099f4dc`.
-- Canonical tree: `5144aa02cec3b46336a03c76dab908f421c0fb09`.
-- Merge parents, in order: `bcaae1f436d404dcf53eeb8719bd576aaf57e9af`, `d6d89d4361b447494c896feca33ba849698f9522`.
-- PR #74's reviewed shadow arithmetic slice and PR #76's one-file test-readiness correction are merged and privately backed up; decision-parity scoping remains read-only and separately reviewable.
+- Canonical merged `main` / `origin/main`: `271ff3f3c34e5d25dd2357068901be47cf4c4845`.
+- Canonical tree: `f48773a083665062f1885381f3e8aefe59e6bd3d`.
+- Merge parents, in order: `62f3e081b7a0eb1255c90bbd29ed4d4f3d0d8e3f`, `41fe2d687d32bd69b8f75f1bb9da214779c1b7fb`.
+- PR #78's reviewed decision-parity slice is merged, released and privately backed up; the next remaining Core slice requires separate review.
 
 ## Current working-tree scope
 
-This 2026-09-27 documentation checkpoint is limited to this roadmap; no implementation, migration, test, baseline or configuration file is changed.
+This 2026-09-28 documentation checkpoint is limited to this roadmap; no implementation, migration, test, baseline or configuration file is changed.
 
 ## Private backup and Drive recovery state
 
 - Canonical merge `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8` is backed up as `AzaLens-2026-09-26-526e1c4.zip` (7,503,531 bytes; SHA-256 `174e415b5c3edfba5ed2cdfb8fa34b75587967805acd87a48e47a53c6973c5f2`) and `AzaLens-2026-09-26-526e1c4.sha256` (97 bytes; SHA-256 `411ca16ace01532795ad765822b58dbf29305da0f10963b924e3778b5fd10875`). Immutable-ID `copyid` readback proved byte identity, ZIP integrity and reconstructed tree `f63f8a202015dd5ef08195b0c7ccc9c405d71efc`; both objects are owner-only and `shared:false`.
 - Canonical merge `4c74803216b4cd37fd50b44dffe9200323969582` is backed up as `AzaLens-2026-09-27-4c74803.zip` (7,513,019 bytes; SHA-256 `2cfcba85761e4a58776c73c5170fa9ed8de6b04ad7be967fc0c2ce2bd663bb82`) and `AzaLens-2026-09-27-4c74803.sha256` (97 bytes; SHA-256 `2db2211a488e3630f643a2de021de3bf6d1b2ca7aabfd319f278a8ba16b37c5f`). Immutable-ID readback proved byte identity, ZIP integrity, exact tracked paths and modes, and reconstructed tree `7f9153b3d270e88fca91753ea9fb64b422c7111c`; both objects are owner-only and `shared:false`. Active direct-child inventory moved `129 → 131`, recursive inventory moved `143 → 145`, and in-scope trash remained `0 → 0`.
 - Canonical merge `d7c3900cd4126df6009422a9e81d9ebc6099f4dc` is backed up as `AzaLens-2026-09-27-d7c3900.zip` (7,514,637 bytes; SHA-256 `c6855cc4fbb8d9752f2903319b92517e14890c89a749eaa6afade65799983132`) and `AzaLens-2026-09-27-d7c3900.sha256` (97 bytes; SHA-256 `77ff0c564aa22ace9d039962f491040d2bf69c6662486b3766c175a21470147c`). Immutable-ID readback proved byte identity; ZIP integrity, exact tracked paths and modes, credential audit and reconstruction verified tree `5144aa02cec3b46336a03c76dab908f421c0fb09`. Both objects are owner-only and `shared:false`; active direct-child inventory moved `131 → 133` and in-scope trash remained `0 → 0`.
+- Canonical merge `271ff3f3c34e5d25dd2357068901be47cf4c4845` is backed up as `AzaLens-2026-09-28-271ff3f.zip` (7,532,742 bytes; SHA-256 `d3d72d898ec54149a6100058c78407412dc25849feaaa8fd18017d8987fc92c2`) and `AzaLens-2026-09-28-271ff3f.sha256` (97 bytes; SHA-256 `518a16ba730c5fa0fab62a4205adbca293f481926395430f9acab4a0377fd4c3`). Immutable-ID readback proved byte identity, ZIP integrity and reconstruction of all 477 merge-tree blobs; credential and Git-metadata audits were clean. Both objects are owner-only and `shared:false`; active direct-child inventory moved `135 → 137` and in-scope trash remained `0 → 0`.
 - Before the 2026-09-26 backup, 64 direct backup ZIPs and seven `Plans/` records were found in Drive trash. All 71 confirmed AzaLens objects were restored to their original parents without deletion, relocation or sharing changes. Active counts moved from 61 to 125 direct and 68 to 139 recursive; in-scope trash moved from 71 to zero. The later canonical backup produced the verified active deltas 125 to 127 direct and 139 to 141 recursive, with trash remaining zero and no original immutable ID missing or changed.
 - Available metadata/activity evidence did not identify who or what caused the mass trashing; storage usage did not prove a quota-cleanup explanation. Do not infer one.
 - Four legacy archives have no sidecars and therefore are **not fully verified backups**: `AzaLens_Backup_2026-08-01_ca61241.zip`, `AzaLens_2026-07-31_4f80c13.zip`, `AzaLens_Phase0_Production_2122bdd_2026-07-31.zip`, and `AzaLens-2026-07-30.zip`.
@@ -155,7 +166,7 @@ Every step has exactly one live status. A future step is not done because its fi
 | T | **DONE** | Evidence is recorded without owner UUIDs, row IDs, credentials, tokens or personal-document contents. |
 | U | **DONE** | PR #74 released the unwired arithmetic-only `SHADOW_PREVIEW`; both first-attempt passing CI runs proved 16 fixtures and 192 numeric-field comparisons, while the original missing-runner failure remains preserved. |
 | V | **DONE** | PR #75's documentation-only merge and genuine failed first-main run remain recorded; PR #76's reviewed one-file readiness correction passed its first PR and first-main attempts, retained `backendChanged=false`, and was privately backed up. |
-| W | **NEXT — READ-ONLY SCOPE REQUIRED** | Scope authoritative rejection-code and precedence parity through the actual three new-risk RPCs inside disposable transactions guaranteed to roll back, with overlapping-condition cases and independent exit/stop-tightening checks. Recording in AzaLens must remain distinct from Saxo execution. |
+| W | **DONE** | PR #78 / merge `271ff3f3c34e5d25dd2357068901be47cf4c4845` proves 37 actual Migration 008 RPC cases: database rejection precedence, exit/stop-tightening independence and separate-connection rollback. Runtime wiring, shadow trading, live position writes and Saxo execution remain unproven. |
 
 ## Maintenance rule
 
@@ -226,8 +237,9 @@ This remains a separate later module/model. It must not begin merely because Cor
 | Roadmap production-evidence reconciliation | **DONE** | The reviewed roadmap-only reconciliation completed its PR #73 release on 2026-09-26. |
 | Shadow arithmetic parity | **DONE — ARITHMETIC ONLY** | PR #74 proves the unwired `SHADOW_PREVIEW` matches `_risk008_calculate` on 16 synthetic fixtures and 192 numeric-field comparisons, including negative half-unit rounding. It does not prove lifecycle decisions or runtime integration. |
 | PR #75/#76 roadmap and test readiness | **DONE** | PR #75's first-main run `36302337862` remains failed; PR #76 corrected only the gated-control test synchronization, passed first-attempt PR/main CI, retained the unchanged healthy Render deployment, and has a verified private backup. |
-| Decision parity | **NEXT — READ-ONLY SCOPE REQUIRED** | Use the actual three new-risk RPCs only in disposable transactions guaranteed to roll back; cover overlapping rejection conditions and precedence, plus exit/stop-tightening independence while their own database path is healthy. Do not confuse AzaLens recording with Saxo execution. |
-| Remaining Core slices | **NOT STARTED — AFTER DECISION-PARITY SCOPE** | Preserve risk-reducing paths independently and do not create live trade/risk rows prematurely. |
+| Decision parity | **DONE — DATABASE DECISION AND RECORDING ONLY** | PR #78 / merge `271ff3f3c34e5d25dd2357068901be47cf4c4845` proves 37 actual-RPC cases, precedence, exit/stop-tightening independence and separate-connection rollback. Runtime wiring, shadow trading, live position writes and Saxo execution remain unproven. |
+| Decision-parity marker derivation | **NON-BLOCKING MAINTENANCE** | The SQL prints a literal `37` rather than deriving the displayed marker from `completed`. The preceding `completed<>37` exception guards its correctness today; no SQL change belongs in this documentation slice. |
+| Remaining Core slices | **NEXT — SEPARATE SCOPE REQUIRED** | Review a non-production runtime-wiring design that preserves risk-reducing paths independently. Do not create live trade/risk rows or imply Saxo execution prematurely. |
 | Shadow trading | **NOT STARTED** | Requires functioning, verified Core workflows. |
 | Fable/Astra redesign | **BLOCKED — remaining Core and shadow-trading evidence absent** | Live Personal Risk bootstrap read/write evidence now exists; do not trigger redesign from that bootstrap milestone or from a percentage. |
 | Beta readiness | **BLOCKED — Core and non-code gates remain** | Requires product-wide functional, responsive, accessibility, truthfulness, and operational review. |
@@ -248,6 +260,10 @@ This is a narrow reconciliation against locally available repository evidence, n
 | Local `.env` provider-pair mismatch | **REQUIRES REVALIDATION** | Local secrets/configuration were intentionally not inspected or printed in this documentation checkpoint. |
 
 ## Change log
+
+### 2026-09-28
+
+- Marked step W decision parity DONE for PR #78 and true merge `271ff3f3c34e5d25dd2357068901be47cf4c4845`: 37 actual Migration 008 RPC cases, separate-connection rollback proof, first-attempt PR/main CI, matching backend deployment identity, successful Vercel production result and verified owner-only private backup. Opened the next remaining Core slice without treating database recording as runtime wiring, shadow trading, live writes or Saxo execution.
 
 ### 2026-09-27
 
