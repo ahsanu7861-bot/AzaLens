@@ -1,6 +1,6 @@
 # AzaLens — What To Do Next (Master Roadmap)
 
-**Last updated:** 2026-09-26
+**Last updated:** 2026-09-27
 
 **Canonical purpose:** This is AzaLens's canonical continuation and handover roadmap for future Fable, Astra, Claude, Codex, new project chats, and human reviewers. Repository evidence, merged SHAs, CI results, deployment verification, and authenticated behavior take precedence over percentages and conversational summaries.
 
@@ -21,25 +21,34 @@ An authenticated owner-scoped production audit on 2026-09-26 ran inside `BEGIN T
 
 The schedule continues to use the broker name printed on the owner's Account Statement, Cost Overview Report and Personal Information export. This evidence does **not** verify the account agreement's contracting-entity clause. The documented 2026-10-01 through 2026-12-31 TAF pause remains disclosed while the founder-approved allowance remains predictive conservatism, not a FINRA assessment or a charge proven to be billed by Saxo.
 
+## Shadow arithmetic parity — released evidence
+
+PR #74 merged as true merge commit `4c74803216b4cd37fd50b44dffe9200323969582`, tree `7f9153b3d270e88fca91753ea9fb64b422c7111c`, with ordered parents `040b52cea31dd0ffa2dc133081b10201236c2b4a` and `027b89fd9f42d63d6ce61629f2b9dc554daebf07`. The first PR run `36270527058`, attempt 1, remains a genuine failure: the database job installed only backend dependencies, while the original harness tried to spawn the absent frontend Vitest runner. It was not rerun. The reviewed Option 1 correction compiles and executes the exact checked-out `personalRiskShadowPreview.ts` bytes in-process using the backend's pinned TypeScript dependency, checks backend/frontend TypeScript lockfile equality, and fails before PASS output on loader/setup errors.
+
+Corrected-head PR run `36272559294`, attempt 1, and first-main run `36272831375`, attempt 1, each passed all five Reliability Gates jobs. The database job proved 16 synthetic fixtures across all 12 canonical numeric fields—192 field comparisons—against the authoritative `_risk008_calculate` arithmetic, including the negative half-unit rounding anchor. The release classifier correctly returned `backendChanged=true`; Vercel and Render deployed the matching merge, production health passed, and Render liveness/readiness identified the merge commit. The private backup added `AzaLens-2026-09-27-4c74803.zip` and its SHA-256 sidecar with active direct-child inventory `129 → 131`, in-scope trash `0 → 0`, owner-only permissions, immutable-ID byte readback, ZIP integrity and reconstructed tree verification.
+
+This proof is informational and deliberately labelled `SHADOW_PREVIEW`: the unwired preview matches `_risk008_calculate` only for the reviewed arithmetic fixtures and numeric fields. It establishes **no** rejection-code or decision-precedence parity, runtime risk-flow integration, live position write, or trade execution.
+
 ## THE SINGLE NEXT TASK
 
-**Scope the next Core risk-flow slice.** Preserve the verified Personal Risk bootstrap as the starting state, define the smallest independently reviewable increment, and keep live trade, position, risk-evaluation and outcome-ledger writes separately authorized.
+**Read-only scope decision parity using the actual three new-risk RPCs in disposable transactions guaranteed to roll back.** Cover overlapping rejection conditions and authoritative precedence, and include independence checks showing broker-confirmed exits and stop tightening remain available when new-risk policy/reference lookup or approval calculation fails while their own database path is healthy. Distinguish recording an exit or stop change in AzaLens from executing it at Saxo. Do not add runtime wiring, durable position/risk/outcome rows, provider calls or trade execution in this scoping task.
 
 ## Current repository position
 
-- Canonical merged `main` / `origin/main`: `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8`.
-- Canonical tree: `f63f8a202015dd5ef08195b0c7ccc9c405d71efc`.
-- Merge parents, in order: `6e6ae248fe6e7a63f1f95a7319816e3c8d7c29c4`, `c514b366892be3c95b1f9f53bd4ae6bd617a4f34`.
-- At the 2026-09-26 review checkpoint, this production-evidence reconciliation remained a local documentation-only change pending final commit authorization.
+- Canonical merged `main` / `origin/main`: `4c74803216b4cd37fd50b44dffe9200323969582`.
+- Canonical tree: `7f9153b3d270e88fca91753ea9fb64b422c7111c`.
+- Merge parents, in order: `040b52cea31dd0ffa2dc133081b10201236c2b4a`, `027b89fd9f42d63d6ce61629f2b9dc554daebf07`.
+- PR #74's reviewed shadow arithmetic slice is merged, deployed and privately backed up; decision-parity scoping remains read-only and separately reviewable.
 
 ## Current working-tree scope
 
-At the 2026-09-26 review checkpoint, the proposed change was limited to this roadmap; no implementation, migration, test, baseline or configuration file was changed.
+This 2026-09-27 documentation checkpoint is limited to this roadmap; no implementation, migration, test, baseline or configuration file is changed.
 
 ## Private backup and Drive recovery state
 
 - Canonical merge `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8` is backed up as `AzaLens-2026-09-26-526e1c4.zip` (7,503,531 bytes; SHA-256 `174e415b5c3edfba5ed2cdfb8fa34b75587967805acd87a48e47a53c6973c5f2`) and `AzaLens-2026-09-26-526e1c4.sha256` (97 bytes; SHA-256 `411ca16ace01532795ad765822b58dbf29305da0f10963b924e3778b5fd10875`). Immutable-ID `copyid` readback proved byte identity, ZIP integrity and reconstructed tree `f63f8a202015dd5ef08195b0c7ccc9c405d71efc`; both objects are owner-only and `shared:false`.
-- Before that upload, 64 direct backup ZIPs and seven `Plans/` records were found in Drive trash. All 71 confirmed AzaLens objects were restored to their original parents without deletion, relocation or sharing changes. Active counts moved from 61 to 125 direct and 68 to 139 recursive; in-scope trash moved from 71 to zero. The later canonical backup produced the verified active deltas 125 to 127 direct and 139 to 141 recursive, with trash remaining zero and no original immutable ID missing or changed.
+- Canonical merge `4c74803216b4cd37fd50b44dffe9200323969582` is backed up as `AzaLens-2026-09-27-4c74803.zip` (7,513,019 bytes; SHA-256 `2cfcba85761e4a58776c73c5170fa9ed8de6b04ad7be967fc0c2ce2bd663bb82`) and `AzaLens-2026-09-27-4c74803.sha256` (97 bytes; SHA-256 `2db2211a488e3630f643a2de021de3bf6d1b2ca7aabfd319f278a8ba16b37c5f`). Immutable-ID readback proved byte identity, ZIP integrity, exact tracked paths and modes, and reconstructed tree `7f9153b3d270e88fca91753ea9fb64b422c7111c`; both objects are owner-only and `shared:false`. Active direct-child inventory moved `129 → 131`, recursive inventory moved `143 → 145`, and in-scope trash remained `0 → 0`.
+- Before the 2026-09-26 backup, 64 direct backup ZIPs and seven `Plans/` records were found in Drive trash. All 71 confirmed AzaLens objects were restored to their original parents without deletion, relocation or sharing changes. Active counts moved from 61 to 125 direct and 68 to 139 recursive; in-scope trash moved from 71 to zero. The later canonical backup produced the verified active deltas 125 to 127 direct and 139 to 141 recursive, with trash remaining zero and no original immutable ID missing or changed.
 - Available metadata/activity evidence did not identify who or what caused the mass trashing; storage usage did not prove a quota-cleanup explanation. Do not infer one.
 - Four legacy archives have no sidecars and therefore are **not fully verified backups**: `AzaLens_Backup_2026-08-01_ca61241.zip`, `AzaLens_2026-07-31_4f80c13.zip`, `AzaLens_Phase0_Production_2122bdd_2026-07-31.zip`, and `AzaLens-2026-07-30.zip`.
 
@@ -95,16 +104,17 @@ At the 2026-09-26 review checkpoint, the proposed change was limited to this roa
 - A subsequent positive candidate run wrote one review-only PNG, then the day-desktop candidate timed out even against pinned `main`; the container was deliberately stopped, producing exit 137. No OOM cause was established.
 - Do not erase these failures by local rerun. The next canonical checkpoint is the first native CI run for the exact committed feature tree, with 24/24 wiring unchanged and snapshot updates disabled.
 
-### PR #71 and PR #72 release record
+### PR #71, PR #72 and PR #74 release record
 
 - PR #71's first run `35976581438` on `6248a376452e78b0531cf37981a2f822518c9d6d` remains a genuine failure. The corrected-head run `35979740951`, attempt 1, passed all five jobs, and the first main run `35980677862`, attempt 1, emitted `VISUAL_COMPARISON_PROOF=exact-set:24/24`.
 - PR #71 merged as `6e6ae248fe6e7a63f1f95a7319816e3c8d7c29c4`; its production frontend release and exact-commit private backup were verified.
 - PR #72 corrected the prospective cost schedule through forward Migration 009 and matching application code. It merged as `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8`; Migration 009 is applied once and the matching frontend/backend release is live.
+- PR #74's original run `36270527058`, attempt 1, remains a genuine failure caused by the database job's missing frontend runner. The reviewed in-process Option 1 correction passed corrected-head run `36272559294`, attempt 1; PR #74 then merged as `4c74803216b4cd37fd50b44dffe9200323969582`, tree `7f9153b3d270e88fca91753ea9fb64b422c7111c`, and first-main run `36272831375`, attempt 1, passed all five jobs. Matching Vercel and Render deployments and the exact-merge private backup were verified.
 - C2 Personal Risk baseline acceptance remains deferred. Accepted visual wiring remains 24/24.
 
 ## Current proof boundary
 
-The Personal Risk bootstrap is now **CONTROLLED LIVE-WRITE VERIFIED** and independently re-read through authenticated owner-scoped production access. Exactly one policy, schedule, snapshot, daily basis and weekly basis exist with the reviewed values recorded above. This does not establish trading correctness: no position, trade, risk evaluation or outcome-ledger row exists, and Core must not yet be described as `PRODUCTION-TRUSTED`, shadow-trading verified or real-money validated.
+The Personal Risk bootstrap is **CONTROLLED LIVE-WRITE VERIFIED** and independently re-read through authenticated owner-scoped production access. Exactly one policy, schedule, snapshot, daily basis and weekly basis exist with the reviewed values recorded above. The separate, unwired `SHADOW_PREVIEW` matches `_risk008_calculate` for 16 synthetic fixtures and 192 numeric-field comparisons, including negative half-unit rounding. It does not prove rejection-code or decision-precedence parity, runtime risk-flow integration, a live position write, or trade execution. No position, trade, risk evaluation or outcome-ledger row exists, and Core must not yet be described as `PRODUCTION-TRUSTED`, shadow-trading verified or real-money validated.
 
 No overall completion percentage is authoritative. Any preserved historical percentage is a **SUPERSEDED PLANNING ESTIMATE — NOT A VERIFIED PROGRESS MEASURE**.
 
@@ -134,6 +144,8 @@ Every step has exactly one live status. A future step is not done because its fi
 | R | **DONE** | One equity snapshot was created under deliberate confirmation. |
 | S | **DONE** | One daily and one weekly basis were authenticated-owner re-read with exact values, sequence and snapshot relationship. |
 | T | **DONE** | Evidence is recorded without owner UUIDs, row IDs, credentials, tokens or personal-document contents. |
+| U | **DONE** | PR #74 released the unwired arithmetic-only `SHADOW_PREVIEW`; both first-attempt passing CI runs proved 16 fixtures and 192 numeric-field comparisons, while the original missing-runner failure remains preserved. |
+| V | **NEXT — READ-ONLY SCOPE REQUIRED** | Scope authoritative rejection-code and precedence parity through the actual three new-risk RPCs inside disposable transactions guaranteed to roll back, with overlapping-condition cases and independent exit/stop-tightening checks. Recording in AzaLens must remain distinct from Saxo execution. |
 
 ## Maintenance rule
 
@@ -199,8 +211,10 @@ This remains a separate later module/model. It must not begin merely because Cor
 | Slice 2 commit/PR/merge/deployment/backup | **DONE** | PR #71 and PR #72 are merged and deployed; canonical merge `526e1c4f4d2f3f2b2e7f468bedcf80b2c0d60fb8` has an exact private Drive backup. Preserve the genuine failed first PR #71 run alongside later passing evidence. |
 | First authenticated read-only Personal Risk checkpoint | **DONE** | Live owner-scoped status and the subsequent read-only database audit match the deployed schema and expected state. |
 | First controlled policy/schedule/equity sequence | **DONE** | Exact version-1 policy/schedule and snapshot/bases are live and authenticated-owner re-read; no risk or ledger row was created. |
-| Roadmap production-evidence reconciliation | **DONE** | Content review accepted the roadmap-only reconciliation on 2026-09-26; commit and push remain separately gated. |
-| Remaining Core slices | **NEXT — SCOPE REQUIRED** | Scope the next independently reviewable risk-flow slice without creating live trade/risk rows prematurely. |
+| Roadmap production-evidence reconciliation | **DONE** | The reviewed roadmap-only reconciliation completed its PR #73 release on 2026-09-26. |
+| Shadow arithmetic parity | **DONE — ARITHMETIC ONLY** | PR #74 proves the unwired `SHADOW_PREVIEW` matches `_risk008_calculate` on 16 synthetic fixtures and 192 numeric-field comparisons, including negative half-unit rounding. It does not prove lifecycle decisions or runtime integration. |
+| Decision parity | **NEXT — READ-ONLY SCOPE REQUIRED** | Use the actual three new-risk RPCs only in disposable transactions guaranteed to roll back; cover overlapping rejection conditions and precedence, plus exit/stop-tightening independence while their own database path is healthy. Do not confuse AzaLens recording with Saxo execution. |
+| Remaining Core slices | **NOT STARTED — AFTER DECISION-PARITY SCOPE** | Preserve risk-reducing paths independently and do not create live trade/risk rows prematurely. |
 | Shadow trading | **NOT STARTED** | Requires functioning, verified Core workflows. |
 | Fable/Astra redesign | **BLOCKED — remaining Core and shadow-trading evidence absent** | Live Personal Risk bootstrap read/write evidence now exists; do not trigger redesign from that bootstrap milestone or from a percentage. |
 | Beta readiness | **BLOCKED — Core and non-code gates remain** | Requires product-wide functional, responsive, accessibility, truthfulness, and operational review. |
@@ -221,6 +235,13 @@ This is a narrow reconciliation against locally available repository evidence, n
 | Local `.env` provider-pair mismatch | **REQUIRES REVALIDATION** | Local secrets/configuration were intentionally not inspected or printed in this documentation checkpoint. |
 
 ## Change log
+
+### 2026-09-27
+
+- Recorded PR #74's genuine first-attempt failure `36270527058`: the database job had backend-only dependencies while the original parity harness attempted to spawn the absent frontend Vitest runner. The failure was preserved and was not rerun.
+- Recorded the reviewed Option 1 correction, corrected-head PR run `36272559294`, first-main run `36272831375`, true merge `4c74803216b4cd37fd50b44dffe9200323969582`, tree `7f9153b3d270e88fca91753ea9fb64b422c7111c`, matching Vercel/Render deployment, and exact private backup with active direct-child inventory `129 → 131` and trash `0 → 0`.
+- Fixed the proof boundary: the unwired `SHADOW_PREVIEW` matches `_risk008_calculate` across 16 synthetic fixtures and 192 numeric-field comparisons, including negative half-unit rounding; rejection-code/precedence parity, runtime integration, live position writes and trade execution remain unproved.
+- Set the single next task to read-only decision-parity scoping through the actual three new-risk RPCs in disposable transactions guaranteed to roll back, including overlapping rejection cases and exit/stop-tightening independence. No implementation, production access or live write is authorized by this documentation edit.
 
 ### 2026-09-26
 
