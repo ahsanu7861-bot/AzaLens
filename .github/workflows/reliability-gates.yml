@@ -156,6 +156,7 @@ jobs:
           node tests/testOutcomeLedgerMigrationContract.js &&
           node tests/testRiskLifecycleContract.js &&
           npm run test:risk-shadow-parity &&
+          npm run test:risk-decision-parity &&
           node tests/testRiskLifecycleRpc.js &&
           node tests/testRiskLifecycleReversal.js &&
           node tests/testRiskFoundationRpc.js
