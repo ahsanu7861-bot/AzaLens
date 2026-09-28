@@ -307,12 +307,12 @@ check(
   "authenticated can execute only the approved owner RPCs and anon can execute none",
   executable.join(",") === [
     "append_risk_lifecycle_event by authenticated",
-    "change_outcome_protective_stop by authenticated",
     "create_broker_cost_schedule_version by authenticated",
     "create_broker_equity_snapshot by authenticated",
     "create_personal_risk_policy_version by authenticated",
     "create_risk_enforced_outcome_position by authenticated",
     "increase_risk_enforced_position by authenticated",
+    "tighten_outcome_protective_stop by authenticated",
   ].join(","),
   executable.join(", ")
 );
@@ -322,7 +322,7 @@ const forbiddenRiskExecutors = rows(`
     from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    cross join (values ('anon'),('service_role')) r(rolname)
    where n.nspname='public'
-     and p.proname in ('append_risk_lifecycle_event','change_outcome_protective_stop',
+     and p.proname in ('append_risk_lifecycle_event','change_outcome_protective_stop','tighten_outcome_protective_stop','loosen_outcome_protective_stop',
        'create_broker_cost_schedule_version','create_risk_enforced_outcome_position','increase_risk_enforced_position')
      and has_function_privilege(r.rolname,p.oid,'EXECUTE') order by 1
 `);

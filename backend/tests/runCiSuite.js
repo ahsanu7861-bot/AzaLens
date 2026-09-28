@@ -47,6 +47,7 @@ const deterministicSuites = [
   "testPersonalRiskBootstrapService.js",
   "testPersonalRiskBootstrapStatic.js",
   "testRiskFoundationMigrationContract.js",
+  "testRiskStopDirectionWrappersContract.js",
   "testProviderAdapter.js",
   "testProviderCacheNamespaces.js",
   "testProviderNumericSafety.js",
