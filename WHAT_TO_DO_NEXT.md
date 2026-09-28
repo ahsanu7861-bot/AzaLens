@@ -39,6 +39,20 @@ The exact merge is privately backed up as owner-only, unshared `AzaLens-2026-09-
 
 This closes database decision and recording parity only. It does **not** establish runtime wiring, shadow trading, live position writes, or Saxo execution. AzaLens recording an exit or stop change remains distinct from executing an order at Saxo.
 
+## Migration 010 direction-guard infrastructure — merged and locally verified
+
+The documentation merge `3cb47a5f4569a57462667afcc7d28c2ef927ab0f` is privately backed up as `AzaLens-2026-09-28-3cb47a5.zip` (ZIP SHA-256 `f10d9901702e67076b21d0251652efc57292102509986fa06a7e5a678aee23b6`; sidecar SHA-256 `fb510c6180b06f58be9b2724fc2da92b3160004d86d299ed56cbcdac36f05007`). Active direct-child inventory moved `137 → 139` and in-scope trash remained `0 → 0`.
+
+PR #80 merged as true merge commit `c664b387615c1cf60d0cb7119352251a421a5a60`, tree `132901c8b61c62468fb2b64e83119e246faa7f5c`. First-attempt PR Reliability Gates run `36401404348`, attempt 1, and first-attempt exact-merge push run `36401843207`, attempt 1, passed without rerun. The slice adds Migration 010's atomic direction wrappers and API grant boundary: authenticated callers can invoke the tightening wrapper, while the generic protective-stop RPC and loosening wrapper are not API-executable. Disposable local proof covered direction enforcement, delegation to the existing generic RPC, owner isolation, nested `auth.uid()`, replay, cross-RPC key collision, concurrent tightening races and exact down/up grant reversal. This is **Migration 010 direction-guard infrastructure**, merged and locally verified; it is not the application-facing runtime increment.
+
+The exact merge backup was read back from Drive by immutable ID. ZIP ID `132XeAJsaheFTijC2sixYn2CT2VKl0o0D` has SHA-256 `59a44c7a023de18ddcea2f4860453109085a25826ddb5bb4698d5f73ed4c6620`; sidecar ID `1ys8QNauFkbNyrq44W8wPQNzyxdTWLZnl` has SHA-256 `752825932e81d72b37006fb148d6b75ef979e3480387cffa02d5ac212597fc59` and records that ZIP hash. Active direct-child inventory moved `139 → 141` and in-scope trash remained `0 → 0`. The Drive-read archive passed `unzip -t`; `GIT_METADATA_ENTRIES`, `UNSAFE_ENV_ENTRIES`, `CREDENTIAL_NAMED_ENTRIES` and `CREDENTIAL_CONTENT_HITS` were all zero.
+
+**The production generic-RPC ACL is unverified.** Production application of Migration 010 requires separate authorization followed by read-only production-catalog proof; this merge does not establish that the generic-RPC bypass is closed in production and does not authorize a linked migration command or production lifecycle call.
+
+Release classification reported `backendChanged=true`, but this release lacked a same-run pre-deployment health sample: the new merge was already serving when the release-health run made its first capture. Future releases with `backendChanged=true` must capture live and ready health both before and after deployment within the same release run, and each capture must name the commit it observed.
+
+The reported Supabase Data API grant change dated 30 October 2026 remains a **pending re-verification item**. Before it is used in any roadmap conclusion, verify the date and primary Supabase source against the then-current platform behavior and effective catalog privileges. Do not claim that a platform change secures these functions; explicit function ACLs, including `PUBLIC` inheritance, remain the security boundary to verify.
+
 ## Roadmap and Personal Risk test-readiness release evidence
 
 PR #75 was documentation-only and merged as true merge commit `bcaae1f436d404dcf53eeb8719bd576aaf57e9af`. Its first main Reliability Gates run `36302337862`, attempt 1, remains a genuine failure and was not rerun: while bootstrap status was still loading, the Personal Risk page test found **Create policy version** in the DOM but clicked it while the control was disabled, so the expected **Confirm and submit** dialog did not open. The failure was a test synchronization race; it is not recorded as a passing run or as evidence of a production defect.
@@ -47,14 +61,16 @@ PR #76 changed only `frontend/src/pages/PersonalRiskSettingsPage.test.tsx` so ga
 
 ## THE SINGLE NEXT TASK
 
-**Scope the next remaining Core slice after decision parity.** Start with a separately reviewed, non-production design for runtime wiring that preserves the proven database decision and recording contracts. Do not begin shadow trading, create live position writes, call production lifecycle RPCs, or imply Saxo execution without separate authorization and evidence.
+**Build the separately reviewed application-facing PR A locally, without production access.** PR A remains unbuilt: add owner-only broker-confirmed partial/final-exit recording and protective-stop-tightening routes and service, owner-scoped readback, distinct post-commit readback-failure and commit-unknown recovery states, stable public and logged internal `503` codes, operation/key-preserving recovery, negative independence tests, and UI. It must call the Migration 010 tightening wrapper rather than reproduce database direction logic. AzaLens records broker-confirmed events; Saxo executes trades and orders. Do not begin shadow trading, create live production position writes, call production lifecycle RPCs, or imply Saxo execution without separate authorization and evidence.
 
 ## Current repository position
 
-- Canonical merged `main` / `origin/main`: `271ff3f3c34e5d25dd2357068901be47cf4c4845`.
-- Canonical tree: `f48773a083665062f1885381f3e8aefe59e6bd3d`.
-- Merge parents, in order: `62f3e081b7a0eb1255c90bbd29ed4d4f3d0d8e3f`, `41fe2d687d32bd69b8f75f1bb9da214779c1b7fb`.
-- PR #78's reviewed decision-parity slice is merged, released and privately backed up; the next remaining Core slice requires separate review.
+- Canonical merged `main` / `origin/main`: `c664b387615c1cf60d0cb7119352251a421a5a60`.
+- Canonical tree: `132901c8b61c62468fb2b64e83119e246faa7f5c`.
+- Merge parents, in order: `3cb47a5f4569a57462667afcc7d28c2ef927ab0f`, `486e7be78418118cbd7160ad59a500cb545a18ab`.
+- PR #80's Migration 010 direction-guard infrastructure is merged and locally verified, with first-attempt PR and exact-merge CI and a verified private backup.
+- **The production generic-RPC ACL is unverified.** Production application of Migration 010 remains a separately authorized and catalog-verified release step.
+- The application-facing PR A remains unbuilt and is the single next task.
 
 ## Current working-tree scope
 
@@ -66,6 +82,8 @@ This 2026-09-28 documentation checkpoint is limited to this roadmap; no implemen
 - Canonical merge `4c74803216b4cd37fd50b44dffe9200323969582` is backed up as `AzaLens-2026-09-27-4c74803.zip` (7,513,019 bytes; SHA-256 `2cfcba85761e4a58776c73c5170fa9ed8de6b04ad7be967fc0c2ce2bd663bb82`) and `AzaLens-2026-09-27-4c74803.sha256` (97 bytes; SHA-256 `2db2211a488e3630f643a2de021de3bf6d1b2ca7aabfd319f278a8ba16b37c5f`). Immutable-ID readback proved byte identity, ZIP integrity, exact tracked paths and modes, and reconstructed tree `7f9153b3d270e88fca91753ea9fb64b422c7111c`; both objects are owner-only and `shared:false`. Active direct-child inventory moved `129 → 131`, recursive inventory moved `143 → 145`, and in-scope trash remained `0 → 0`.
 - Canonical merge `d7c3900cd4126df6009422a9e81d9ebc6099f4dc` is backed up as `AzaLens-2026-09-27-d7c3900.zip` (7,514,637 bytes; SHA-256 `c6855cc4fbb8d9752f2903319b92517e14890c89a749eaa6afade65799983132`) and `AzaLens-2026-09-27-d7c3900.sha256` (97 bytes; SHA-256 `77ff0c564aa22ace9d039962f491040d2bf69c6662486b3766c175a21470147c`). Immutable-ID readback proved byte identity; ZIP integrity, exact tracked paths and modes, credential audit and reconstruction verified tree `5144aa02cec3b46336a03c76dab908f421c0fb09`. Both objects are owner-only and `shared:false`; active direct-child inventory moved `131 → 133` and in-scope trash remained `0 → 0`.
 - Canonical merge `271ff3f3c34e5d25dd2357068901be47cf4c4845` is backed up as `AzaLens-2026-09-28-271ff3f.zip` (7,532,742 bytes; SHA-256 `d3d72d898ec54149a6100058c78407412dc25849feaaa8fd18017d8987fc92c2`) and `AzaLens-2026-09-28-271ff3f.sha256` (97 bytes; SHA-256 `518a16ba730c5fa0fab62a4205adbca293f481926395430f9acab4a0377fd4c3`). Immutable-ID readback proved byte identity, ZIP integrity and reconstruction of all 477 merge-tree blobs; credential and Git-metadata audits were clean. Both objects are owner-only and `shared:false`; active direct-child inventory moved `135 → 137` and in-scope trash remained `0 → 0`.
+- Documentation merge `3cb47a5f4569a57462667afcc7d28c2ef927ab0f` is backed up as `AzaLens-2026-09-28-3cb47a5.zip` (SHA-256 `f10d9901702e67076b21d0251652efc57292102509986fa06a7e5a678aee23b6`) with sidecar SHA-256 `fb510c6180b06f58be9b2724fc2da92b3160004d86d299ed56cbcdac36f05007`; active direct-child inventory moved `137 → 139` and in-scope trash remained `0 → 0`.
+- Canonical merge `c664b387615c1cf60d0cb7119352251a421a5a60`, tree `132901c8b61c62468fb2b64e83119e246faa7f5c`, is backed up by ZIP immutable ID `132XeAJsaheFTijC2sixYn2CT2VKl0o0D` (SHA-256 `59a44c7a023de18ddcea2f4860453109085a25826ddb5bb4698d5f73ed4c6620`) and sidecar immutable ID `1ys8QNauFkbNyrq44W8wPQNzyxdTWLZnl` (SHA-256 `752825932e81d72b37006fb148d6b75ef979e3480387cffa02d5ac212597fc59`). Drive-read verification passed `unzip -t`, the sidecar recorded the ZIP hash, and all four Git/environment/credential audit counts were zero. Active direct-child inventory moved `139 → 141` and in-scope trash remained `0 → 0`.
 - Before the 2026-09-26 backup, 64 direct backup ZIPs and seven `Plans/` records were found in Drive trash. All 71 confirmed AzaLens objects were restored to their original parents without deletion, relocation or sharing changes. Active counts moved from 61 to 125 direct and 68 to 139 recursive; in-scope trash moved from 71 to zero. The later canonical backup produced the verified active deltas 125 to 127 direct and 139 to 141 recursive, with trash remaining zero and no original immutable ID missing or changed.
 - Available metadata/activity evidence did not identify who or what caused the mass trashing; storage usage did not prove a quota-cleanup explanation. Do not infer one.
 - Four legacy archives have no sidecars and therefore are **not fully verified backups**: `AzaLens_Backup_2026-08-01_ca61241.zip`, `AzaLens_2026-07-31_4f80c13.zip`, `AzaLens_Phase0_Production_2122bdd_2026-07-31.zip`, and `AzaLens-2026-07-30.zip`.
@@ -136,6 +154,8 @@ This 2026-09-28 documentation checkpoint is limited to this roadmap; no implemen
 
 The Personal Risk bootstrap is **CONTROLLED LIVE-WRITE VERIFIED** and independently re-read through authenticated owner-scoped production access. Exactly one policy, schedule, snapshot, daily basis and weekly basis exist with the reviewed values recorded above. The separate, unwired `SHADOW_PREVIEW` matches `_risk008_calculate` for 16 synthetic fixtures and 192 numeric-field comparisons, including negative half-unit rounding. It does not prove rejection-code or decision-precedence parity, runtime risk-flow integration, a live position write, or trade execution. No position, trade, risk evaluation or outcome-ledger row exists, and Core must not yet be described as `PRODUCTION-TRUSTED`, shadow-trading verified or real-money validated.
 
+Migration 010's direction-guard infrastructure is merged and locally verified, but its production application and production ACL state are unverified. The application-facing PR A remains unbuilt: no exit/tightening runtime route or service, owner-scoped lifecycle readback, key-preserving recovery states, stable lifecycle `503` mapping, independence UI tests or lifecycle UI has been established.
+
 No overall completion percentage is authoritative. Any preserved historical percentage is a **SUPERSEDED PLANNING ESTIMATE — NOT A VERIFIED PROGRESS MEASURE**.
 
 ## Immediate next sequence
@@ -168,6 +188,8 @@ Every step has exactly one live status. A future step is not done because its fi
 | V | **DONE** | PR #75's documentation-only merge and genuine failed first-main run remain recorded; PR #76's reviewed one-file readiness correction passed its first PR and first-main attempts, retained `backendChanged=false`, and was privately backed up. |
 | W | **DONE** | PR #78 / merge `271ff3f3c34e5d25dd2357068901be47cf4c4845` proves 37 actual Migration 008 RPC cases: database rejection precedence, exit/stop-tightening independence and separate-connection rollback. Runtime wiring, shadow trading, live position writes and Saxo execution remain unproven. |
 
+Migration 010 is deliberately recorded outside the lettered sequence: V and W retain their existing meanings and are not reassigned. PR #80 / merge `c664b387615c1cf60d0cb7119352251a421a5a60` is merged and locally verified infrastructure; production application and the application-facing PR A remain separate unfinished work.
+
 ## Maintenance rule
 
 This roadmap is updated as work completes, not weeks afterward.
@@ -190,6 +212,7 @@ The standard merge/checkpoint checklist is:
 - disclosed framework-internal retries/flakes;
 - true merge verification;
 - deployment verification;
+- for every `backendChanged=true` release, live/ready captures from the same release run both before and after deployment, each naming the observed commit;
 - authenticated Drive backup;
 - Drive backup inventory proof that active direct-child count increases by exactly two, in-scope trashed count is zero before and after, and the new ZIP and sidecar pass the established private immutable-ID readback and integrity checks; a count that includes trashed objects is never proof of this invariant;
 - **Roadmap updated and evidence status reconciled**.
@@ -239,7 +262,11 @@ This remains a separate later module/model. It must not begin merely because Cor
 | PR #75/#76 roadmap and test readiness | **DONE** | PR #75's first-main run `36302337862` remains failed; PR #76 corrected only the gated-control test synchronization, passed first-attempt PR/main CI, retained the unchanged healthy Render deployment, and has a verified private backup. |
 | Decision parity | **DONE — DATABASE DECISION AND RECORDING ONLY** | PR #78 / merge `271ff3f3c34e5d25dd2357068901be47cf4c4845` proves 37 actual-RPC cases, precedence, exit/stop-tightening independence and separate-connection rollback. Runtime wiring, shadow trading, live position writes and Saxo execution remain unproven. |
 | Decision-parity marker derivation | **NON-BLOCKING MAINTENANCE** | The SQL prints a literal `37` rather than deriving the displayed marker from `completed`. The preceding `completed<>37` exception guards its correctness today; no SQL change belongs in this documentation slice. |
-| Remaining Core slices | **NEXT — SEPARATE SCOPE REQUIRED** | Review a non-production runtime-wiring design that preserves risk-reducing paths independently. Do not create live trade/risk rows or imply Saxo execution prematurely. |
+| Migration 010 direction-guard infrastructure | **MERGED AND LOCALLY VERIFIED — PRODUCTION APPLICATION UNVERIFIED** | PR #80 / merge `c664b387615c1cf60d0cb7119352251a421a5a60` passed first-attempt PR and exact-merge CI and has a verified private backup. **The production generic-RPC ACL is unverified.** Separate authorization and read-only catalog proof are required before claiming the bypass closed in production. |
+| Supabase Data API 30 October 2026 grant report | **PENDING RE-VERIFICATION** | Verify the reported date and primary Supabase source, then verify effective catalog privileges including `PUBLIC` inheritance. Do not treat a platform change or route absence as function security. |
+| Application-facing PR A | **NEXT — UNBUILT APPLICATION INCREMENT** | Build locally: owner-only broker-confirmed partial/final exits and stop tightening; routes/service; owner-scoped readback; distinct commit-known readback-failure and commit-unknown recovery; stable public/logged internal `503` codes; key-preserving lookup recovery; negative independence tests; and UI. Before any PR A backend code serving the tightening endpoint reaches production, Migration 010 must be separately authorized, applied exactly once, and verified from the production catalog, including the generic and wrapper ACLs. This is a deployment-order gate; it does not authorize applying the migration now. AzaLens records events; Saxo executes orders. |
+| Release-health same-run before/after evidence | **REQUIRED FOR FUTURE `backendChanged=true` RELEASES** | PR #80 lacked a same-run pre-deployment sample because the merge was already serving at the first release-health capture. Future releases must capture live/ready before and after deployment in the same release run, with the observed commit named in each capture. |
+| Remaining Core slices | **SEPARATE SCOPE REQUIRED AFTER PR A** | Preserve risk-reducing-path independence. Do not create live trade/risk rows or imply Saxo execution prematurely. |
 | Shadow trading | **NOT STARTED** | Requires functioning, verified Core workflows. |
 | Fable/Astra redesign | **BLOCKED — remaining Core and shadow-trading evidence absent** | Live Personal Risk bootstrap read/write evidence now exists; do not trigger redesign from that bootstrap milestone or from a percentage. |
 | Beta readiness | **BLOCKED — Core and non-code gates remain** | Requires product-wide functional, responsive, accessibility, truthfulness, and operational review. |
@@ -263,6 +290,11 @@ This is a narrow reconciliation against locally available repository evidence, n
 
 ### 2026-09-28
 
+- Recorded documentation merge `3cb47a5f4569a57462667afcc7d28c2ef927ab0f` and its verified private backup, including ZIP and sidecar hashes, active direct-child inventory `137 → 139`, and trash `0 → 0`.
+- Recorded PR #80's Migration 010 direction-guard infrastructure, true merge `c664b387615c1cf60d0cb7119352251a421a5a60`, tree `132901c8b61c62468fb2b64e83119e246faa7f5c`, first-attempt PR run `36401404348` and exact-merge push run `36401843207`, and immutable-ID Drive backup evidence. The Drive-read archive passed `unzip -t`; all four credential/Git/environment audit counts were zero.
+- Preserved the production boundary: **The production generic-RPC ACL is unverified.** Production migration application requires separate authorization and read-only catalog proof; the application-facing PR A remains unbuilt.
+- Recorded the missing same-run pre-deployment health sample and added the mandatory same-release-run before/after live/ready evidence rule for future `backendChanged=true` releases, with observed commits named in both captures.
+- Added the reported 30 October 2026 Supabase Data API grant change as pending re-verification rather than evidence that the platform secures functions.
 - Marked step W decision parity DONE for PR #78 and true merge `271ff3f3c34e5d25dd2357068901be47cf4c4845`: 37 actual Migration 008 RPC cases, separate-connection rollback proof, first-attempt PR/main CI, matching backend deployment identity, successful Vercel production result and verified owner-only private backup. Opened the next remaining Core slice without treating database recording as runtime wiring, shadow trading, live writes or Saxo execution.
 
 ### 2026-09-27
