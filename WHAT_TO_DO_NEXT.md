@@ -4,6 +4,8 @@
 
 **Canonical purpose:** This is AzaLens's canonical continuation and handover roadmap for future Fable, Astra, Claude, Codex, new project chats, and human reviewers. Repository evidence, merged SHAs, CI results, deployment verification, and authenticated behavior take precedence over percentages and conversational summaries.
 
+New implementers must read `IMPLEMENTER_HANDOVER.md` alongside this roadmap before changing code, migrations, CI, or release state.
+
 **Evidence-state vocabulary:** `PLANNED`, `IMPLEMENTED LOCALLY`, `REVIEWED LOCALLY`, `COMMITTED`, `PR CI VERIFIED`, `MERGED`, `DEPLOYED`, `AUTHENTICATED LIVE-READ VERIFIED`, `CONTROLLED LIVE-WRITE VERIFIED`, `SHADOW-TRADING VERIFIED`, and `PRODUCTION-TRUSTED`. These states are distinct and must never be conflated. Fixture-backed tests are never live-API proof. A reviewer PASS applies only to the exact bytes and evidence reviewed. Every printed PASS must correspond to an executed assertion or validation. A successful rerun never erases an earlier failure; both remain evidence.
 
 **Historical note:** This file replaced the 2026-07-28 version on 2026-07-30 because that version was stale in both directions. The preserved historical archive below records why. Its former status labels and priorities are historical evidence, not current instructions.

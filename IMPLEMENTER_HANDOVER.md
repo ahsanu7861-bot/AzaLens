@@ -1,0 +1,38 @@
+# Implementer handover — 2026-09-29
+
+Start from `WHAT_TO_DO_NEXT.md`; repository evidence outranks summaries. Migration 010 is applied exactly once and independently production-verified, and PR #82's backend lifecycle routes are deployed. No production lifecycle RPC, position write, or Saxo order has occurred.
+
+## Pinned evidence and contracts
+
+- Do not edit the reviewed decision-parity fixture or Migration 010 evidence in place. Current verified SHA-256 values are: `backend/tests/fixtures/riskDecisionParity.sql` = `cdfd5a5f24a0fd07b2310b6618b814557ab3459fba2e89d1224df140f442dd8e`; `supabase/migrations/20260928120000_010_direction_guarded_protective_stops.sql` = `709e068547a40c09e923419bcc87a238680d6bd1b1e81f31d958c6557ac9621c`; `db/down-migrations/20260928120000_010_direction_guarded_protective_stops.sql` = `763d1c46b246423ac741dcdc23f8e3d83843bc10927184da1e9d7c8e4ebff716`. If behavior must change, make a new, explicitly reviewed change and pin its new bytes; never quietly rewrite pinned evidence.
+- Migration 008 lifecycle request fingerprints intentionally use contract `1`. Migration 009's corrected prospective cost-schedule fingerprint intentionally uses contract `2`. Do not normalize these numbers: they version different payload contracts. The 009 down-script restores the former contract `1` behavior only for reversal proof.
+- This machine's ignored `backend/.env` selects `PROFILE_PROVIDER=twelve_data`. Local full-suite testing therefore needs the test-only process override `TWELVE_DATA_PROFILE_ENABLED=true`. Clean CI supplies its own environment and is authoritative; do not add this local override to CI merely to make this host pass.
+
+## Database, transport, and production rules
+
+- PostgreSQL migrations/RPCs are the decision authority for lifecycle acceptance, rejection precedence, arithmetic, ownership, idempotency, and durable recording. The backend owns strict HTTP input, authenticated owner context, dispatch, stable error mapping, readback, observability, and recovery. On an ambiguous transport/client result, report commit state `UNKNOWN` and preserve the idempotency key; recover by independent readback before considering another mutation. Partial and final exit records require broker confirmation. A stop tightening accepts either `OWNER_DECLARED` or `BROKER_CONFIRMED`, passed unchanged to the tightening wrapper; an owner-declared tightening must never imply that Saxo amended a live order. AzaLens records lifecycle facts and declarations; Saxo alone executes trades and orders.
+- Production migration protocol: review and pin exact up/down bytes; prove disposable up/down/up behavior; run a linked dry run and require the exact expected pending set; apply once; then independently query remote migration history and the effective catalog/ACLs. If the client result is ambiguous, do **not** retry first—obtain independent history proof of whether the version committed. Roll back production only through a new forward corrective migration; down-scripts are manual proof tools, never an automatic production rollback.
+
+## Deployment reality
+
+- Backend merges to `main` trigger automatic Render production deployment from outside this repository. There is no deploy manifest, hook, or approval step in the repository, and the Release Health workflow only observes deployment after it has happened. History shows backend merges already serving by the first health sample; this does not promise an exact time to become live. Operationally, treat **merged to `main`** as **live for users**, not merely landed in the repository.
+- Any merge whose code depends on a database object requires that object to exist in production first. Migration 010 was therefore applied exactly once and independently history/catalog-verified before PR #82 merged and its routes could deploy automatically.
+
+## Release evidence invariants
+
+- Treat the first execution on each exact PR head and exact merge as the evidentiary attempt. Never rerun a failure into invisibility: retain its ID, attempt, head, and outcome alongside later correction evidence. Genuine failed runs recorded by the roadmap are: `35976581438` attempt 1 (PR #71 head `6248a376452e78b0531cf37981a2f822518c9d6d`: inverse grep selected six `@candidate` cases, each failed the intentionally unset candidate-directory guard; visual proof was skipped); `36270527058` attempt 1 (PR #74: database job lacked the frontend Vitest runner; not rerun); `36302337862` attempt 1 (PR #75 first-main: test clicked disabled **Create policy version** during bootstrap loading; not rerun); and Production Release Health `32656346129` attempt 1 (old Render commit still served), followed transparently by attempt 2 passing after production configuration correction.
+- For every future `backendChanged=true` release, preserve live/ready captures inside the same release procedure both before merge and after deployment, with the observed commit in each. The post-merge Release Health workflow cannot supply the pre-merge sample. PR #82 satisfied this with `08:05:24` on `c664b387615c1cf60d0cb7119352251a421a5a60` and `08:11:03` on `7d3866755e5e2ad28f65d632e4c21e51fb79ef8e`.
+- Every exact release must also have a private Google Drive ZIP plus SHA-256 sidecar that remain owner-only and unshared, are read back by immutable ID, pass checksum/ZIP/tree reconstruction and credential/Git/environment audits, and leave in-scope trash at zero. Do not treat a local sync-folder copy as independent Drive proof.
+
+## Working method
+
+- Work is independently reviewed before commit. Present the actual diffs, complete file contents, raw command output, and catalog reads. A summary is never approved in place of the artifact, and “tests passed” is not evidence without the output.
+- Stop at each gate and report instead of continuing. A continuation instruction is not a waiver of a review, authorization, migration, deployment, or evidence gate.
+- Never invent financial defaults, legal-entity strings, or licensing permissions. State exactly what the source documents establish, or state that the answer is unknown.
+
+## Open work
+
+- The single next implementation increment is the separately reviewed Personal Risk lifecycle UI for partial and final exits that require broker confirmation; stop tightening that preserves either `OWNER_DECLARED` or `BROKER_CONFIRMED` unchanged; owner-scoped readback; and distinct commit-known/commit-unknown recovery states. Work locally without production access and preserve idempotency keys. An owner-declared tightening must never imply that Saxo amended a live order: AzaLens records lifecycle facts and declarations; Saxo alone executes trades and orders.
+- Non-blocking maintenance: derive the decision-parity completion marker instead of printing literal `37` (the current preceding `completed<>37` guard keeps it truthful).
+- On 30 October 2026, re-verify the reported Supabase Data API grant change against a primary source and the effective catalog privileges, including `PUBLIC` inheritance; platform claims do not replace explicit ACL proof.
+- C2 remains deferred: the eight Personal Risk candidates are review evidence, not accepted baselines. Accepted wiring stays 24/24 until fresh CI-native bytes are generated and separately reviewed; macOS/comparator byte differences, mobile scale/resolved-name incompatibility, and the historical failed first Linux attempt remain unresolved evidence.
