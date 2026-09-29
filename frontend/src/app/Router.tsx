@@ -30,6 +30,9 @@ const SettingsPage = lazy(() => import("../pages/SettingsPage"));
 const PersonalRiskSettingsPage = lazy(
   () => import("../pages/PersonalRiskSettingsPage"),
 );
+const PersonalRiskLifecyclePage = lazy(
+  () => import("../pages/PersonalRiskLifecyclePage"),
+);
 const WatchlistPage = lazy(() => import("../pages/WatchlistPage"));
 
 function PageLoader() {
@@ -162,6 +165,10 @@ export default function Router() {
           <Route
             path="/settings/personal-risk"
             element={loadPage(<PersonalRiskSettingsPage />)}
+          />
+          <Route
+            path="/settings/personal-risk/lifecycle"
+            element={loadPage(<PersonalRiskLifecyclePage />)}
           />
         </Route>
       </Routes>
