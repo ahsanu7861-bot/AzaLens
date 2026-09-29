@@ -21,6 +21,7 @@
     "test:personal-persistence-db": "node tests/testPersonalPersistenceDatabase.js",
     "test:personal-risk-bootstrap": "node tests/testPersonalRiskBootstrapRoutes.js && node tests/testPersonalRiskBootstrapService.js && node tests/testPersonalRiskBootstrapStatic.js",
     "test:personal-risk-bootstrap-db": "node tests/testPersonalRiskBootstrapDatabase.js",
+    "test:personal-risk-lifecycle": "node tests/testPersonalRiskLifecycleRoutes.js && node tests/testPersonalRiskLifecycleService.js && node tests/testPersonalRiskLifecycleStatic.js",
     "test:risk-shadow-parity": "node tests/testRiskShadowArithmeticParity.js",
     "test:risk-decision-parity": "node tests/testRiskDecisionParity.js",
     "test:db": "npm run check:migrations && npm run check:migrations:down && node tests/testOutcomeLedgerMigrationContract.js && node tests/testRiskLifecycleContract.js && node tests/testRiskStopDirectionWrappersContract.js && npm run test:risk-shadow-parity && npm run test:risk-decision-parity && npm run test:tenant-isolation && npm run test:rls-coverage && node tests/testTwelveDataCreditRpc.js && node tests/testRiskLifecycleRpc.js && node tests/testRiskLifecycleReversal.js && npm run test:watchlist-cap && npm run test:portfolio-cap && node tests/testRiskFoundationRpc.js && npm run test:personal-risk-bootstrap-db && node tests/testRiskStopDirectionWrappersReversal.js",

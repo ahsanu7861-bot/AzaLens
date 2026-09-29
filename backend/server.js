@@ -69,6 +69,7 @@ const watchlistRoutes = require("./routes/watchlistRoutes");
 const scannerRoutes = require("./routes/scannerRoutes");
 const createPortfolioRouter = require("./routes/portfolioRoutes");
 const { createPersonalRiskBootstrapRouter } = require("./routes/personalRiskBootstrapRoutes");
+const { createPersonalRiskLifecycleRouter } = require("./routes/personalRiskLifecycleRoutes");
 const {
   createGlobalLimiter,
   createStrictLimiter
@@ -225,6 +226,7 @@ if (environmentConfig.featureFlags.scanner) {
 }
 app.use("/api/portfolio", requirePersonalPersistence, portfolioRoutes);
 app.use("/api/personal-risk", requirePersonalPersistence, createPersonalRiskBootstrapRouter());
+app.use("/api/personal-risk", requirePersonalPersistence, createPersonalRiskLifecycleRouter());
 // ============================
 // Home
 // ============================
