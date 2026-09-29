@@ -1,0 +1,14 @@
+"use strict";
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const root = path.resolve(__dirname, "..");
+const route = fs.readFileSync(path.join(root, "routes/personalRiskLifecycleRoutes.js"), "utf8");
+const service = fs.readFileSync(path.join(root, "services/personalRiskLifecycleService.js"), "utf8");
+const server = fs.readFileSync(path.join(root, "server.js"), "utf8");
+assert.match(server, /createPersonalRiskLifecycleRouter/);
+assert.match(service, /tighten_outcome_protective_stop/);
+assert.doesNotMatch(`${route}\n${service}`, /change_outcome_protective_stop|SHADOW_PREVIEW|bootstrap-status|personal_risk_policy_versions|broker_equity_snapshots|daily_risk_equity_bases|weekly_risk_equity_bases|broker_cost_schedule_versions/);
+assert.doesNotMatch(route, /Saxo.*(?:execute|submit|place)|execute.*Saxo|submit.*order/i);
+assert.match(route, /brokerConfirmed/);
+console.log("Personal-risk lifecycle static independence and tightening-only RPC contracts passed.");
