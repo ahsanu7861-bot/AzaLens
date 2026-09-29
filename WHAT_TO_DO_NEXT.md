@@ -67,6 +67,69 @@ The same release procedure preserved pre-merge live/ready captures at `08:05:24`
 
 The exact merge is privately backed up as owner-only, unshared `AzaLens-2026-09-29-7d38667.zip` (SHA-256 `69434688ae751cd9e9392d4c766ddc26675c5bd12d7ceb1bd5729590f6c110a5`) and its sidecar (SHA-256 `732c0f81a10af766318d73b864cef45db02cc222b0f30704e8d785ba9ef07efe`). Immutable-ID readback, `unzip -t`, and reconstruction of all 486 blobs proved tree `4acead787851a0c7ba9470421593bed523f845c5`; all four credential/Git/environment audit counters were zero, both objects were `shared:false`, active direct-child inventory moved `143 → 145`, and trash remained `0 → 0`.
 
+## Personal Risk lifecycle UI — merged and deployed (PR #85)
+
+PR #85 merged as true merge commit `1ffdbd87c0d89437dad5a6a3a32c5dfa4d94cdc3`, tree
+`42e53d0a6a2add9b57b878a765e42e9e85a7a00a`, with ordered parents
+`5975cbcf40e4273f8be06fef449a25cc0bba431d` and `e26c23fcae6734da27465877497afb9ff256d293`. Its
+128,772-byte first-parent patch has SHA-256
+`6858a2c49e44f19efe7ceec69f15eeff24d36d744ad083688374285a1afaa7ea` and was byte-identical to the frozen
+reviewed patch; the second-parent diff was empty and the first-parent path list was exactly the nine
+reviewed `frontend/src/` paths. The merge tree equals the feature tree.
+
+The slice is frontend-only. It adds a separate route `/settings/personal-risk/lifecycle` inside the
+existing `ClosedDemoGate`, a typed client for PR #82's four lifecycle endpoints, and a versioned
+seven-field pending safety record. No backend, migration, CI-workflow, fixture or visual-baseline byte
+changed; accepted visual wiring remains 24/24 and no Personal Risk baseline was accepted.
+
+**The first PR CI attempt is a genuine failure and was never rerun.** Run `36622052421`, attempt 1, head
+`275100a76a6ae375d434ab01dbb84e863ebe24c3`: four jobs passed and **Browser journeys and accessibility**
+failed. `e2e/personal-risk.spec.ts:99` reported a serious axe `color-contrast` violation on both
+`desktop-chromium` and `mobile-chromium`. The new lifecycle entry control was an `<a>` styled
+`bg-brand text-white`; the day-theme rule at `frontend/src/index.css:526` replaces `.text-white` inside
+`.app-shell` with `var(--az-text)`, and the AA carve-out at line 538 covers `button.bg-brand` only, so the
+anchor rendered `#0f172a` on `#0e7490` at **3.33:1** against a 4.5:1 requirement. The three visual-proof
+step failures in that run were **cascading, not independent**: the test step exited non-zero before the
+visual phase ran, so `visual-run.log` never existed and the proof steps could not execute. No visual
+baseline is implicated.
+
+Corrective commit `e26c23fcae6734da27465877497afb9ff256d293` changed only
+`frontend/src/pages/PersonalRiskSettingsPage.tsx`, rendering the entry with the existing `Button` — a real
+`<button type="button">` carrying `bg-brand`, which the proven line-538 carve-out covers — and navigating
+with `useNavigate`. No CSS rule or token was added, no interactive element nested, and the other eight
+reviewed paths stayed byte-identical. Measured in the browser from the element's own resolved styles
+rather than inferred from the class: `rgb(255, 255, 255)` on `rgb(14, 116, 144)` is **5.358:1**; axe
+reported **zero** violations on the tested page; Enter and Space each activated navigation to
+`/settings/personal-risk/lifecycle`. `npm run test:e2e` passed 30 with 2 skipped and contained no contrast
+violation.
+
+PR run `36631347755` was **attempt 1 on the corrected bytes — not a rerun of `36622052421`** — and all
+five jobs passed. Exact-merge push run `36632008513`, attempt 1, event `push`, head
+`1ffdbd87c0d89437dad5a6a3a32c5dfa4d94cdc3`, also passed all five jobs and emitted its **own** required
+proof lines, including `VISUAL_COMPARISON_PROOF=exact-set:24/24`, the snapshot-write-marker absence
+statement, `DECISION_PARITY_CASES_COMPLETED=37` and `REVERSIBILITY CHECK PASSED`.
+
+Release Health run `36632546515`, attempt 1, reported `backendChanged=false` with an empty
+`expectedCommit`. The backend `deployment.commit` **remained**
+`7d3866755e5e2ad28f65d632e4c21e51fb79ef8e` — correct for a frontend-only release — with liveness and
+readiness both HTTP 200 and `ready=true`. Vercel served the production frontend shell HTTP 200 and served
+the new `PersonalRiskLifecyclePage-BPNhVPfh.js` chunk (28,014 bytes) HTTP 200, so the new code is
+deployed. **An HTTP 200 on the SPA route `/settings/personal-risk/lifecycle` proves shell delivery only.**
+It does not prove that an authenticated owner rendered the page, that `ClosedDemoGate` admitted anyone, or
+that any lifecycle action was performed. **No production lifecycle RPC, position write or Saxo order
+occurred.**
+
+The exact merge is privately backed up as owner-only, unshared `AzaLens-2026-09-30-1ffdbd8.zip`, immutable
+ID `1vFsKs7MzX3AGjhDjJ7KALUA75kqCnb3w`, Drive-read SHA-256
+`c0acf8fc8e23985242ba66732b4991f73533aac447bc953c1a8ad2c86a9c5209`, with sidecar immutable ID
+`164nZvmXTuNXP1Wm8GKowqFCLFtdgyQB6`, Drive-read SHA-256
+`de363bf2d70eccdfe5789932206b434865c88622a9aee45ffacc6dbfb7b23e91`. The sidecar matched the Drive-read
+ZIP, `unzip -t` passed on the Drive-read bytes, and all 494 paths and blobs — including three
+executable-mode entries — reconstructed to merge tree `42e53d0a6a2add9b57b878a765e42e9e85a7a00a`. All four
+audit counters (`GIT_METADATA_ENTRIES`, `UNSAFE_ENV_ENTRIES`, `CREDENTIAL_NAMED_ENTRIES`,
+`CREDENTIAL_CONTENT_HITS`) were zero, both objects are `shared:false`, active direct-child inventory moved
+`149 → 151`, in-scope trash remained `0 → 0`, and no pre-existing immutable ID was lost.
+
 ## Roadmap and Personal Risk test-readiness release evidence
 
 PR #75 was documentation-only and merged as true merge commit `bcaae1f436d404dcf53eeb8719bd576aaf57e9af`. Its first main Reliability Gates run `36302337862`, attempt 1, remains a genuine failure and was not rerun: while bootstrap status was still loading, the Personal Risk page test found **Create policy version** in the DOM but clicked it while the control was disabled, so the expected **Confirm and submit** dialog did not open. The failure was a test synchronization race; it is not recorded as a passing run or as evidence of a production defect.
@@ -75,20 +138,69 @@ PR #76 changed only `frontend/src/pages/PersonalRiskSettingsPage.test.tsx` so ga
 
 ## THE SINGLE NEXT TASK
 
-**Build the separately reviewed Personal Risk lifecycle UI increment locally, without production access.** The application-facing PR A backend is merged and deployed; the UI for broker-confirmed partial/final-exit recording, protective-stop tightening, owner-scoped readback and the distinct recovery states remains unbuilt. It must preserve the backend's idempotency and recovery contract, must not use `SHADOW_PREVIEW` as approval, and must keep AzaLens recording distinct from Saxo execution. Do not begin shadow trading, create live production position writes, call production lifecycle RPCs, or imply Saxo execution without separate authorization and evidence.
+The former single next task — build the Personal Risk lifecycle UI — is **DONE**: PR #85 merged it and
+Vercel deployed it. Its evidence is recorded above. That superseded wording is preserved in the change log
+rather than silently rewritten.
+
+**The risk-reducing lane is now built and deployed behind `ClosedDemoGate`, and the application has no
+built path that would create something for it to act on.** Recording a partial exit, a final exit or a
+protective-stop tightening each require an existing owner position, and the UI reaches one only through a
+pasted position UUID that the owner must already hold. The established boundary, stated without asserting a
+current production row count:
+
+- **No production lifecycle RPC, position write or Saxo order occurred during the PR #82 or PR #85
+  releases.** That is verified release evidence for those releases.
+- **The opening and increase application paths are unbuilt.** Migration 008 defines
+  `create_risk_enforced_outcome_position` and `increase_risk_enforced_position`, but **no backend route or
+  service in this repository references either**, and no repository migration grants either to
+  `authenticated`.
+- **The UI requires a valid position UUID**, which it neither discovers nor creates; no position-listing
+  endpoint exists.
+
+The most recent point-in-time evidence about row counts is the **2026-09-26** authenticated owner-scoped
+audit recorded above, which found zero rows in all nine Migration 004/008 outcome-ledger, position-risk and
+evaluation tables. **That is a dated observation, not a current reading.** This roadmap change accessed no
+production database, so it does not assert what exists in production now; a present-tense row count would
+require an independent authenticated production read. The boundary above holds regardless of that count.
+It is a structural gap in the application, not a defect in PR #85.
+
+**The next Core implementation increment is therefore the new-risk position-opening path through the
+existing `create_risk_enforced_outcome_position` RPC**, taken before increase, because increase requires a
+position that opening must create first. Scope it the way PR #82 was scoped — backend route, service,
+strict input validation, owner context, idempotency and recovery — and review it separately before any UI.
+Three things are **undetermined and must be decided under separate review rather than assumed here**: the
+HTTP route path and request contract; whether any ACL or grant change is needed for the RPC to be callable
+by the authenticated owner, which requires independent production catalog evidence and must not be inferred
+from migration text; and the confirmation and evidence-class semantics for creating risk rather than
+reducing it. No route, default, field or operation is invented by this documentation change.
+
+Do not begin shadow trading, create live production position writes, call production lifecycle RPCs, or
+imply Saxo execution without separate authorization and evidence.
 
 ## Current repository position
 
-- Canonical merged `main` / `origin/main`: `7d3866755e5e2ad28f65d632e4c21e51fb79ef8e`.
-- Canonical tree: `4acead787851a0c7ba9470421593bed523f845c5`.
-- Merge parents, in order: `3730eabbbd82a81cb485f547d9f2aa51161362f6`, `651ddaf9b33a66b28e1930a71008e6083684d33a`.
+- Canonical merged `main` / `origin/main`: `1ffdbd87c0d89437dad5a6a3a32c5dfa4d94cdc3`.
+- Canonical tree: `42e53d0a6a2add9b57b878a765e42e9e85a7a00a`.
+- Merge parents, in order: `5975cbcf40e4273f8be06fef449a25cc0bba431d`, `e26c23fcae6734da27465877497afb9ff256d293`.
 - Migration 010 is applied exactly once and independently production-catalog verified; the generic-RPC bypass is closed in production.
 - PR #82's application-facing backend is merged and deployed. Its first-attempt PR/exact-merge CI, same-procedure health captures and exact private backup are verified.
-- The Personal Risk lifecycle UI is the single next implementation task.
+- PR #85's frontend lifecycle UI is merged and deployed behind `ClosedDemoGate`, with its genuine failed first PR attempt preserved and its exact private backup verified.
+- The new-risk position-opening path through `create_risk_enforced_outcome_position` is the next Core implementation increment; no route or contract for it exists yet.
+- The `frontend/src/pages/SettingsPage.tsx:144` accessibility work is a **shipped-code defect fix** recommended before the next Core increment. It is **not itself a Core increment**, so ordering it first does not displace or renumber anything.
+
+**Superseded position statements, retained as historical evidence and not rewritten.** Until the
+2026-09-30 reconciliation this block named `7d3866755e5e2ad28f65d632e4c21e51fb79ef8e` (tree
+`4acead787851a0c7ba9470421593bed523f845c5`, ordered parents `3730eabbbd82a81cb485f547d9f2aa51161362f6` and
+`651ddaf9b33a66b28e1930a71008e6083684d33a`) as canonical `main`. That was accurate at PR #82 and was left
+stale through documentation merges PR #83, PR #84 and the PR #85 release; both of those documentation
+merges touched only `WHAT_TO_DO_NEXT.md` and `IMPLEMENTER_HANDOVER.md`, so no implementation byte or
+contract depended on the stale reference. The PR #82 figures remain correct **as PR #82's** identity
+wherever they appear in that section above.
 
 ## Current working-tree scope
 
-This 2026-09-29 documentation checkpoint is limited to this roadmap; no implementation, migration, test, baseline or configuration file is changed.
+This 2026-09-30 documentation checkpoint is limited to this roadmap; no implementation, migration, test,
+baseline or configuration file is changed. The 2026-09-29 checkpoint before it had the same scope.
 
 ## Private backup and Drive recovery state
 
@@ -169,7 +281,16 @@ This 2026-09-29 documentation checkpoint is limited to this roadmap; no implemen
 
 The Personal Risk bootstrap is **CONTROLLED LIVE-WRITE VERIFIED** and independently re-read through authenticated owner-scoped production access. Exactly one policy, schedule, snapshot, daily basis and weekly basis exist with the reviewed values recorded above. The separate, unwired `SHADOW_PREVIEW` matches `_risk008_calculate` for 16 synthetic fixtures and 192 numeric-field comparisons, including negative half-unit rounding. It does not prove rejection-code or decision-precedence parity, runtime risk-flow integration, a live position write, or trade execution. No position, trade, risk evaluation or outcome-ledger row exists, and Core must not yet be described as `PRODUCTION-TRUSTED`, shadow-trading verified or real-money validated.
 
-Migration 010 is applied exactly once and independently verified in the production catalog; its generic-RPC bypass is closed in production. PR #82 merged and deployed the application-facing backend routes, service, owner-scoped lifecycle readback, key-preserving recovery states and stable lifecycle error mapping without a production lifecycle call or position write. The lifecycle UI remains unbuilt.
+Migration 010 is applied exactly once and independently verified in the production catalog; its generic-RPC bypass is closed in production. PR #82 merged and deployed the application-facing backend routes, service, owner-scoped lifecycle readback, key-preserving recovery states and stable lifecycle error mapping without a production lifecycle call or position write.
+
+PR #85 merged and deployed the frontend lifecycle UI behind `ClosedDemoGate`. Its proof is **delivery and
+local behaviour only**: first-attempt PR and exact-merge CI, a measured 5.358:1 contrast with zero axe
+violations on the tested page, and a Vercel-served chunk returning HTTP 200. An SPA-route HTTP 200 proves
+shell delivery, not that an authenticated owner rendered the page. **No production lifecycle RPC, position
+write or Saxo order occurred during these releases**, the opening and increase application paths are
+unbuilt, and the UI acts only on a position UUID the owner supplies. The risk-reducing UI is therefore
+unexercised against real data. This roadmap change performed no production read and asserts no current
+production row count. The new-risk opening path is unbuilt.
 
 No overall completion percentage is authoritative. Any preserved historical percentage is a **SUPERSEDED PLANNING ESTIMATE — NOT A VERIFIED PROGRESS MEASURE**.
 
@@ -203,7 +324,36 @@ Every step has exactly one live status. A future step is not done because its fi
 | V | **DONE** | PR #75's documentation-only merge and genuine failed first-main run remain recorded; PR #76's reviewed one-file readiness correction passed its first PR and first-main attempts, retained `backendChanged=false`, and was privately backed up. |
 | W | **DONE** | PR #78 / merge `271ff3f3c34e5d25dd2357068901be47cf4c4845` proves 37 actual Migration 008 RPC cases: database rejection precedence, exit/stop-tightening independence and separate-connection rollback. Runtime wiring, shadow trading, live position writes and Saxo execution remain unproven. |
 
-Migration 010 and PR A are deliberately recorded outside the lettered sequence: V and W retain their existing meanings and are not reassigned. Migration 010 is applied and independently verified in production; PR #82 completes the backend application increment, while its UI remains the single next implementation task.
+Migration 010 and PR A are deliberately recorded outside the lettered sequence: V and W retain their existing meanings and are not reassigned. Migration 010 is applied and independently verified in production; PR #82 completes the backend application increment.
+
+**PR #85 is likewise recorded outside the lettered sequence.** No letter is created, reused or reassigned
+for it: V and W keep exactly the meanings they already had, and the lettered sequence remains closed at W.
+PR #85's evidence lives in its own section above and in the open-items register. The lifecycle UI that step
+W's era described as "the single next implementation task" is now merged and deployed; that earlier wording
+stays in place as historical evidence of what was true when written.
+
+### Recommended order after PR #85
+
+Neither of the following is assigned a sequence letter, and neither renames or reorders an existing step.
+
+These are two different categories of work, which is why the ordering below and the "next Core
+implementation increment" designation above are consistent rather than contradictory: item 1 is a
+**shipped-code defect fix** and item 2 is the **next Core implementation increment**. Ordering the defect
+fix first does not make it a Core increment, and does not displace the Core increment.
+
+1. **First — the shipped `SettingsPage.tsx:144` accessibility repair, a shipped-code defect fix, not a Core
+   increment.** It is small and it is
+   already-shipped user-facing code carrying the same observed class pattern whose anchor form measured
+   3.33:1 **on `/settings/personal-risk`** in run `36622052421`. `/settings` itself has never been measured,
+   so the repair must begin by adding an axe check covering `/settings` and then act on what that check
+   actually reports. Doing this first also means the new-risk increment is built on a page set whose
+   accessibility is genuinely tested rather than assumed.
+2. **Second — the new-risk position-opening path, the next Core implementation increment,** through
+   `create_risk_enforced_outcome_position`. It is
+   materially larger, it creates risk rather than reducing it, and it carries undetermined route, ACL and
+   confirmation questions that need separate review and independent production catalog evidence.
+
+The order is a recommendation for review, not an authorization to start either one.
 
 ## Maintenance rule
 
@@ -280,7 +430,10 @@ This remains a separate later module/model. It must not begin merely because Cor
 | Migration 010 direction-guard infrastructure | **APPLIED ONCE AND INDEPENDENTLY PRODUCTION-VERIFIED** | The dry run listed only `20260928120000_010_direction_guarded_protective_stops`; remote history contains `20260928120000` exactly once. Catalog evidence proves the reviewed generic/tightening/loosening ACL matrix, no `PUBLIC` entries, `postgres` ownership, `SECURITY DEFINER`, empty `search_path`, and unchanged generic OID `50623`. **The generic-RPC bypass is closed in production.** |
 | Supabase Data API 30 October 2026 grant report | **PENDING RE-VERIFICATION** | Verify the reported date and primary Supabase source, then verify effective catalog privileges including `PUBLIC` inheritance. Do not treat a platform change or route absence as function security. |
 | Application-facing PR A backend | **DONE — MERGED AND DEPLOYED, NO PRODUCTION LIFECYCLE WRITE** | PR #82 provides owner-only broker-confirmed partial/final exits and stop tightening, routes/service, owner-scoped readback, distinct commit-known and commit-unknown recovery, stable lifecycle codes, key-preserving recovery and negative independence tests. It called no production lifecycle RPC, wrote no position and executed no Saxo order. |
-| Personal Risk lifecycle UI | **NEXT — SINGLE IMPLEMENTATION TASK** | Build the separately reviewed UI against PR #82's backend contract. Preserve recovery and idempotency semantics, keep `SHADOW_PREVIEW` informational, and keep AzaLens recording distinct from Saxo execution. |
+| Personal Risk lifecycle UI | **DONE — MERGED AND DEPLOYED BEHIND `ClosedDemoGate`, UNEXERCISED** | PR #85 / merge `1ffdbd87c0d89437dad5a6a3a32c5dfa4d94cdc3`. First-attempt PR run `36622052421` remains a genuine accessibility failure and was never rerun; corrective commit `e26c23fc…` and first-attempt runs `36631347755` and `36632008513` passed. No production lifecycle RPC or position write occurred during these releases; the opening and increase application paths are unbuilt; and the UI acts only on an owner-supplied position UUID. Delivery and local behaviour are proven; authenticated owner rendering and any lifecycle action are not. No current production row count is asserted here. |
+| New-risk position opening | **NEXT — CORE IMPLEMENTATION INCREMENT** | Build the separately reviewed backend path for the existing `create_risk_enforced_outcome_position` RPC before increase. No route or service references it today and no repository migration grants it to `authenticated`. Route path, request contract, any ACL change and the create-risk confirmation semantics are all undetermined and require separate review plus independent production catalog evidence. |
+| Recovery does not verify a tightening's evidence class | **OPEN — BACKEND CHARACTERISTIC, NOT FIXED BY PR #85** | `stopResult(row, replayed, expectedEvidenceClass = null)` asserts the class only when that argument is truthy. The mutation path supplies it, but `recover()` forwards only `{...input, recovery: true}` and never sets it, so a `COMMITTED` recovery **reports** the stored `evidenceClass` without **verifying** it against the submitted one. PR #85's UI labels a recovered class as reported rather than verified. A separately reviewed backend change is required; do not describe this as fixed. |
+| Shipped `SettingsPage.tsx:144` anchor contrast pattern | **OPEN — OBSERVED IDENTICAL CSS PATTERN, UNTESTED ON `/settings`, NOT FIXED BY PR #85** | `frontend/src/pages/SettingsPage.tsx:144` ships an `<a>` carrying the **same observed `bg-brand` + `text-white` class pattern** whose anchor form measured 3.33:1 on `/settings/personal-risk` in run `36622052421`. **No contrast measurement has been taken on `/settings` itself**, because axe runs only in `analysis.spec.ts` and `personal-risk.spec.ts` and never on that route; the pattern match is a code observation, not a measured `/settings` result, and this item must not be reported as a confirmed `/settings` violation until that page is tested. The scoped repair is: add an axe check covering `/settings`, observe what it actually reports, and repair accordingly. It is recommended **first** in the order above as a **shipped-code defect fix**; it is **not a Core implementation increment** and does not displace the next Core increment. PR #85 fixed only its own new control and deliberately left this file untouched. |
 | Release-health same-procedure before/after evidence | **REQUIRED FOR FUTURE `backendChanged=true` RELEASES** | PR #82 satisfied the rule with saved pre-merge live/ready captures at `08:05:24` observing `c664b387615c1cf60d0cb7119352251a421a5a60` and post-deployment captures at `08:11:03` observing `7d3866755e5e2ad28f65d632e4c21e51fb79ef8e`. Use the same release procedure, not the post-merge Release Health workflow alone. |
 | Remaining Core slices | **SEPARATE SCOPE REQUIRED AFTER THE UI** | Preserve risk-reducing-path independence. Do not create live trade/risk rows or imply Saxo execution prematurely. |
 | Shadow trading | **NOT STARTED** | Requires functioning, verified Core workflows. |
@@ -303,6 +456,46 @@ This is a narrow reconciliation against locally available repository evidence, n
 | Local `.env` provider-pair mismatch | **REQUIRES REVALIDATION** | Local secrets/configuration were intentionally not inspected or printed in this documentation checkpoint. |
 
 ## Change log
+
+### 2026-09-30
+
+- Recorded PR #85 / true merge `1ffdbd87c0d89437dad5a6a3a32c5dfa4d94cdc3`, tree
+  `42e53d0a6a2add9b57b878a765e42e9e85a7a00a`, ordered parents `5975cbcf40e4273f8be06fef449a25cc0bba431d`
+  and `e26c23fcae6734da27465877497afb9ff256d293`, with its 128,772-byte first-parent patch SHA-256
+  `6858a2c49e44f19efe7ceec69f15eeff24d36d744ad083688374285a1afaa7ea` matching the frozen reviewed patch
+  byte-for-byte and an empty second-parent diff.
+- Preserved PR run `36622052421`, attempt 1, head `275100a76a6ae375d434ab01dbb84e863ebe24c3` as a genuine
+  accessibility failure at 3.33:1, never rerun, with its cascading visual-proof steps explained; recorded
+  corrective commit `e26c23fc…`, the measured 5.358:1 contrast, zero axe violations on the tested page,
+  Enter/Space navigation, and first-attempt runs `36631347755` and `36632008513` with the exact-merge run's
+  own proof lines.
+- Recorded Release Health `36632546515`, attempt 1: `backendChanged=false`, backend `deployment.commit`
+  unchanged at `7d3866755e5e2ad28f65d632e4c21e51fb79ef8e`, live/ready HTTP 200 with `ready=true`, and the
+  Vercel-served `PersonalRiskLifecyclePage-BPNhVPfh.js` chunk at HTTP 200. Stated that an SPA-route HTTP 200
+  proves shell delivery only, not authenticated owner rendering or any lifecycle action.
+- Recorded the exact-merge private backup by immutable ID with Drive-read hashes, sidecar match,
+  `unzip -t`, 494/494 path and blob reconstruction including three executable modes, four zero audit
+  counters, both objects `shared:false`, active direct children `149 → 151`, trash `0 → 0`, and no lost
+  pre-existing ID.
+- Corrected the stale "Current repository position" block from `7d386675…` to the PR #85 merge and its
+  ordered parents, retaining the superseded statement as labelled historical evidence rather than deleting
+  it. The superseded single-next-task wording — build the lifecycle UI — is likewise retained here.
+- Marked the risk-reducing UI built and deployed behind `ClosedDemoGate` and stated the practical boundary
+  without asserting a current production row count: no production lifecycle RPC or position write occurred
+  during the PR #82 or PR #85 releases; `create_risk_enforced_outcome_position` and
+  `increase_risk_enforced_position` have no backend route or service and no repository grant to
+  `authenticated`; and the UI acts only on an owner-supplied position UUID. The 2026-09-26 zero-row audit is
+  cited as a dated observation, since this change performed no production read. Named the new-risk opening
+  path as the next increment while leaving its route, ACL and confirmation semantics undetermined pending
+  separate review.
+- Added two open items: recovery reports but does not verify a tightening's evidence class because
+  `recover()` never passes `expectedEvidenceClass`; and `frontend/src/pages/SettingsPage.tsx:144` ships the
+  same **observed** `bg-brand`/`text-white` anchor class pattern outside axe's `/settings` coverage. The
+  latter is recorded as an untested pattern match, **not** a measured `/settings` violation, and its scoped
+  repair begins by adding an axe check on `/settings`. Neither is claimed as fixed by PR #85.
+- Recommended doing the small shipped accessibility repair before the new-risk increment, without creating
+  or reassigning any sequence letter; V and W retain their existing meanings and the lettered sequence
+  remains closed at W.
 
 ### 2026-09-29
 
