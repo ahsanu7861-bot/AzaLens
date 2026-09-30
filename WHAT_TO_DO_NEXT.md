@@ -130,6 +130,63 @@ audit counters (`GIT_METADATA_ENTRIES`, `UNSAFE_ENV_ENTRIES`, `CREDENTIAL_NAMED_
 `CREDENTIAL_CONTENT_HITS`) were zero, both objects are `shared:false`, active direct-child inventory moved
 `149 → 151`, in-scope trash remained `0 → 0`, and no pre-existing immutable ID was lost.
 
+## `/settings` accessibility coverage and entry repair — merged and deployed (PR #87)
+
+PR #87 merged as true merge commit `1feb44d1f3da2e868dcee7011691c54651e9d2ce`, tree
+`aaea612b7615fab78ead72e5fac5693ed680d1de`, with ordered parents
+`d35b24ae79efc1424c4bf37070ea6a70571a390a` and `49efa8eb389121505193359b932900f4e7d8f148`; the feature
+commit is `49efa8eb389121505193359b932900f4e7d8f148`. Its three-path first-parent patch has SHA-256
+`e58394421e2eecdd39b5f2dc324b1738a9524a2cfdf7e8ccc452d8f4d06bb2a6` and is 13,495 bytes, byte-identical to
+the frozen reviewed patch. The merge tree equals the feature tree and the second-parent diff was empty.
+The three paths are `frontend/e2e/settings-accessibility.spec.ts`,
+`frontend/src/pages/PersonalRiskSettingsPage.test.tsx` and `frontend/src/pages/SettingsPage.tsx`. No
+backend, migration, CI-workflow, pinned-fixture or visual-baseline byte changed, no Personal Risk
+lifecycle logic changed, and no brand token or CSS contrast carve-out was added.
+
+PR Reliability Gates run `36735712456` and exact-merge push run `36736485594` each passed all five jobs on
+**attempt 1**, with no rerun. Release Health run `36737019673`, attempt 1, passed with
+`backendChanged=false` and the deployed backend commit unchanged at
+`7d3866755e5e2ad28f65d632e4c21e51fb79ef8e` — correct for a frontend-only release, and not a backend
+redeploy.
+
+**This slice replaced an inference with a measurement.** Before the repair, `/settings` was absent from axe
+coverage entirely: axe ran only in `analysis.spec.ts` and `personal-risk.spec.ts`. The new spec visits
+`/settings` in **both** the `desktop-chromium` and `mobile-chromium` projects, in the day and night themes,
+and reads the control's own resolved colours rather than inferring from a class pattern seen on another
+route.
+
+Measured on `/settings`, in both browser projects:
+
+| Theme | Before repair | After repair | AA 4.5:1 |
+|---|---|---|---|
+| day | **3.332:1** — `rgb(15,23,42)` on `rgb(14,116,144)` | **5.358:1** | passes after the repair |
+| night | **2.197:1** — `rgb(240,244,248)` on `rgb(6,182,212)` | **2.428:1** | **still fails** |
+
+The repair renders the entry with the existing `Button` convention already used on that page — a real
+`<button type="button">` carrying `bg-brand`, which the day-theme AA carve-out at `index.css:538` covers —
+and navigates with `useNavigate`. In the day theme axe no longer flags the entry. **In the night theme the
+repaired entry is still flagged**, identically to the page's pre-existing primary `Save preferences`
+Button, which measures the same `2.428:1`. **`/settings` is therefore not accessibility-clean, and the
+night defect is not fixed.**
+
+CI's `github` reporter omits spec paths and `console.log` output, so the new spec's own measurement lines
+do not appear in the exact-merge log; their absence is a reporter artifact and not evidence that the spec
+was skipped. Positive evidence that it ran: the browser-journeys count rose from **30 passed** in the
+previous release's exact-merge run to **36 passed** in `36736485594`, with two skips unchanged in both,
+consistent with exactly the six new cases.
+
+The exact merge is privately backed up as owner-only, unshared `AzaLens-2026-09-30-1feb44d.zip`, immutable
+ID `1l4DuVjIMMvdmkcPAYfjMCNQVLo5dKSvq`, Drive-read SHA-256
+`ed1994bef1e2d9e2b3400e46cf8e4d14d5518853fb851af390ffd7457b39cb72`, with sidecar immutable ID
+`1qRERnS3dIKGMufV5mtV_lIVCVJGqlGXZ`, Drive-read SHA-256
+`3b0bc017d66a262432ac0daa439ca4dd7e90507c4ee1b46b4bc6af531f6b9f5f`. The Drive-read bytes matched the local
+bytes exactly, the sidecar verified the Drive-read ZIP, `unzip -t` passed on those bytes, and all 495 paths
+and blobs — including three executable-mode entries — reconstructed to merge tree
+`aaea612b7615fab78ead72e5fac5693ed680d1de`. All four audit counters (`GIT_METADATA_ENTRIES`,
+`UNSAFE_ENV_ENTRIES`, `CREDENTIAL_NAMED_ENTRIES`, `CREDENTIAL_CONTENT_HITS`) were zero, both objects are
+`shared:false`, active direct-child inventory moved `153 → 155`, in-scope trash remained `0 → 0`, and no
+pre-existing immutable ID was lost.
+
 ## Roadmap and Personal Risk test-readiness release evidence
 
 PR #75 was documentation-only and merged as true merge commit `bcaae1f436d404dcf53eeb8719bd576aaf57e9af`. Its first main Reliability Gates run `36302337862`, attempt 1, remains a genuine failure and was not rerun: while bootstrap status was still loading, the Personal Risk page test found **Create policy version** in the DOM but clicked it while the control was disabled, so the expected **Confirm and submit** dialog did not open. The failure was a test synchronization race; it is not recorded as a passing run or as evidence of a production defect.
@@ -179,17 +236,23 @@ imply Saxo execution without separate authorization and evidence.
 
 ## Current repository position
 
-- Canonical merged `main` / `origin/main`: `1ffdbd87c0d89437dad5a6a3a32c5dfa4d94cdc3`.
-- Canonical tree: `42e53d0a6a2add9b57b878a765e42e9e85a7a00a`.
-- Merge parents, in order: `5975cbcf40e4273f8be06fef449a25cc0bba431d`, `e26c23fcae6734da27465877497afb9ff256d293`.
+- Canonical merged `main` / `origin/main`: `1feb44d1f3da2e868dcee7011691c54651e9d2ce`.
+- Canonical tree: `aaea612b7615fab78ead72e5fac5693ed680d1de`.
+- Merge parents, in order: `d35b24ae79efc1424c4bf37070ea6a70571a390a`, `49efa8eb389121505193359b932900f4e7d8f148`.
 - Migration 010 is applied exactly once and independently production-catalog verified; the generic-RPC bypass is closed in production.
 - PR #82's application-facing backend is merged and deployed. Its first-attempt PR/exact-merge CI, same-procedure health captures and exact private backup are verified.
 - PR #85's frontend lifecycle UI is merged and deployed behind `ClosedDemoGate`, with its genuine failed first PR attempt preserved and its exact private backup verified.
 - The new-risk position-opening path through `create_risk_enforced_outcome_position` is the next Core implementation increment; no route or contract for it exists yet.
-- The `frontend/src/pages/SettingsPage.tsx:144` accessibility work is a **shipped-code defect fix** recommended before the next Core increment. It is **not itself a Core increment**, so ordering it first does not displace or renumber anything.
+- The `frontend/src/pages/SettingsPage.tsx:144` accessibility work **is done as a shipped-code defect fix** in PR #87: `/settings` now has axe coverage in both browser projects, the day contrast passes AA, and the night contrast still fails. It was never a Core increment, so completing it neither advanced nor displaced the Core sequence.
+- The new-risk position-opening path through `create_risk_enforced_outcome_position` **remains the next Core implementation increment**; no route or contract for it exists yet.
 
-**Superseded position statements, retained as historical evidence and not rewritten.** Until the
-2026-09-30 reconciliation this block named `7d3866755e5e2ad28f65d632e4c21e51fb79ef8e` (tree
+**Superseded position statements, retained as historical evidence and not rewritten.** Each was accurate
+when recorded; none is restated here as though it had been false at the time. Until this 2026-09-30 PR #87
+reconciliation this block named `1ffdbd87c0d89437dad5a6a3a32c5dfa4d94cdc3` (tree
+`42e53d0a6a2add9b57b878a765e42e9e85a7a00a`, ordered parents `5975cbcf40e4273f8be06fef449a25cc0bba431d` and
+`e26c23fcae6734da27465877497afb9ff256d293`) as canonical `main`; that was correct as PR #85's identity and
+remains correct wherever it appears as PR #85's. Before the earlier PR #85 reconciliation the block named
+`7d3866755e5e2ad28f65d632e4c21e51fb79ef8e` (tree
 `4acead787851a0c7ba9470421593bed523f845c5`, ordered parents `3730eabbbd82a81cb485f547d9f2aa51161362f6` and
 `651ddaf9b33a66b28e1930a71008e6083684d33a`) as canonical `main`. That was accurate at PR #82 and was left
 stale through documentation merges PR #83, PR #84 and the PR #85 release; both of those documentation
@@ -200,7 +263,8 @@ wherever they appear in that section above.
 ## Current working-tree scope
 
 This 2026-09-30 documentation checkpoint is limited to this roadmap; no implementation, migration, test,
-baseline or configuration file is changed. The 2026-09-29 checkpoint before it had the same scope.
+baseline or configuration file is changed. The earlier 2026-09-30 PR #85 reconciliation and the 2026-09-29
+checkpoint before it had the same scope.
 
 ## Private backup and Drive recovery state
 
@@ -292,6 +356,11 @@ unbuilt, and the UI acts only on a position UUID the owner supplies. The risk-re
 unexercised against real data. This roadmap change performed no production read and asserts no current
 production row count. The new-risk opening path is unbuilt.
 
+PR #87 added the first accessibility coverage of `/settings` and repaired its primary entry control. That
+proof is **measurement of two themes in two browser projects on one route**: day passes AA at 5.358:1,
+night still fails at 2.428:1, and other violations on the page remain open. It establishes neither that
+`/settings` is accessibility-clean nor that any other route has been measured.
+
 No overall completion percentage is authoritative. Any preserved historical percentage is a **SUPERSEDED PLANNING ESTIMATE — NOT A VERIFIED PROGRESS MEASURE**.
 
 ## Immediate next sequence
@@ -341,13 +410,12 @@ implementation increment" designation above are consistent rather than contradic
 **shipped-code defect fix** and item 2 is the **next Core implementation increment**. Ordering the defect
 fix first does not make it a Core increment, and does not displace the Core increment.
 
-1. **First — the shipped `SettingsPage.tsx:144` accessibility repair, a shipped-code defect fix, not a Core
-   increment.** It is small and it is
-   already-shipped user-facing code carrying the same observed class pattern whose anchor form measured
-   3.33:1 **on `/settings/personal-risk`** in run `36622052421`. `/settings` itself has never been measured,
-   so the repair must begin by adding an axe check covering `/settings` and then act on what that check
-   actually reports. Doing this first also means the new-risk increment is built on a page set whose
-   accessibility is genuinely tested rather than assumed.
+1. **DONE — the shipped `SettingsPage.tsx:144` accessibility repair, a shipped-code defect fix, not a Core
+   increment.** Delivered by PR #87. The recommendation to do it first was followed, and it behaved as the
+   reasoning predicted: adding the axe check *before* repairing established that the defect was real, and
+   measured a night-theme failure the day-theme mechanism had not predicted. `/settings` day now passes AA
+   at 5.358:1; night still fails at 2.428:1, and two OPEN items below carry the remainder. Because this was
+   never a Core increment, completing it neither advanced nor displaced the Core sequence.
 2. **Second — the new-risk position-opening path, the next Core implementation increment,** through
    `create_risk_enforced_outcome_position`. It is
    materially larger, it creates risk rather than reducing it, and it carries undetermined route, ACL and
@@ -433,7 +501,9 @@ This remains a separate later module/model. It must not begin merely because Cor
 | Personal Risk lifecycle UI | **DONE — MERGED AND DEPLOYED BEHIND `ClosedDemoGate`, UNEXERCISED** | PR #85 / merge `1ffdbd87c0d89437dad5a6a3a32c5dfa4d94cdc3`. First-attempt PR run `36622052421` remains a genuine accessibility failure and was never rerun; corrective commit `e26c23fc…` and first-attempt runs `36631347755` and `36632008513` passed. No production lifecycle RPC or position write occurred during these releases; the opening and increase application paths are unbuilt; and the UI acts only on an owner-supplied position UUID. Delivery and local behaviour are proven; authenticated owner rendering and any lifecycle action are not. No current production row count is asserted here. |
 | New-risk position opening | **NEXT — CORE IMPLEMENTATION INCREMENT** | Build the separately reviewed backend path for the existing `create_risk_enforced_outcome_position` RPC before increase. No route or service references it today and no repository migration grants it to `authenticated`. Route path, request contract, any ACL change and the create-risk confirmation semantics are all undetermined and require separate review plus independent production catalog evidence. |
 | Recovery does not verify a tightening's evidence class | **OPEN — BACKEND CHARACTERISTIC, NOT FIXED BY PR #85** | `stopResult(row, replayed, expectedEvidenceClass = null)` asserts the class only when that argument is truthy. The mutation path supplies it, but `recover()` forwards only `{...input, recovery: true}` and never sets it, so a `COMMITTED` recovery **reports** the stored `evidenceClass` without **verifying** it against the submitted one. PR #85's UI labels a recovered class as reported rather than verified. A separately reviewed backend change is required; do not describe this as fixed. |
-| Shipped `SettingsPage.tsx:144` anchor contrast pattern | **OPEN — OBSERVED IDENTICAL CSS PATTERN, UNTESTED ON `/settings`, NOT FIXED BY PR #85** | `frontend/src/pages/SettingsPage.tsx:144` ships an `<a>` carrying the **same observed `bg-brand` + `text-white` class pattern** whose anchor form measured 3.33:1 on `/settings/personal-risk` in run `36622052421`. **No contrast measurement has been taken on `/settings` itself**, because axe runs only in `analysis.spec.ts` and `personal-risk.spec.ts` and never on that route; the pattern match is a code observation, not a measured `/settings` result, and this item must not be reported as a confirmed `/settings` violation until that page is tested. The scoped repair is: add an axe check covering `/settings`, observe what it actually reports, and repair accordingly. It is recommended **first** in the order above as a **shipped-code defect fix**; it is **not a Core implementation increment** and does not displace the next Core increment. PR #85 fixed only its own new control and deliberately left this file untouched. |
+| Shipped `SettingsPage.tsx:144` anchor contrast | **DONE AS A SHIPPED-CODE DEFECT FIX — MEASURED, DAY PASSES, NIGHT STILL FAILS** | Superseded the earlier "observed pattern, untested on `/settings`" status, which was accurate when recorded: `/settings` had no axe coverage then, so only the `/settings/personal-risk` measurement existed. PR #87 added the coverage and measured the page. Before the repair `/settings` measured **3.332:1** in day and **2.197:1** in night, in both browser projects — so the suspected defect was real and worse in night than the day-theme mechanism predicted. PR #87 changed the entry to the existing `Button` convention: day now measures **5.358:1** and passes AA with axe no longer flagging it; night measures **2.428:1** and **still fails AA**, identically to the page's pre-existing `Save preferences` Button. The new spec runs in both `desktop-chromium` and `mobile-chromium`. **`/settings` is not accessibility-clean.** |
+| Night brand-token contrast on primary Buttons | **OPEN — BRAND-TREATMENT DECISION PENDING, NO GLOBAL FIX MADE** | White on `--az-brand` `#06b6d4` measures **2.428:1**, below AA 4.5:1, so no light label can reach AA on the night brand surface. Measured on `/settings`, where the repaired entry and the pre-existing `Save preferences` Button both measure that same value — a shared design-token gap, not a defect of either control. PR #87 deliberately added no token and no contrast carve-out, because neither belongs in a single-page repair. A brand-treatment decision (a darker night brand surface, or dark-on-brand labels in night) is required before any global fix. PR #85's lifecycle entry uses the same primary `Button` styling, so a shared impact is **likely, pending direct measurement**; its night contrast has **not** been measured on `/settings/personal-risk/lifecycle` and must not be reported as a verified page-specific result. |
+| Other measured `/settings` axe findings | **OPEN — SEPARATE SCOPED REPAIR** | Measured by PR #87's spec and recorded rather than asserted, so none is hidden: the `text-positive` "Owner authenticated" badge (`color-contrast`, day and night, both projects); selected-choice `text-ink-muted` labels (`color-contrast`, night, both projects); and the app-shell `<aside>` (`landmark-unique`, day and night, **desktop only**, since it is `hidden … lg:flex`). The spec's `parseRgb`/`measure()` helpers **do not composite partial alpha** — `parseRgb` ignores the alpha channel and `measure()` skips only fully transparent backgrounds — so they must not be used to claim a contrast measurement for a translucent surface such as `bg-positive/10` until that compositing is added. axe remains the authority for those nodes. |
 | Release-health same-procedure before/after evidence | **REQUIRED FOR FUTURE `backendChanged=true` RELEASES** | PR #82 satisfied the rule with saved pre-merge live/ready captures at `08:05:24` observing `c664b387615c1cf60d0cb7119352251a421a5a60` and post-deployment captures at `08:11:03` observing `7d3866755e5e2ad28f65d632e4c21e51fb79ef8e`. Use the same release procedure, not the post-merge Release Health workflow alone. |
 | Remaining Core slices | **SEPARATE SCOPE REQUIRED AFTER THE UI** | Preserve risk-reducing-path independence. Do not create live trade/risk rows or imply Saxo execution prematurely. |
 | Shadow trading | **NOT STARTED** | Requires functioning, verified Core workflows. |
@@ -456,6 +526,41 @@ This is a narrow reconciliation against locally available repository evidence, n
 | Local `.env` provider-pair mismatch | **REQUIRES REVALIDATION** | Local secrets/configuration were intentionally not inspected or printed in this documentation checkpoint. |
 
 ## Change log
+
+### 2026-09-30 — PR #87 reconciliation
+
+- Recorded PR #87 / feature commit `49efa8eb389121505193359b932900f4e7d8f148`, true merge
+  `1feb44d1f3da2e868dcee7011691c54651e9d2ce`, tree `aaea612b7615fab78ead72e5fac5693ed680d1de`, ordered
+  parents `d35b24ae79efc1424c4bf37070ea6a70571a390a` and `49efa8eb389121505193359b932900f4e7d8f148`, with
+  its three-path first-parent patch SHA-256
+  `e58394421e2eecdd39b5f2dc324b1738a9524a2cfdf7e8ccc452d8f4d06bb2a6` at 13,495 bytes byte-identical to the
+  frozen reviewed patch, feature-tree/merge-tree equality, and an empty second-parent diff.
+- Recorded PR CI `36735712456` and exact-merge CI `36736485594` both passing all five jobs on attempt 1
+  without rerun, and Release Health `36737019673` passing with `backendChanged=false` and the deployed
+  backend commit unchanged at `7d3866755e5e2ad28f65d632e4c21e51fb79ef8e`.
+- Replaced the `SettingsPage.tsx:144` "observed pattern, untested on `/settings`" status with the measured
+  result, noting that the earlier status was accurate when recorded because no `/settings` coverage existed:
+  before repair `/settings` measured 3.332:1 in day and 2.197:1 in night; after repair day measures 5.358:1
+  and passes while night measures 2.428:1 and still fails AA, identically to the existing `Save preferences`
+  Button. The new spec runs in both `desktop-chromium` and `mobile-chromium`. `/settings` is **not** claimed
+  accessibility-clean.
+- Recorded that CI's `github` reporter omits spec paths and `console.log`, so the new spec's measurement
+  lines are absent from the exact-merge log; the browser count rose from 30 to 36 passed with two skips
+  unchanged, which is the positive evidence that the six new cases ran.
+- Recorded the exact-merge private backup by immutable ID — ZIP `1l4DuVjIMMvdmkcPAYfjMCNQVLo5dKSvq`
+  (`ed1994be…`) and sidecar `1qRERnS3dIKGMufV5mtV_lIVCVJGqlGXZ` (`3b0bc017…`) — with Drive-read byte
+  identity, sidecar verification, `unzip -t`, 495/495 paths and blobs plus three executable modes
+  reconstructed to the merge tree, four zero audit counters, both objects `shared:false`, active direct
+  children `153 → 155`, and trash `0 → 0`.
+- Added two distinct OPEN items: the night brand-token contrast gap, with PR #85's lifecycle entry labelled
+  a likely shared impact **pending direct measurement** rather than a verified page-specific result; and the
+  other measured `/settings` axe findings for a separate scoped repair, including the caveat that the
+  spec's `parseRgb`/`measure()` helpers do not composite partial alpha and must not be used to claim a
+  contrast figure for `bg-positive/10`.
+- Updated Current repository position to the PR #87 merge, retaining the PR #85 and PR #82 identities as
+  historical evidence that was accurate when recorded rather than restating them as false.
+- Kept the new-risk position-opening path as the next Core implementation increment, and created,
+  reused or reassigned no sequence letter; V and W retain their existing meanings.
 
 ### 2026-09-30
 
