@@ -13,7 +13,7 @@ import {
   Sun,
 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import {
   defaultLocalSettings,
@@ -101,6 +101,7 @@ function ChoiceButton({
 }
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const { preference, resolvedTheme, setPreference } = useTheme();
   const [settings, setSettings] = useState<LocalSettings>(readLocalSettings);
   const [saved, setSaved] = useState(false);
@@ -141,9 +142,9 @@ export default function SettingsPage() {
         <div className="space-y-6">
           <Card>
             <SectionHeading icon={ShieldCheck} title="Personal risk controls" description="Review and establish immutable owner-only policy, broker-cost and equity-basis foundations." />
-            <Link className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white" to="/settings/personal-risk">
+            <Button className="mt-5" onClick={() => navigate("/settings/personal-risk")}>
               Open personal risk controls
-            </Link>
+            </Button>
           </Card>
           <Card>
             <SectionHeading icon={Eye} title="Appearance" description={`Choose how AzaLens looks. Your current resolved theme is ${resolvedTheme}.`} />
