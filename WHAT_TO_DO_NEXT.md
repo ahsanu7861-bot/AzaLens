@@ -208,11 +208,62 @@ current production row count:
 - **No production lifecycle RPC, position write or Saxo order occurred during the PR #82 or PR #85
   releases.** That is verified release evidence for those releases.
 - **The opening and increase application paths are unbuilt.** Migration 008 defines
-  `create_risk_enforced_outcome_position` and `increase_risk_enforced_position`, but **no backend route or
-  service in this repository references either**, and no repository migration grants either to
-  `authenticated`.
+  `create_risk_enforced_outcome_position` and `increase_risk_enforced_position`, and **no backend route or
+  service in this repository references either**. Both are, however, already granted to `authenticated`:
+  see the correction below.
 - **The UI requires a valid position UUID**, which it neither discovers nor creates; no position-listing
   endpoint exists.
+
+**Correction of a false grant statement previously recorded here.** Until this 2026-10-01 correction this
+roadmap asserted that "no repository migration grants either to `authenticated`". **That was wrong when
+written.** `supabase/migrations/20260919120000_008_personal_risk_lifecycle.sql` grants both:
+
+- **line 670** — `grant execute on function public.create_risk_enforced_outcome_position(…26 args…) to authenticated;`
+- **line 671** — `grant execute on function public.increase_risk_enforced_position(uuid,uuid,timestamptz,numeric,numeric,numeric,numeric) to authenticated;`
+
+Migrations 009 and 010 do not alter either grant; 010 changes only the three protective-stop functions.
+The error came from a case-sensitive search for `GRANT EXECUTE ON FUNCTION` against a file written in lower
+case, and an absent search result was then recorded as an established fact. It is corrected rather than
+quietly rewritten, because the planning conclusion it supported — that the opening increment would need
+grant work — was itself wrong.
+
+**Independently verified in the production catalog on 2026-10-01 by a read-only query** (no RPC executed,
+nothing written). Exactly one signature exists for each function, so no overload ambiguity:
+
+| Function | OID | Owner | `SECURITY DEFINER` | `proconfig` | Raw `proacl` |
+|---|---|---|---|---|---|
+| `create_risk_enforced_outcome_position` (26 args) | `50636` | `postgres` | yes | `search_path=""` | `{postgres=X/postgres,authenticated=X/postgres}` |
+| `increase_risk_enforced_position` (7 args) | `50625` | `postgres` | yes | `search_path=""` | `{postgres=X/postgres,authenticated=X/postgres}` |
+| `create_outcome_position` (24 args, raw creator) | `50187` | `postgres` | yes | `search_path=""` | `{postgres=X/postgres}` |
+
+Effective `EXECUTE`, with `PUBLIC` probed explicitly through `aclexplode` grantee OID `0` because `PUBLIC`
+is not a role and cannot be passed to `has_function_privilege`:
+
+| Function | `postgres` | `authenticated` | `anon` | `service_role` | `PUBLIC` |
+|---|---|---|---|---|---|
+| `create_risk_enforced_outcome_position` | yes | **yes** | no | no | **no** |
+| `increase_risk_enforced_position` | yes | **yes** | no | no | **no** |
+| `create_outcome_position` | yes | **no** | no | no | **no** |
+
+`aclexplode` returned exactly five rows across the three functions and **no row with grantee OID `0`**, so
+no `PUBLIC` entry exists on any of them. The raw creator's production ACL confirms that Migration 008's
+`revoke execute … from authenticated` (line 429) superseded Migration 004's earlier grant (line 625).
+
+**Scope limit on that conclusion.** It holds only for the **three function signatures inspected** —
+`create_risk_enforced_outcome_position(26 args)`, `increase_risk_enforced_position(7 args)` and
+`create_outcome_position(24 args)` — and only for the **five grantees checked**: `postgres`,
+`authenticated`, `anon`, `service_role` and `PUBLIC`. Within that scope, `authenticated` can reach the
+risk-enforced wrapper and cannot reach the raw creator. **This was not an exhaustive schema-wide audit of
+every database object capable of reaching `outcome_positions`**: other functions, triggers, views or future
+objects were not enumerated, and no claim is made about them. Establishing that the risk-enforced wrapper is
+the *only* path by which an authenticated caller could create a position would require a separate,
+explicitly scoped audit that has not been performed.
+
+Independent migration-history read: `supabase_migrations.schema_migrations` contains version
+`20260919120000` (`008_personal_risk_lifecycle`) **exactly once**, alongside `20260903120000`,
+`20260925120000` and `20260928120000`. **Production and repository agree**; no repair was attempted or
+needed. The consequence for planning is that the opening increment requires **no grant or ACL change** —
+only a route, a service and their tests.
 
 The most recent point-in-time evidence about row counts is the **2026-09-26** authenticated owner-scoped
 audit recorded above, which found zero rows in all nine Migration 004/008 outcome-ledger, position-risk and
@@ -499,10 +550,10 @@ This remains a separate later module/model. It must not begin merely because Cor
 | Supabase Data API 30 October 2026 grant report | **PENDING RE-VERIFICATION** | Verify the reported date and primary Supabase source, then verify effective catalog privileges including `PUBLIC` inheritance. Do not treat a platform change or route absence as function security. |
 | Application-facing PR A backend | **DONE — MERGED AND DEPLOYED, NO PRODUCTION LIFECYCLE WRITE** | PR #82 provides owner-only broker-confirmed partial/final exits and stop tightening, routes/service, owner-scoped readback, distinct commit-known and commit-unknown recovery, stable lifecycle codes, key-preserving recovery and negative independence tests. It called no production lifecycle RPC, wrote no position and executed no Saxo order. |
 | Personal Risk lifecycle UI | **DONE — MERGED AND DEPLOYED BEHIND `ClosedDemoGate`, UNEXERCISED** | PR #85 / merge `1ffdbd87c0d89437dad5a6a3a32c5dfa4d94cdc3`. First-attempt PR run `36622052421` remains a genuine accessibility failure and was never rerun; corrective commit `e26c23fc…` and first-attempt runs `36631347755` and `36632008513` passed. No production lifecycle RPC or position write occurred during these releases; the opening and increase application paths are unbuilt; and the UI acts only on an owner-supplied position UUID. Delivery and local behaviour are proven; authenticated owner rendering and any lifecycle action are not. No current production row count is asserted here. |
-| New-risk position opening | **NEXT — CORE IMPLEMENTATION INCREMENT** | Build the separately reviewed backend path for the existing `create_risk_enforced_outcome_position` RPC before increase. No route or service references it today and no repository migration grants it to `authenticated`. Route path, request contract, any ACL change and the create-risk confirmation semantics are all undetermined and require separate review plus independent production catalog evidence. |
+| New-risk position opening | **NEXT — CORE IMPLEMENTATION INCREMENT, GRANT BOUNDARY NOW VERIFIED** | Build the separately reviewed backend path for the existing `create_risk_enforced_outcome_position` RPC before increase. No route or service references it today. **Corrected:** this row previously claimed no repository migration grants it to `authenticated`; Migration 008 lines 670–671 grant both it and `increase_risk_enforced_position`, and a read-only production catalog check on 2026-10-01 confirmed `{postgres=X/postgres,authenticated=X/postgres}` on OIDs `50636` and `50625`, with the raw `create_outcome_position` (OID `50187`) holding `{postgres=X/postgres}` only and no `PUBLIC` entry anywhere. **No grant or ACL change is required.** Route path, request contract and the create-risk confirmation semantics remain undetermined and require separate review. |
 | Recovery does not verify a tightening's evidence class | **OPEN — BACKEND CHARACTERISTIC, NOT FIXED BY PR #85** | `stopResult(row, replayed, expectedEvidenceClass = null)` asserts the class only when that argument is truthy. The mutation path supplies it, but `recover()` forwards only `{...input, recovery: true}` and never sets it, so a `COMMITTED` recovery **reports** the stored `evidenceClass` without **verifying** it against the submitted one. PR #85's UI labels a recovered class as reported rather than verified. A separately reviewed backend change is required; do not describe this as fixed. |
 | Shipped `SettingsPage.tsx:144` anchor contrast | **DONE AS A SHIPPED-CODE DEFECT FIX — MEASURED, DAY PASSES, NIGHT STILL FAILS** | Superseded the earlier "observed pattern, untested on `/settings`" status, which was accurate when recorded: `/settings` had no axe coverage then, so only the `/settings/personal-risk` measurement existed. PR #87 added the coverage and measured the page. Before the repair `/settings` measured **3.332:1** in day and **2.197:1** in night, in both browser projects — so the suspected defect was real and worse in night than the day-theme mechanism predicted. PR #87 changed the entry to the existing `Button` convention: day now measures **5.358:1** and passes AA with axe no longer flagging it; night measures **2.428:1** and **still fails AA**, identically to the page's pre-existing `Save preferences` Button. The new spec runs in both `desktop-chromium` and `mobile-chromium`. **`/settings` is not accessibility-clean.** |
-| Night brand-token contrast on primary Buttons | **OPEN — BRAND-TREATMENT DECISION PENDING, NO GLOBAL FIX MADE** | White on `--az-brand` `#06b6d4` measures **2.428:1**, below AA 4.5:1, so no light label can reach AA on the night brand surface. Measured on `/settings`, where the repaired entry and the pre-existing `Save preferences` Button both measure that same value — a shared design-token gap, not a defect of either control. PR #87 deliberately added no token and no contrast carve-out, because neither belongs in a single-page repair. A brand-treatment decision (a darker night brand surface, or dark-on-brand labels in night) is required before any global fix. PR #85's lifecycle entry uses the same primary `Button` styling, so a shared impact is **likely, pending direct measurement**; its night contrast has **not** been measured on `/settings/personal-risk/lifecycle` and must not be reported as a verified page-specific result. |
+| Night brand-token contrast on primary Buttons | **OPEN — BRAND-TREATMENT DECISION PENDING, NO GLOBAL FIX MADE** | White on `--az-brand` `#06b6d4` measures **2.428:1**, below AA 4.5:1, so no light label can reach AA on the night brand surface. Measured on `/settings`, where the repaired entry and the pre-existing `Save preferences` Button both measure that same value — a shared design-token gap, not a defect of either control. PR #87 deliberately added no token and no contrast carve-out, because neither belongs in a single-page repair. A brand-treatment decision (a darker night brand surface, or dark-on-brand labels in night) is required before any global fix. **Upgraded from prediction to measurement on 2026-10-01.** PR #85's lifecycle page was measured directly in the night theme with local fixtures: its **three** primary controls — Review partial exit, Review final exit, Review stop tightening — each measured `rgb(255,255,255)` on `rgb(6,182,212)` = **2.428:1**, and axe flagged all three (`total=1 ids=["color-contrast"]`, all three labels as nodes). Non-`bg-brand` controls on that page measured as unaffected. **Scope of what is measured: five primary Buttons on two routes** — two on `/settings` (PR #87) and three on `/settings/personal-risk/lifecycle`. `Button` is imported in five files with seventeen variant-less usages, so the remaining primary Buttons remain **predicted, not measured**; five controls on two routes is **not** an app-wide measurement. Three candidate treatments are open for decision: a darker night brand surface, dark labels on the existing cyan, or a separate primary-button surface token. |
 | Other measured `/settings` axe findings | **OPEN — SEPARATE SCOPED REPAIR** | Measured by PR #87's spec and recorded rather than asserted, so none is hidden: the `text-positive` "Owner authenticated" badge (`color-contrast`, day and night, both projects); selected-choice `text-ink-muted` labels (`color-contrast`, night, both projects); and the app-shell `<aside>` (`landmark-unique`, day and night, **desktop only**, since it is `hidden … lg:flex`). The spec's `parseRgb`/`measure()` helpers **do not composite partial alpha** — `parseRgb` ignores the alpha channel and `measure()` skips only fully transparent backgrounds — so they must not be used to claim a contrast measurement for a translucent surface such as `bg-positive/10` until that compositing is added. axe remains the authority for those nodes. |
 | Release-health same-procedure before/after evidence | **REQUIRED FOR FUTURE `backendChanged=true` RELEASES** | PR #82 satisfied the rule with saved pre-merge live/ready captures at `08:05:24` observing `c664b387615c1cf60d0cb7119352251a421a5a60` and post-deployment captures at `08:11:03` observing `7d3866755e5e2ad28f65d632e4c21e51fb79ef8e`. Use the same release procedure, not the post-merge Release Health workflow alone. |
 | Remaining Core slices | **SEPARATE SCOPE REQUIRED AFTER THE UI** | Preserve risk-reducing-path independence. Do not create live trade/risk rows or imply Saxo execution prematurely. |
@@ -526,6 +577,30 @@ This is a narrow reconciliation against locally available repository evidence, n
 | Local `.env` provider-pair mismatch | **REQUIRES REVALIDATION** | Local secrets/configuration were intentionally not inspected or printed in this documentation checkpoint. |
 
 ## Change log
+
+### 2026-10-01 — grant correction and night measurement
+
+- **Corrected a false statement this roadmap previously asserted**: that no repository migration grants
+  `create_risk_enforced_outcome_position` or `increase_risk_enforced_position` to `authenticated`. Migration
+  008 lines 670–671 grant both, unaltered by 009 or 010. The error came from a case-sensitive search against
+  a lower-case file, with the empty result recorded as fact. The earlier wording is corrected, not deleted,
+  and the planning conclusion it supported is withdrawn: the opening increment needs **no** grant work.
+- Recorded an **independent read-only production catalog verification** dated 2026-10-01: one signature per
+  function; `create_risk_enforced_outcome_position` OID `50636` and `increase_risk_enforced_position` OID
+  `50625` both `{postgres=X/postgres,authenticated=X/postgres}`; raw `create_outcome_position` OID `50187`
+  `{postgres=X/postgres}`; all three `postgres`-owned, `SECURITY DEFINER`, `search_path=""`; `aclexplode`
+  returning five rows and **no grantee OID 0**, so no `PUBLIC` entry. Effective `EXECUTE` confirmed for
+  `postgres` and `authenticated` on the two wrappers and denied to `anon`, `service_role` and `PUBLIC`.
+  Independent history read shows Migration 008 version `20260919120000` exactly once. Production and
+  repository agree; no repair attempted. No RPC executed, nothing written, no configuration changed.
+- **Upgraded the PR #85 lifecycle night contrast from a likely shared impact to a direct measurement**: its
+  three primary controls each measured 2.428:1 and axe flagged all three. Recorded that **five primary
+  Buttons on two routes** are now measured while the remaining Buttons stay predicted — five controls on two
+  routes is not an app-wide measurement.
+- Corrected `IMPLEMENTER_HANDOVER.md` open work, which still named the already-merged Personal Risk
+  lifecycle UI as the single next increment.
+- No sequence letter created, reused or reassigned; V and W unchanged; historical failures including
+  `36622052421` and the pending 30 October 2026 Data API item untouched.
 
 ### 2026-09-30 — PR #87 reconciliation
 
@@ -588,8 +663,9 @@ This is a narrow reconciliation against locally available repository evidence, n
 - Marked the risk-reducing UI built and deployed behind `ClosedDemoGate` and stated the practical boundary
   without asserting a current production row count: no production lifecycle RPC or position write occurred
   during the PR #82 or PR #85 releases; `create_risk_enforced_outcome_position` and
-  `increase_risk_enforced_position` have no backend route or service and no repository grant to
-  `authenticated`; and the UI acts only on an owner-supplied position UUID. The 2026-09-26 zero-row audit is
+  `increase_risk_enforced_position` have no backend route or service; and the UI acts only on an
+  owner-supplied position UUID. (The grant half of that statement was false and is corrected in the
+  2026-10-01 grant-correction entry.) The 2026-09-26 zero-row audit is
   cited as a dated observation, since this change performed no production read. Named the new-risk opening
   path as the next increment while leaving its route, ACL and confirmation semantics undetermined pending
   separate review.
