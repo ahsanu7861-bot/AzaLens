@@ -174,5 +174,50 @@ async function recoveryInvalid(work) {
       error.commitState === "UNKNOWN" && error.recoveryRequired === true &&
       !JSON.stringify(error).includes("RAW_SYNC_DIAGNOSTIC"), `recovery ${stage}`);
   }
+
+  // Recovery verifies a supplied evidence class against the durable row; a mismatch is never COMMITTED.
+  for (const evidenceClass of ["OWNER_DECLARED", "BROKER_CONFIRMED"]) {
+    db = database(null, { data: [{ ...stopRow, evidence_class: evidenceClass }], error: null });
+    const matched = await recover({ db, userId: OWNER, operation: "TIGHTEN_STOP", positionId: POSITION,
+      idempotencyKey: KEY, expectedEvidenceClass: evidenceClass });
+    assert.equal(matched.state, "COMMITTED");
+    assert.equal(matched.evidenceClass, evidenceClass);
+  }
+  for (const [stored, expected] of [["OWNER_DECLARED", "BROKER_CONFIRMED"], ["BROKER_CONFIRMED", "OWNER_DECLARED"],
+    ["OWNER_DECLARED", ""]]) {
+    db = database(null, { data: [{ ...stopRow, evidence_class: stored }], error: null });
+    await recoveryInvalid(() => recover({ db, userId: OWNER, operation: "TIGHTEN_STOP", positionId: POSITION,
+      idempotencyKey: KEY, expectedEvidenceClass: expected }));
+  }
+  // A durable row missing a known class is never success, whether or not the caller supplied one.
+  const { evidence_class: _omitted, ...classless } = stopRow;
+  for (const malformed of [classless, { ...stopRow, evidence_class: null }, { ...stopRow, evidence_class: "ARBITRARY" }]) {
+    for (const expectedEvidenceClass of [undefined, "OWNER_DECLARED"]) {
+      db = database(null, { data: [malformed], error: null });
+      await recoveryInvalid(() => recover({ db, userId: OWNER, operation: "TIGHTEN_STOP", positionId: POSITION,
+        idempotencyKey: KEY, expectedEvidenceClass }));
+    }
+    db = database(success, { data: [malformed], error: null });
+    await postCommitInvalid(() => record({ db, userId: OWNER, operation: "TIGHTEN_STOP", positionId: POSITION,
+      idempotencyKey: KEY, values: { newStop: "100", evidenceClass: "OWNER_DECLARED" } }));
+  }
+  db = database(null, { data: [], error: null });
+  assert.equal((await recover({ db, userId: OWNER, operation: "TIGHTEN_STOP", positionId: POSITION, idempotencyKey: KEY,
+    expectedEvidenceClass: "BROKER_CONFIRMED" })).state, "NOT_FOUND");
+
+  // Ambiguous commit, then same-key recovery with the submitted class.
+  const ambiguous = (stored) => database(() => { throw new Error("socket disconnected"); },
+    { data: stored ? [{ ...stopRow, evidence_class: stored }] : [], error: null });
+  const submitted = { newStop: "100", evidenceClass: "BROKER_CONFIRMED" };
+  for (const [stored, outcome] of [["BROKER_CONFIRMED", "COMMITTED"], ["OWNER_DECLARED", "INVALID"], [null, "NOT_FOUND"]]) {
+    db = ambiguous(stored);
+    await rejects(() => record({ db, userId: OWNER, operation: "TIGHTEN_STOP", positionId: POSITION, idempotencyKey: KEY,
+      values: submitted }), "LIFECYCLE_COMMIT_UNKNOWN", "LIFECYCLE_RPC_COMMIT_AMBIGUOUS", "UNKNOWN");
+    const recoverSubmitted = () => recover({ db, userId: OWNER, operation: "TIGHTEN_STOP", positionId: POSITION,
+      idempotencyKey: KEY, expectedEvidenceClass: submitted.evidenceClass });
+    if (outcome === "INVALID") await recoveryInvalid(recoverSubmitted);
+    else assert.equal((await recoverSubmitted()).state, outcome, String(stored));
+    assert.equal(db.calls.filter((call) => call[0] === "rpc").length, 1, "recovery never re-dispatches");
+  }
   console.log("Personal-risk lifecycle service contracts passed.");
 })().catch((error) => { console.error(error); process.exit(1); });

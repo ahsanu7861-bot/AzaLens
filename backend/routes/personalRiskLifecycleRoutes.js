@@ -7,6 +7,7 @@ const { writeLog } = require("../utils/observability");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const DECIMAL = /^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,8})?$/;
 const OPERATIONS = new Set(["PARTIAL_EXIT", "FINAL_EXIT", "TIGHTEN_STOP"]);
+const EVIDENCE_CLASSES = new Set(["OWNER_DECLARED", "BROKER_CONFIRMED"]);
 
 class RequestError extends Error {}
 const exact = (value, fields) => value && typeof value === "object" && !Array.isArray(value) &&
@@ -31,7 +32,7 @@ function input(req, operation) {
   if (!UUID.test(positionId || "")) throw new RequestError();
   if (operation === "TIGHTEN_STOP") {
     if (!exact(req.body, ["positionId", "newStop", "evidenceClass"]) ||
-        !new Set(["OWNER_DECLARED", "BROKER_CONFIRMED"]).has(req.body.evidenceClass) ||
+        !EVIDENCE_CLASSES.has(req.body.evidenceClass) ||
         !validDecimal(req.body.newStop)) throw new RequestError();
     return { positionId, values: { newStop: req.body.newStop, evidenceClass: req.body.evidenceClass } };
   }
@@ -64,9 +65,16 @@ function createPersonalRiskLifecycleRouter({ lifecycleService = service, logger 
   router.get("/lifecycle/recovery", async (req, res) => {
     const operation = req.query?.operation;
     try {
-      if (!exact(req.query, ["operation", "positionId"]) || !OPERATIONS.has(operation) || !UUID.test(req.query.positionId)) throw new RequestError();
+      // Optional for TIGHTEN_STOP only: when supplied, recovery verifies the durable class instead of reporting it.
+      const evidenceClass = req.query?.evidenceClass;
+      const fields = evidenceClass === undefined ? ["operation", "positionId"] : ["operation", "positionId", "evidenceClass"];
+      if (!exact(req.query, fields) || !OPERATIONS.has(operation) || !UUID.test(req.query.positionId) ||
+          (evidenceClass !== undefined && (operation !== "TIGHTEN_STOP" || !EVIDENCE_CLASSES.has(evidenceClass)))) {
+        throw new RequestError();
+      }
       const data = await lifecycleService.recover({ db: req.db, userId: req.user?.id, operation,
-        positionId: req.query.positionId, idempotencyKey: idempotencyKey(req) });
+        positionId: req.query.positionId, idempotencyKey: idempotencyKey(req),
+        ...(evidenceClass === undefined ? {} : { expectedEvidenceClass: evidenceClass }) });
       return res.json({ success: true, data });
     } catch (error) { return sendError(req, res, error, operation, logger); }
   });

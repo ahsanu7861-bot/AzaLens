@@ -9,6 +9,7 @@ const RPC = Object.freeze({
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INTEGER = /^(?:0|[1-9][0-9]*)$/;
 const DECIMAL = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
+const EVIDENCE_CLASSES = new Set(["OWNER_DECLARED", "BROKER_CONFIRMED"]);
 
 class LifecycleError extends Error {
   constructor(code, internalCode, status, phase, options = {}) {
@@ -113,9 +114,10 @@ function exitResult(row, operation, replayed) {
   };
 }
 
+// A supplied expected class is always compared (never skipped as falsy); a durable row must carry a known class.
 function stopResult(row, replayed, expectedEvidenceClass = null) {
-  if (!row || row.direction !== "TIGHTENING" ||
-      (expectedEvidenceClass && row.evidence_class !== expectedEvidenceClass)) {
+  if (!row || row.direction !== "TIGHTENING" || !EVIDENCE_CLASSES.has(row.evidence_class) ||
+      (expectedEvidenceClass != null && row.evidence_class !== expectedEvidenceClass)) {
     failure("LIFECYCLE_RESPONSE_INVALID", "LIFECYCLE_RPC_RESPONSE_INVALID", 502, "readback");
   }
   return { operation: "TIGHTEN_STOP", stopChangeId: integer(row.id_text), positionId: row.position_id,

@@ -54,6 +54,26 @@ async function request(base, path, options = {}) {
       { headers: { "Idempotency-Key": KEY } });
     assert.equal(response.status, 200);
     assert.equal(calls.at(-1).operation, "TIGHTEN_STOP");
+    assert.equal(Object.hasOwn(calls.at(-1), "expectedEvidenceClass"), false, "absent class is not invented");
+    for (const evidenceClass of ["OWNER_DECLARED", "BROKER_CONFIRMED"]) {
+      response = await request(base,
+        `/api/personal-risk/lifecycle/recovery?operation=TIGHTEN_STOP&positionId=${POSITION}&evidenceClass=${evidenceClass}`,
+        { headers: { "Idempotency-Key": KEY } });
+      assert.equal(response.status, 200);
+      assert.equal(calls.at(-1).expectedEvidenceClass, evidenceClass);
+    }
+    const recoveryCalls = calls.length;
+    for (const query of [`operation=TIGHTEN_STOP&positionId=${POSITION}&evidenceClass=`,
+      `operation=TIGHTEN_STOP&positionId=${POSITION}&evidenceClass=owner_declared`,
+      `operation=TIGHTEN_STOP&positionId=${POSITION}&evidenceClass=ARBITRARY`,
+      `operation=TIGHTEN_STOP&positionId=${POSITION}&evidenceClass=OWNER_DECLARED&evidenceClass=OWNER_DECLARED`,
+      `operation=TIGHTEN_STOP&positionId=${POSITION}&evidenceClass[]=OWNER_DECLARED`,
+      `operation=PARTIAL_EXIT&positionId=${POSITION}&evidenceClass=BROKER_CONFIRMED`,
+      `operation=FINAL_EXIT&positionId=${POSITION}&evidenceClass=BROKER_CONFIRMED`]) {
+      response = await request(base, `/api/personal-risk/lifecycle/recovery?${query}`, { headers: { "Idempotency-Key": KEY } });
+      assert.equal(response.status, 400, query);
+    }
+    assert.equal(calls.length, recoveryCalls, "rejected recovery queries never reach the service");
     for (const body of [{ ...exit, userId: OWNER }, { ...exit, owner_id: OWNER }, { ...exit, riskPolicyId: POSITION },
       { ...exit, brokerConfirmed: false }, { ...exit, extra: true }]) {
       response = await request(base, "/api/personal-risk/lifecycle/partial-exits", { method: "POST", headers: { "Idempotency-Key": KEY }, body });
@@ -115,5 +135,41 @@ async function request(base, path, options = {}) {
   assert.match(syncCaptured, /LIFECYCLE_RECOVERY_LOOKUP_FAILED/);
   assert.match(syncCaptured, /"mutationId":"9"/);
   assert.match(syncCaptured, /http_request/);
+
+  // Real service: an ambiguous tightening, then same-key recovery that verifies the submitted class.
+  const durable = { id_text: "9", position_id: POSITION, client_idempotency_key: KEY, prior_stop_text: "99.00000000",
+    new_stop_text: "100.00000000", direction: "TIGHTENING" };
+  let rows = [];
+  const query = { select: () => query, eq: () => query, limit: () => query,
+    then: (resolve) => resolve({ data: rows, error: null }) };
+  const realDb = { rpc: async () => { throw new Error("socket disconnected"); }, from: () => query };
+  const real = { record: (input) => lifecycleService.record({ ...input, db: realDb }),
+    recover: (input) => lifecycleService.recover({ ...input, db: realDb }) };
+  await server(real, () => {}, async (base) => {
+    const ambiguous = await request(base, "/api/personal-risk/lifecycle/protective-stop-tightenings", { method: "POST",
+      headers: { "Idempotency-Key": KEY }, body: { positionId: POSITION, newStop: "100", evidenceClass: "BROKER_CONFIRMED" } });
+    assert.deepEqual(ambiguous, { status: 503, body: { success: false, code: "LIFECYCLE_COMMIT_UNKNOWN",
+      recoveryRequired: true, commitState: "UNKNOWN" } });
+    const recoverAs = (evidenceClass) => request(base,
+      `/api/personal-risk/lifecycle/recovery?operation=TIGHTEN_STOP&positionId=${POSITION}&evidenceClass=${evidenceClass}`,
+      { headers: { "Idempotency-Key": KEY } });
+    rows = [{ ...durable, evidence_class: "BROKER_CONFIRMED" }];
+    let recovery = await recoverAs("BROKER_CONFIRMED");
+    assert.equal(recovery.status, 200);
+    assert.equal(recovery.body.data.state, "COMMITTED");
+    assert.equal(recovery.body.data.evidenceClass, "BROKER_CONFIRMED");
+    rows = [{ ...durable, evidence_class: "OWNER_DECLARED" }];
+    recovery = await recoverAs("BROKER_CONFIRMED");
+    assert.deepEqual(recovery, { status: 502, body: { success: false, code: "LIFECYCLE_RESPONSE_INVALID",
+      recoveryRequired: true, commitState: "UNKNOWN" } }, "a mismatch is never reported as success");
+    rows = [durable];
+    recovery = await recoverAs("BROKER_CONFIRMED");
+    assert.equal(recovery.status, 502, "a durable row without a class is never success");
+    assert.equal(recovery.body.success, false);
+    rows = [];
+    recovery = await recoverAs("BROKER_CONFIRMED");
+    assert.equal(recovery.status, 200);
+    assert.equal(recovery.body.data.state, "NOT_FOUND");
+  });
   console.log("Personal-risk lifecycle routes, allowlists, stable states and actual middleware redaction passed.");
 })().catch((error) => { console.error(error); process.exit(1); });
