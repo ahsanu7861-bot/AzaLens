@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { layeredContrast, parseCssColor } from "./contrast";
 import {
   assertRequestPolicy,
   installRequestPolicy,
@@ -12,6 +13,7 @@ const TOKEN = "fixtureheader.fixturepayload.fixturesignature";
 const AUTH_FIXTURE = /\/auth\/demo\/status(?:\?|$)/;
 const ENTRY = "Open personal risk controls";
 const SAVE = "Save preferences";
+const BADGE = "Owner authenticated";
 
 /**
  * `/settings` previously had no accessibility coverage at all: axe ran only in analysis.spec.ts and
@@ -29,13 +31,14 @@ const SAVE = "Save preferences";
  *   2. Other pre-existing nodes on the page (a `text-positive` badge, `text-ink-muted` labels inside a
  *      selected choice, and a duplicate-landmark `aside` from the app shell) also violate.
  *
- * Measurement limits. `parseRgb` reads only the first three channels and therefore ignores any alpha, and
- * `measure()` walks up to the nearest background that is not fully transparent, skipping only
- * `rgba(0, 0, 0, 0)` and `transparent`. The contrast it computes is valid for the opaque `bg-brand` Buttons
- * measured here, whose backgrounds are fully opaque. Extending either helper to a partially transparent
- * surface — `bg-positive/10` on the "Owner authenticated" badge, for example — would require compositing
- * that alpha over the surfaces beneath it first; without that step the resulting ratio would be wrong, so
- * axe remains the authority for those nodes and they are recorded, not measured, above.
+ * Measurement method. `measure()` reads the control's resolved text colour and the background colour of
+ * every element from the control up to the root, and `layeredContrast` (./contrast.ts) composites them in
+ * paint order down to the first opaque layer. This replaced a `parseRgb` that read only the first three
+ * numbers of a colour string and a walk that stopped at the nearest non-transparent background, which
+ * miscomputed any translucent surface: Chromium reports `bg-positive/10` as `oklab(L a b / 0.1)`, so the
+ * badge below read as near-black with alpha dropped. The opaque `bg-brand` Buttons were unaffected and still
+ * measure 2.428:1 in night. `measure()` refuses, rather than estimates, a chain containing a background
+ * image, group opacity, a filter or a blend mode, and it does not see pseudo-element backgrounds.
  */
 async function owner(page: Page): Promise<RequestAudit> {
   const audit = await installRequestPolicy(page, { fixtures: [AUTH_FIXTURE] });
@@ -62,40 +65,22 @@ async function owner(page: Page): Promise<RequestAudit> {
   return audit;
 }
 
-/** WCAG relative luminance and contrast, from colours the browser itself resolved. */
-function contrastRatio(foreground: number[], background: number[]): number {
-  const luminance = (channels: number[]) => {
-    const [r, g, b] = channels.map((value) => {
-      const s = value / 255;
-      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-    });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  };
-  const a = luminance(foreground);
-  const b = luminance(background);
-  const [lighter, darker] = a > b ? [a, b] : [b, a];
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
-function parseRgb(value: string): number[] {
-  const parts = value.match(/\d+(\.\d+)?/g);
-  if (!parts || parts.length < 3) throw new Error(`Unparsable colour: ${value}`);
-  return [Number(parts[0]), Number(parts[1]), Number(parts[2])];
-}
-
-/** Reads a control's own resolved colour and its nearest painted background. */
-async function measure(page: Page, accessibleName: string) {
-  return page.getByRole("button", { name: accessibleName }).evaluate((element) => {
-    const style = getComputedStyle(element);
-    let node: HTMLElement | null = element as HTMLElement;
-    let background = "";
-    while (node) {
-      const candidate = getComputedStyle(node).backgroundColor;
-      if (candidate && candidate !== "rgba(0, 0, 0, 0)" && candidate !== "transparent") {
-        background = candidate;
-        break;
-      }
-      node = node.parentElement;
+/**
+ * Reads an element's resolved text colour and the background colours of it and every ancestor (innermost
+ * first), then composites them. Effects the compositing does not model make it throw instead of guessing.
+ */
+async function measure(target: Locator) {
+  const shape = await target.evaluate((element) => {
+    const layers: { background: string; image: string; opacity: string; filter: string; blend: string }[] = [];
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      layers.push({
+        background: style.backgroundColor,
+        image: style.backgroundImage,
+        opacity: style.opacity,
+        filter: style.filter,
+        blend: style.mixBlendMode,
+      });
     }
     return {
       tag: element.tagName,
@@ -103,10 +88,31 @@ async function measure(page: Page, accessibleName: string) {
       hasBgBrand: element.classList.contains("bg-brand"),
       nestedInteractive: element.querySelectorAll("a,button,input,select,textarea,[tabindex]").length,
       insideAnchor: Boolean(element.closest("a")),
-      color: style.color,
-      background,
+      color: getComputedStyle(element).color,
+      layers,
     };
   });
+  const { layers, ...rest } = shape;
+  const base = layers.findIndex((layer) => parseCssColor(layer.background).alpha >= 1);
+  const unmodelled = layers.filter(
+    (layer, index) =>
+      layer.opacity !== "1" ||
+      layer.filter !== "none" ||
+      layer.blend !== "normal" ||
+      (index <= base && layer.image !== "none"),
+  );
+  if (base < 0 || unmodelled.length) {
+    throw new Error(`Cannot composite ${JSON.stringify(layers)}`);
+  }
+  const backgrounds = layers.slice(0, base + 1).map((layer) => layer.background);
+  const painted = backgrounds.filter((layer) => parseCssColor(layer).alpha > 0);
+  const { background, ratio } = layeredContrast(shape.color, backgrounds);
+  return {
+    ...rest,
+    layers: painted,
+    background: `rgb(${background.map((channel) => Number(channel.toFixed(3))).join(", ")})`,
+    ratio,
+  };
 }
 
 for (const theme of ["day", "night"] as const) {
@@ -125,8 +131,7 @@ for (const theme of ["day", "night"] as const) {
     expect(resolved).toBe(theme);
 
     // The entry follows the page's existing primary-control convention and nests nothing interactive.
-    const entryShape = await measure(page, ENTRY);
-    const entryRatio = contrastRatio(parseRgb(entryShape.color), parseRgb(entryShape.background));
+    const { ratio: entryRatio, ...entryShape } = await measure(entry);
     console.log(
       `SETTINGS_ENTRY[${theme}]=` + JSON.stringify({ ...entryShape, ratio: Number(entryRatio.toFixed(3)) }),
     );
@@ -137,26 +142,42 @@ for (const theme of ["day", "night"] as const) {
     expect(entryShape.insideAnchor).toBe(false);
 
     // The page's pre-existing primary Button, measured for comparison on the same surface.
-    const saveShape = await measure(page, SAVE);
-    const saveRatio = contrastRatio(parseRgb(saveShape.color), parseRgb(saveShape.background));
+    const { ratio: saveRatio, ...saveShape } = await measure(page.getByRole("button", { name: SAVE }));
     console.log(
       `SETTINGS_EXISTING_PRIMARY[${theme}]=` + JSON.stringify({ ...saveShape, ratio: Number(saveRatio.toFixed(3)) }),
     );
+    // Both brand Buttons sit on one opaque layer, so compositing cannot change their historical figures.
+    expect(entryShape.layers).toHaveLength(1);
+    expect(saveShape.layers).toHaveLength(1);
+
+    // A translucent surface: the badge's `bg-positive/10` over a translucent card over the opaque canvas.
+    // Recorded rather than gated; the only assertion is that this measurement and axe reach the same verdict.
+    const { ratio: badgeRatio, ...badgeShape } = await measure(page.getByText(BADGE, { exact: true }));
+    console.log(
+      `SETTINGS_TRANSLUCENT_BADGE[${theme}]=` +
+        JSON.stringify({ color: badgeShape.color, layers: badgeShape.layers, background: badgeShape.background, ratio: Number(badgeRatio.toFixed(3)) }),
+    );
+    expect(badgeShape.layers.length).toBeGreaterThan(1);
 
     const results = await new AxeBuilder({ page }).analyze();
     const entryIsFlagged = results.violations.some((violation) =>
       violation.nodes.some((node) => node.html.includes(ENTRY)),
     );
+    const badgeIsFlagged = results.violations.some(
+      (violation) => violation.id === "color-contrast" && violation.nodes.some((node) => node.html.includes(BADGE)),
+    );
     console.log(
       `SETTINGS_AXE[${theme}] total=${results.violations.length} ids=${JSON.stringify(
         results.violations.map((violation) => violation.id),
-      )} entryFlagged=${entryIsFlagged}`,
+      )} entryFlagged=${entryIsFlagged} badgeFlagged=${badgeIsFlagged}`,
     );
     for (const violation of results.violations) {
       for (const node of violation.nodes) {
         console.log(`SETTINGS_RESIDUAL[${theme}][${violation.id}]=${JSON.stringify({ html: node.html })}`);
       }
     }
+
+    expect(badgeIsFlagged).toBe(badgeRatio < 4.5);
 
     if (theme === "day") {
       // The repaired control clears AA on the day brand surface, and axe no longer flags it.
