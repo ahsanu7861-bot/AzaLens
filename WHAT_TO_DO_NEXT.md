@@ -227,8 +227,17 @@ case, and an absent search result was then recorded as an established fact. It i
 quietly rewritten, because the planning conclusion it supported — that the opening increment would need
 grant work — was itself wrong.
 
-**Independently verified in the production catalog on 2026-10-01 by a read-only query** (no RPC executed,
-nothing written). Exactly one signature exists for each function, so no overload ambiguity:
+**Independently verified in the production catalog on 2026-10-01 by read-only catalog queries** (no
+application RPC executed, no application row written). *Qualified 2026-10-04:* the queries were sent with
+`supabase db query --linked` (CLI 2.111.0) from the repository workdir, five invocations. Each printed
+`Initialising login role...`; in CLI 2.111.0 that line is written immediately before a Management API
+`createLoginRole` call with `read_only:false`, made before the SQL is sent to
+`/v1/projects/{ref}/database/query`. The 2026-10-03 production write-path audit (`prod-audit-20261003T194924Z`,
+Q8c) observed `cli_login_postgres` in production as a member of `postgres`. Supabase documents this
+CLI-related role at https://supabase.com/docs/guides/troubleshooting/permission-denied-when-deleting-the-cli_login_postgres-role-808bae. Its current login and expiry state, and which earlier CLI operation created it,
+remain unverified. Network-ban clearing, which CLI 2.111.0 performs only if its temporary-role connection
+test reaches retry 3, is possible on that path but **unobserved**. Exactly one signature exists for each
+function, so no overload ambiguity:
 
 | Function | OID | Owner | `SECURITY DEFINER` | `proconfig` | Raw `proacl` |
 |---|---|---|---|---|---|
@@ -578,6 +587,162 @@ This is a narrow reconciliation against locally available repository evidence, n
 
 ## Change log
 
+### 2026-10-04 — production write-path audit recorded (docs only)
+
+Documentation only. Each statement is labelled **observed in production** (one read-only catalog snapshot),
+**repository fact**, or **future design proposal**. No migration, RPC, grant, revoke, role or credential change
+was made, and **nothing in this entry authorizes** migration 011, a wrapper or capture grant, or a lineage
+policy.
+
+**Run and integrity (observed in production).**
+- Audit `prod-audit-20261003T194924Z`, run 2026-10-03 19:49:25Z–19:49:35Z, used the reviewed psql
+  Session-pooler transport (`aws-1-us-west-2.pooler.supabase.com:5432`, user `postgres.jexphwidcfbgxpthgwum`,
+  `sslmode=verify-full` with the pinned CA). Its reviewed SQL has SHA-256
+  `62567717548e7faab653c9ea1f7ce39c1f75002bd578de933a4c65cce6a04623`.
+- All six gates (G1–G6) passed. Q0 showed `transaction_read_only = on` (executing role `postgres`, server
+  17.6). The final statement was `ROLLBACK`. The preserved `stdout.txt` has SHA-256
+  `84062815673208e6612425f8cab3b41773313888bdb5cab2e51def07b77dd567`.
+- Q1 showed the 15 expected tables, each `postgres`-owned with RLS enabled and forced and ACL
+  `{postgres=arwdDxtm/postgres,authenticated=r/postgres}`. Q10 showed migrations 001–010, each once, with names
+  matching `supabase/migrations/` (**repository fact** for the comparison). Both are supporting target
+  evidence, **not** unique proof of project identity.
+
+**Inspected functions and their effective EXECUTE boundary (observed in production; bounded).**
+- **What Q6 inspected:**
+  - SQL and PL/pgSQL functions, outside `pg_catalog` and `information_schema`, whose source matches a
+    write-statement pattern for the 15 tables;
+  - their callers by name, up to depth 6;
+  - `public` SECURITY DEFINER PL/pgSQL functions that use `EXECUTE`.
+- **What it returned:** these eleven signatures. Each is `postgres`-owned, SECURITY DEFINER, `search_path=""`,
+  with an explicit ACL, and none is flagged for dynamic-SQL review.
+
+| Function (identity arguments) | OID | Raw ACL | `authenticated` | `anon` | `service_role` | `PUBLIC` (OID 0) | Depth to write |
+|---|---|---|---|---|---|---|---|
+| `append_outcome_position_event(p_position_id uuid, p_idempotency_key uuid, p_event_type text, p_broker_confirmed boolean, p_broker_effective_at timestamp with time zone, p_price numeric, p_quantity numeric, p_fees numeric, p_taxes numeric, p_thesis_result text, p_usefulness text, p_exit_reason text, p_owner_note text)` | `50189` | `{postgres=X/postgres}` | no | no | no | no | 0 |
+| `append_risk_lifecycle_event(p_position_id uuid, p_idempotency_key uuid, p_event_type text, p_broker_confirmed boolean, p_broker_effective_at timestamp with time zone, p_price numeric, p_quantity numeric, p_fees numeric, p_taxes numeric, p_thesis_result text, p_usefulness text, p_exit_reason text, p_owner_note text)` | `50621` | `{postgres=X/postgres,authenticated=X/postgres}` | **yes** | no | no | no | 0 |
+| `change_outcome_protective_stop(p_position_id uuid, p_idempotency_key uuid, p_new_stop numeric, p_evidence_class text)` | `50623` | `{postgres=X/postgres}` | no | no | no | no | 0 |
+| `create_broker_cost_schedule_version(p_idempotency_key uuid, p_effective_from date, p_evidence_reference text, p_evidence_captured_at timestamp with time zone, p_broker_source_reference text, p_sec_source_reference text, p_finra_source_reference text, p_allowance_approval_reference text)` | `50627` | `{postgres=X/postgres,authenticated=X/postgres}` | **yes** | no | no | no | 0 |
+| `create_broker_equity_snapshot(p_client_idempotency_key uuid, p_account_equity numeric, p_currency text, p_broker_identifier text, p_confirmation_method text, p_confirmation_reference text, p_observed_at timestamp with time zone)` | `50357` | `{postgres=X/postgres,authenticated=X/postgres}` | **yes** | no | no | no | 0 |
+| `create_outcome_position(p_idempotency_key uuid, p_symbol text, p_market text, p_currency text, p_analysis_contract_version text, p_analysis_created_at timestamp with time zone, p_thesis_text text, p_invalidation_condition text, p_planned_horizon text, p_intended_invalidation_price numeric, p_intended_target_price numeric, p_maximum_planned_loss numeric, p_risk_percentage numeric, p_public_direction text, p_public_evidence_state text, p_public_risk_classification text, p_shariah_state text, p_provenance jsonb, p_broker_confirmed boolean, p_broker_effective_at timestamp with time zone, p_entry_price numeric, p_entry_quantity numeric, p_fees numeric, p_taxes numeric)` | `50187` | `{postgres=X/postgres}` | no | no | no | no | 0 |
+| `create_personal_risk_policy_version(p_client_idempotency_key uuid, p_max_planned_loss_per_position_pct numeric, p_max_aggregate_open_planned_loss_pct numeric, p_daily_realized_gross_loss_limit_pct numeric, p_weekly_realized_gross_loss_limit_pct numeric, p_maximum_concurrent_open_positions integer, p_estimated_exit_slippage_bps numeric)` | `50355` | `{postgres=X/postgres,authenticated=X/postgres}` | **yes** | no | no | no | 0 |
+| `create_risk_enforced_outcome_position(p_idempotency_key uuid, p_symbol text, p_market text, p_currency text, p_analysis_contract_version text, p_analysis_created_at timestamp with time zone, p_thesis_text text, p_invalidation_condition text, p_planned_horizon text, p_intended_invalidation_price numeric, p_intended_target_price numeric, p_maximum_planned_loss numeric, p_risk_percentage numeric, p_public_direction text, p_public_evidence_state text, p_public_risk_classification text, p_shariah_state text, p_provenance jsonb, p_broker_confirmed boolean, p_broker_effective_at timestamp with time zone, p_entry_price numeric, p_entry_quantity numeric, p_fees numeric, p_taxes numeric, p_protective_stop numeric, p_stop_evidence text)` | `50636` | `{postgres=X/postgres,authenticated=X/postgres}` | **yes** | no | no | no | 0 |
+| `increase_risk_enforced_position(p_position_id uuid, p_idempotency_key uuid, p_broker_effective_at timestamp with time zone, p_added_quantity numeric, p_added_entry_price numeric, p_entry_fee numeric, p_entry_tax numeric)` | `50625` | `{postgres=X/postgres,authenticated=X/postgres}` | **yes** | no | no | no | 0 |
+| `loosen_outcome_protective_stop(p_position_id uuid, p_idempotency_key uuid, p_new_stop numeric, p_evidence_class text)` | `50723` | `{postgres=X/postgres}` | no | no | no | no | 1 |
+| `tighten_outcome_protective_stop(p_position_id uuid, p_idempotency_key uuid, p_new_stop numeric, p_evidence_class text)` | `50722` | `{postgres=X/postgres,authenticated=X/postgres}` | **yes** | no | no | no | 1 |
+
+- Seven have effective `authenticated` EXECUTE: `append_risk_lifecycle_event`, `create_broker_cost_schedule_version`, `create_broker_equity_snapshot`, `create_personal_risk_policy_version`, `create_risk_enforced_outcome_position`, `increase_risk_enforced_position`, `tighten_outcome_protective_stop`.
+- None of the eleven has effective EXECUTE for `anon`, `service_role` or `PUBLIC`.
+- This conclusion covers **only these eleven functions** and the roles `anon`, `authenticated`,
+  `service_role` and `PUBLIC`. It is **not** an exhaustive audit of every way the database can be written.
+
+**Default privileges for future objects (observed in production, Q7; not existing objects).**
+- Owner `postgres`, schema `public`:
+  - new tables: `{postgres=arwdDxtm/postgres,anon=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}`;
+  - new sequences: `{postgres=rwU/postgres,anon=rwU/postgres,authenticated=rwU/postgres,service_role=rwU/postgres}`;
+  - new functions: the schema-specific row names only `postgres` and `service_role` (`{postgres=X/postgres,service_role=X/postgres}`).
+- No global (namespace 0) default row exists.
+- A schema-specific default only adds to the built-in default. PostgreSQL's built-in `PUBLIC` EXECUTE
+  therefore still applies to newly created functions (M001 lines 26–30 state the same; **repository fact**).
+- These defaults govern **future** objects only. The existing eleven functions are governed by the explicit
+  ACLs observed in Q6.
+
+**Migration 011 security constraint (future design proposal; nothing authorized).**
+- **Revoke first.** Every new table, sequence and function must explicitly revoke unintended privileges from
+  `PUBLIC`, `anon`, `authenticated` and `service_role` before any intended grant. For functions this includes
+  `revoke execute … from public`.
+- **Verify after applying.** A separately reviewed, read-only production ACL check must cover:
+  - every new object's raw ACL;
+  - `aclexplode` grantee OID `0`;
+  - effective privileges for `anon`, `authenticated` and `service_role`.
+- Which grants migration 011 would make, if any, depends on a capture and lineage design that is **not
+  authorized**.
+
+**Roles (observed in production, Q8).**
+- `cli_login_postgres` is a member of `postgres` (Q8c). Supabase documentation on this role: https://supabase.com/docs/guides/troubleshooting/permission-denied-when-deleting-the-cli_login_postgres-role-808bae.
+  - Its current login and expiry state, and which CLI operation created it, remain **unverified**.
+  - A read-only characterisation query is drafted for review but has **not** been run.
+- `supabase_etl_admin` and `supabase_read_only_user` were observed with `rolbypassrls = t` (Q8a).
+  - BYPASSRLS alone does not grant table privileges.
+  - Q2 checked table privileges only for `anon`, `authenticated`, `postgres`, `service_role` and `PUBLIC`, so
+    these two roles' access to AzaLens tables is **not inferred** from that attribute.
+- `anon` and `authenticated` have neither superuser nor BYPASSRLS, and Q8b found no membership path from them
+  to a bypass or superuser role.
+
+**`supabase db query --linked` audit route: retired.**
+- **The 2026-10-03 attempt** (`linked-audit-20261003T160122Z`) stopped at `LegacyDbConfigIpv6Error`, before SQL
+  submission and before login-role creation.
+- **The 2026-10-01 queries.** The five `--linked` catalog queries above are qualified by CLI 2.111.0 code and
+  their saved output: each printed `Initialising login role...`, which CLI 2.111.0 writes immediately
+  before a `createLoginRole` call with `read_only:false`, made before the SQL is sent.
+- **Network-ban clearing** on that path remains **unobserved**.
+
+**Attempt history (psql route).**
+- Three authentication failures: `prod-audit-20261002T103907Z`, `prod-audit-20261002T105308Z`,
+  `prod-audit-20261003T170631Z`.
+- Two pre-connection stops on the pgpass line-count check (exit 96, no evidence folder).
+- This successful read-only audit.
+
+Evidence lives locally in `/Users/apple/AzaLens-release-reports/`:
+- the four audit folders above;
+- `2026-10-03-production-audit-results.md`;
+- `2026-10-03-linked-audit-failure-and-transport-review.md`;
+- `2026-10-03-psql-auth-failure-diagnosis.md`.
+
+That folder is **outside the repository and outside repository backups**. It has not yet been inventoried,
+credential-screened or privately backed up.
+
+**Limits of this audit.**
+- It is a catalog snapshot at 2026-10-03 19:49:29Z.
+- Function inspection is regex-based over SQL and PL/pgSQL source, and dynamic SQL is only flagged for review.
+- It gives no proof about C-language or other-language functions; external privileged access (dashboard SQL
+  editor, superuser or platform sessions, holders of the database password or `service_role` key); `pg_cron`
+  or `pg_net` job contents; or objects created after the snapshot.
+
+**Release gates for backups (2026-10-04) — ADOPTED.** Ahsan delegated technical release-gate decisions to Sol and Claude, who adopted both gates below on 2026-10-04. They replace the requirements for ‘all four audit counters zero’ and literal `shared:false` for releases from this date. Earlier release entries retain their original wording (see the open question below).
+
+- **Counter gate C-ADJUDICATED (ADOPTED 2026-10-04).**
+  - The four counters keep their original definitions, from the PR #89 release scan of 2026-10-01:
+    `GIT_METADATA_ENTRIES`, `UNSAFE_ENV_ENTRIES`, `CREDENTIAL_NAMED_ENTRIES`, `CREDENTIAL_CONTENT_HITS`.
+  - `CREDENTIAL_CONTENT_HITS` is reported as computed. The expected result is **2**, which is never relabelled 0.
+  - Those hits are permitted only if each one matches a previously adjudicated public URL by key name, source
+    file and archive file. Only these two are allowed:
+    - `HALAL_TERMINAL_BASE_URL` (`backend/.env` → `backend/providers/halalTerminalProvider.js`);
+    - `VITE_API_BASE_URL` (`frontend/.env` → `frontend/.env.example`).
+  - The other three counters must be **0**.
+  - A URL-excluded scan is reported **separately, as supplementary**, and must be 0. It never replaces the
+    original counter.
+  - **Stop** on any other hit, any changed archive path, any missing expected hit, or any ambiguous match.
+  - Environment values are never printed.
+- **Privacy gate P-PERMISSIONS (ADOPTED 2026-10-04).**
+  - Verify an owner-only permission list for each new backup object **and** for the backup folder: exactly
+    one permission, role `owner`, type `user`, the account owner.
+  - Label the evidence `PRIVACY_METHOD=permissions-list`, and record that the literal Drive `shared` field was
+    not read because the request returned HTTP 403.
+  - Require sufficient evidence that the returned lists include inherited permissions. If that completeness
+    cannot be established, or any result is ambiguous, **stop**.
+  - Report "owner-only permission list verified". This is **not** "`shared:false` verified".
+  - Limitations:
+    - it is a point-in-time observation;
+    - it relies on the permission list returned by the tooling being complete, including inherited
+      permissions;
+    - it is not the literal `shared` field.
+
+**PR #89 release evidence correction (recorded 2026-10-04).**
+- **Counters.** The PR #89 backup scan's original `CREDENTIAL_CONTENT_HITS` was **2**. Both hits were the two
+  adjudicated public URLs above. The URL-excluded result of 0 was supplementary only.
+- **Process error.** Proceeding past the original all-zero counter gate was a process error. The correct
+  action was to stop and ask for review.
+- **Privacy.** Privacy was evidenced by owner-only permission lists. The literal `shared` field returned
+  HTTP 403 and was not verified.
+- **Trash.** The apparent initial trash count of 1 was an rclone container-folder artifact (`Plans`, which
+  is active). Direct trash queries showed **0 → 0**.
+- **Hashes.** Every reported hash, byte count and pasted copy must be taken from the same saved bytes being
+  reported.
+
+**Open question (recorded 2026-10-04).** The methods behind earlier release claims of "`shared:false`" and
+"all four counters zero" in this roadmap have **not been rechecked**. Those historical entries are preserved
+as written, not rewritten. Whether to qualify them is a separate decision.
+
 ### 2026-10-01 — grant correction and night measurement
 
 - **Corrected a false statement this roadmap previously asserted**: that no repository migration grants
@@ -592,7 +757,12 @@ This is a narrow reconciliation against locally available repository evidence, n
   returning five rows and **no grantee OID 0**, so no `PUBLIC` entry. Effective `EXECUTE` confirmed for
   `postgres` and `authenticated` on the two wrappers and denied to `anon`, `service_role` and `PUBLIC`.
   Independent history read shows Migration 008 version `20260919120000` exactly once. Production and
-  repository agree; no repair attempted. No RPC executed, nothing written, no configuration changed.
+  repository agree; no repair attempted. No application RPC executed and no application row written.
+  *Qualified 2026-10-04:* the five `supabase db query --linked` invocations each printed `Initialising login
+  role...`, which CLI 2.111.0 writes immediately before a `createLoginRole` call with `read_only:false`. The 2026-10-03
+  audit observed `cli_login_postgres` in production as a member of `postgres` (Supabase documentation:
+  https://supabase.com/docs/guides/troubleshooting/permission-denied-when-deleting-the-cli_login_postgres-role-808bae). Its current login/expiry state and which earlier CLI operation created it remain unverified.
+  Network-ban clearing on that path is possible but unobserved.
 - **Upgraded the PR #85 lifecycle night contrast from a likely shared impact to a direct measurement**: its
   three primary controls each measured 2.428:1 and axe flagged all three. Recorded that **five primary
   Buttons on two routes** are now measured while the remaining Buttons stay predicted — five controls on two
