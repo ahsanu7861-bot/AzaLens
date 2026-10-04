@@ -24,6 +24,17 @@ test.describe("contrast helper", () => {
     expect(contrastRatio([255, 255, 255], [6, 182, 212]).toFixed(3)).toBe("2.428");
   });
 
+  test("primary-button label token pairs: night dark label, day white label unchanged", () => {
+    // `--az-primary-button-label` #0a0e1a on the unchanged night `--az-brand` and `--az-brand-strong` (hover).
+    expect(layeredContrast("rgb(10, 14, 26)", ["rgb(6, 182, 212)"]).ratio.toFixed(3)).toBe("7.931");
+    expect(layeredContrast("rgb(10, 14, 26)", ["rgb(34, 211, 238)"]).ratio.toFixed(3)).toBe("10.655");
+    // Day keeps #ffffff on `--az-brand` #0e7490 and `--az-brand-strong` #155e75 (hover).
+    expect(layeredContrast(WHITE, ["rgb(14, 116, 144)"]).ratio.toFixed(3)).toBe("5.358");
+    expect(layeredContrast(WHITE, ["rgb(21, 94, 117)"]).ratio.toFixed(3)).toBe("7.267");
+    // Historical night hover: white on rgb(34, 211, 238), the pair the new token replaces.
+    expect(layeredContrast(WHITE, ["rgb(34, 211, 238)"]).ratio.toFixed(3)).toBe("1.807");
+  });
+
   test("single translucent layer is composited over its backing colour", () => {
     const result = layeredContrast(WHITE, ["rgba(0, 0, 0, 0.5)", WHITE]);
     expect(rounded(result.background)).toEqual([127.5, 127.5, 127.5]);

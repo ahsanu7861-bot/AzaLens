@@ -13,6 +13,7 @@
   --color-stroke-strong: var(--az-stroke-strong);
   --color-brand: var(--az-brand);
   --color-brand-strong: var(--az-brand-strong);
+  --color-primary-button-label: var(--az-primary-button-label);
   --color-positive: var(--az-positive);
   --color-caution: var(--az-caution);
   --color-critical: var(--az-critical);
@@ -37,6 +38,8 @@
   --az-stroke-strong: rgba(255, 255, 255, 0.18);
   --az-brand: #06b6d4;
   --az-brand-strong: #22d3ee;
+  /* Dark label on the bright cyan primary surface: 7.931:1 resting, 10.655:1 on hover. */
+  --az-primary-button-label: #0a0e1a;
   --az-brand-soft: rgba(6, 182, 212, 0.15);
   --az-positive: #10b981;
   --az-positive-soft: rgba(16, 185, 129, 0.15);
@@ -68,6 +71,7 @@
   --az-stroke-strong: rgba(15, 23, 42, 0.28);
   --az-brand: #0e7490;
   --az-brand-strong: #155e75;
+  --az-primary-button-label: #ffffff;
   --az-brand-soft: rgba(6, 182, 212, 0.15);
   --az-positive: #047857;
   --az-positive-soft: rgba(16, 185, 129, 0.15);
