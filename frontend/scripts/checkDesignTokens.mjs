@@ -27,6 +27,18 @@ if (!/--color-shariah:\s*var\(--az-shariah\);/.test(themeInlineBlock)) {
   );
 }
 
+if (
+  !/--color-primary-button-label:\s*var\(--az-primary-button-label\);/.test(
+    themeInlineBlock,
+  )
+) {
+  failures.push(
+    "@theme inline is missing " +
+      "'--color-primary-button-label: var(--az-primary-button-label);' — " +
+      "the primary Button's text-primary-button-label utility will be inert.",
+  );
+}
+
 const themeSections = {
   night: css.slice(
     css.indexOf(':root,\n[data-theme="night"] {'),
@@ -43,6 +55,12 @@ const themeSections = {
 const expectedShariahHex = {
   night: "#a78bfa",
   day: "#6d28d9",
+};
+
+// Owner decision: a dark label on the unchanged night cyan; day keeps the white label it already had.
+const expectedPrimaryButtonLabelHex = {
+  night: "#0a0e1a",
+  day: "#ffffff",
 };
 
 for (const [theme, section] of Object.entries(themeSections)) {
@@ -63,6 +81,19 @@ for (const [theme, section] of Object.entries(themeSections)) {
         `${match[1]} without the required stop-and-explain step (item 1.10).`,
     );
   }
+
+  const label = section.match(
+    /--az-primary-button-label:\s*(#[0-9a-fA-F]{6})\s*;/,
+  );
+
+  if (!label) {
+    failures.push(`${theme}: --az-primary-button-label token is missing.`);
+  } else if (label[1].toLowerCase() !== expectedPrimaryButtonLabelHex[theme]) {
+    failures.push(
+      `${theme}: --az-primary-button-label changed from ` +
+        `${expectedPrimaryButtonLabelHex[theme]} to ${label[1]}.`,
+    );
+  }
 }
 
 if (failures.length > 0) {
@@ -71,7 +102,8 @@ if (failures.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    "Design token registration check passed: --color-shariah is registered " +
-      "in @theme inline, and night/day --az-shariah values are unchanged.",
+    "Design token registration check passed: --color-shariah and " +
+      "--color-primary-button-label are registered in @theme inline, and " +
+      "night/day --az-shariah and --az-primary-button-label values are unchanged.",
   );
 }

@@ -27,6 +27,11 @@ const semanticTokens = [
 ];
 const neutralBackgrounds = ["canvas", "surface", "surface-soft"];
 const semanticBackgrounds = ["canvas", "surface"];
+// Filled primary Buttons: the label token on the resting and the hover brand surface.
+const primaryButtonPairs = [
+  { foreground: "primary-button-label", background: "brand" },
+  { foreground: "primary-button-label", background: "brand-strong" },
+];
 const MINIMUM_CONTRAST = 4.5;
 
 function readHexToken(section, token) {
@@ -89,6 +94,7 @@ for (const [theme, section] of Object.entries(themeSections)) {
         foreground,
       })),
     ),
+    ...primaryButtonPairs,
   ];
 
   for (const { foreground, background } of pairs) {
