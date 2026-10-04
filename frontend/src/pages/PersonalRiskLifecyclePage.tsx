@@ -11,6 +11,7 @@ import {
   escalateLifecycleRecord,
   mintLifecycleRecord,
   readLifecycleRecord,
+  submittedEvidenceClass,
   type LifecycleRecordRead,
   type PendingReason,
 } from "../lib/personalRiskLifecycleIntent";
@@ -39,7 +40,30 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const REQUEST_DECIMAL = /^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,8})?$/;
 const ZERO = /^0(?:\.0+)?$/;
 
+/**
+ * Page-local refusal of a same-key stop retry whose selected class differs from the one originally
+ * submitted. Nothing is dispatched and nothing is frozen, so it deliberately has its own message and is
+ * not part of the shared LifecycleFailureCode union.
+ */
+const RETRY_CLASS_MISMATCH = "RETRY_EVIDENCE_CLASS_MISMATCH";
+type PageFailureCode = LifecycleFailureCode | typeof RETRY_CLASS_MISMATCH;
+
+/** Shown instead of the generic failed-check line when a class-verified stop recovery is not interpretable. */
+const CLASS_UNCONFIRMED_COPY =
+  "The recorded outcome could not be confirmed to match the evidence class originally submitted. The saved request key remains pending and needs investigation before any further action.";
+
+/** Caption under a COMMITTED stop recovery, decided by what the check could establish about the class. */
+type StopClassCaption = "REPORTED" | "MATCHED" | "UNPROVEN";
+const stopClassCaptions: Record<StopClassCaption, string> = {
+  REPORTED:
+    "The evidence class above is reported from the stored record. This check does not verify it against what was submitted.",
+  MATCHED: "The evidence class above matched the class originally submitted under this saved request key.",
+  UNPROVEN:
+    "The evidence class above is reported from the stored record. Because this saved request key is in conflict, this check cannot show that the record is the stop submitted here.",
+};
+
 const failureMessages: Record<string, string> = {
+  [RETRY_CLASS_MISMATCH]: "Select the same evidence class you originally submitted to retry.",
   LIFECYCLE_INPUT_INVALID: "An entry was rejected. Correct it and submit again with the same saved request key.",
   NUMERIC_PRECISION_INVALID: "A number does not fit the approved precision. Use plain decimals only.",
   LIFECYCLE_FORBIDDEN: "This owner operation was refused. No record was written.",
@@ -198,9 +222,12 @@ export default function PersonalRiskLifecyclePage() {
   const [safetyFailed, setSafetyFailed] = useState(false);
   const [retryArmed, setRetryArmed] = useState(false);
   const [readFailed, setReadFailed] = useState<LifecycleFailureCode | "">("");
+  // A class-verified stop check that could not be interpreted: shown as one conflict alert, never a success.
+  const [classUnconfirmed, setClassUnconfirmed] = useState(false);
   const [recovered, setRecovered] = useState<RecoveryResult | null>(null);
+  const [stopCaption, setStopCaption] = useState<StopClassCaption>("REPORTED");
   const [result, setResult] = useState<LifecycleResult | null>(null);
-  const [error, setError] = useState<LifecycleFailureCode | "">("");
+  const [error, setError] = useState<PageFailureCode | "">("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<LifecycleOperation | null>(null);
@@ -291,11 +318,11 @@ export default function PersonalRiskLifecyclePage() {
     return fieldsInvalid(operation) || confirmationsMissing(operation);
   }
 
-  async function dispatch(operation: LifecycleOperation, key: string) {
+  async function dispatch(operation: LifecycleOperation, key: string, evidenceClass: EvidenceClass | null) {
     if (operation === "TIGHTEN_STOP") {
       // Unreachable while confirmationsMissing gates submit; kept so a null class can never be dispatched.
-      if (evidence === null) throw new LifecycleClientError("LIFECYCLE_INPUT_INVALID", { status: 400 });
-      return tightenProtectiveStop(key, { positionId, newStop, evidenceClass: evidence });
+      if (evidenceClass === null) throw new LifecycleClientError("LIFECYCLE_INPUT_INVALID", { status: 400 });
+      return tightenProtectiveStop(key, { positionId, newStop, evidenceClass });
     }
     const request = {
       positionId,
@@ -312,6 +339,7 @@ export default function PersonalRiskLifecyclePage() {
   async function submit(operation: LifecycleOperation) {
     setError("");
     setReadFailed("");
+    setClassUnconfirmed(false);
     const current = readLifecycleRecord();
     if (current.status === "UNVERIFIABLE") {
       markSafetyFailure();
@@ -327,6 +355,8 @@ export default function PersonalRiskLifecyclePage() {
       setError("LIFECYCLE_INPUT_INVALID");
       return;
     }
+    // The one class that is both saved in the pending record and dispatched; never re-read separately.
+    const submittedClass = operation === "TIGHTEN_STOP" ? evidence : null;
     let key: string;
     if (current.status === "VALID") {
       const pending = current.record;
@@ -339,11 +369,20 @@ export default function PersonalRiskLifecyclePage() {
         setError("IDEMPOTENCY_CONFLICT");
         return;
       }
+      if (operation === "TIGHTEN_STOP" && pending.evidenceClass !== submittedClass) {
+        setError(RETRY_CLASS_MISMATCH);
+        return;
+      }
       key = pending.idempotencyKey;
     } else {
       key = crypto.randomUUID();
       try {
-        mintLifecycleRecord({ operation, positionId, idempotencyKey: key });
+        mintLifecycleRecord({
+          operation,
+          positionId,
+          idempotencyKey: key,
+          ...(submittedClass === null ? {} : { evidenceClass: submittedClass }),
+        });
       } catch {
         markSafetyFailure();
         setError("LIFECYCLE_UNAVAILABLE");
@@ -355,7 +394,7 @@ export default function PersonalRiskLifecyclePage() {
     setBusy(true);
     refresh();
     try {
-      const value = await dispatch(operation, key);
+      const value = await dispatch(operation, key, submittedClass);
       try {
         clearLifecycleRecord();
       } catch {
@@ -402,6 +441,7 @@ export default function PersonalRiskLifecyclePage() {
   async function checkRecordedOutcome() {
     setError("");
     setReadFailed("");
+    setClassUnconfirmed(false);
     const current = readLifecycleRecord();
     setStored(current);
     if (current.status !== "VALID") {
@@ -409,24 +449,54 @@ export default function PersonalRiskLifecyclePage() {
       return;
     }
     const pending = current.record;
+    // Only a version-2 stop record carries a submitted class; every other check stays report-only.
+    const expectedClass = submittedEvidenceClass(pending);
+    const failCheck = (code: LifecycleFailureCode) => {
+      if (expectedClass !== null && code === "LIFECYCLE_RESPONSE_INVALID") {
+        // The pending record is left exactly as it was; no result, no retry, no success wording.
+        setRecovered(null);
+        setResult(null);
+        setRetryArmed(false);
+        setNotice("");
+        setClassUnconfirmed(true);
+      } else {
+        setReadFailed(code);
+      }
+    };
     setBusy(true);
     try {
       const data = await recoverLifecycle(pending.idempotencyKey, {
         operation: pending.operation,
         positionId: pending.positionId,
+        ...(expectedClass === null ? {} : { evidenceClass: expectedClass }),
       });
       if (data.operation !== pending.operation || data.positionId !== pending.positionId) {
-        setReadFailed("LIFECYCLE_RESPONSE_INVALID");
+        failCheck("LIFECYCLE_RESPONSE_INVALID");
         return;
       }
+      // The service already refuses a different class; this keeps the page from ever relying on that alone.
+      if (
+        expectedClass !== null &&
+        data.state === "COMMITTED" &&
+        (data.operation !== "TIGHTEN_STOP" || data.evidenceClass !== expectedClass)
+      ) {
+        failCheck("LIFECYCLE_RESPONSE_INVALID");
+        return;
+      }
+      const resolvable = pending.reason === "NONE" || pending.reason === "READBACK_PENDING";
       resetPayloadFields();
       setRetryArmed(false);
+      setStopCaption(expectedClass === null ? "REPORTED" : resolvable ? "MATCHED" : "UNPROVEN");
       setRecovered(data);
       if (data.state === "COMMITTED") {
-        if (pending.reason === "NONE" || pending.reason === "READBACK_PENDING") {
+        if (resolvable) {
           try {
             clearLifecycleRecord();
-            setNotice(`The ${operationLabels[pending.operation]} is confirmed recorded.`);
+            setNotice(
+              expectedClass === null
+                ? `The ${operationLabels[pending.operation]} is confirmed recorded.`
+                : `The ${operationLabels[pending.operation]} is confirmed recorded, and its evidence class matched what was submitted.`,
+            );
           } catch {
             markSafetyFailure();
           }
@@ -457,7 +527,7 @@ export default function PersonalRiskLifecyclePage() {
       }
       setNotice("No record exists under the saved request key. The conflict is unexplained; investigate outside AzaLens.");
     } catch (failure) {
-      setReadFailed(failure instanceof LifecycleClientError ? failure.code : "NETWORK_AMBIGUOUS");
+      failCheck(failure instanceof LifecycleClientError ? failure.code : "NETWORK_AMBIGUOUS");
     } finally {
       setBusy(false);
       refresh();
@@ -560,6 +630,11 @@ export default function PersonalRiskLifecyclePage() {
                   credentials were stored.
                 </p>
               ) : null}
+              {classUnconfirmed ? (
+                <p role="alert" className="mt-2 text-sm font-medium text-critical">
+                  {CLASS_UNCONFIRMED_COPY}
+                </p>
+              ) : null}
               {readFailed ? (
                 <p role="alert" className="mt-2 text-sm font-medium text-caution">
                   The last check could not be completed. {failureMessages[readFailed] ?? readFailed} The saved
@@ -601,10 +676,7 @@ export default function PersonalRiskLifecyclePage() {
             <>
               <Values rows={resultRows(recovered)} />
               {recovered.operation === "TIGHTEN_STOP" ? (
-                <p className="mt-3 text-xs text-ink-muted">
-                  The evidence class above is reported from the stored record. This check does not verify it against
-                  what was submitted.
-                </p>
+                <p className="mt-3 text-xs text-ink-muted">{stopClassCaptions[stopCaption]}</p>
               ) : null}
             </>
           ) : (

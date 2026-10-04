@@ -8,6 +8,7 @@ import {
   LifecycleSafetyError,
   mintLifecycleRecord,
   readLifecycleRecord,
+  submittedEvidenceClass,
   type LifecycleSafetyRecord,
   type PendingReason,
 } from "./personalRiskLifecycleIntent";
@@ -15,6 +16,10 @@ import {
 const POSITION = "20000000-0000-4000-8000-000000000002";
 const KEY = "30000000-0000-4000-8000-000000000003";
 const IDENTITY = { operation: "PARTIAL_EXIT", positionId: POSITION, idempotencyKey: KEY } as const;
+const STOP_IDENTITY = { operation: "TIGHTEN_STOP", positionId: POSITION, idempotencyKey: KEY } as const;
+const CLASSES = ["OWNER_DECLARED", "BROKER_CONFIRMED"] as const;
+const BASE_KEYS = ["certainty", "idempotencyKey", "operation", "positionId", "reason", "restriction", "version"];
+const STOP_V2_KEYS = [...BASE_KEYS, "evidenceClass"].sort();
 
 const IMPLIED: Record<PendingReason, { certainty: string; restriction: string }> = {
   NONE: { certainty: "UNKNOWN", restriction: "RECOVER_FIRST" },
@@ -73,7 +78,8 @@ describe("personal-risk lifecycle safety record", () => {
   it("A1 round-trips the complete seven-field record with nothing defaulted or dropped", () => {
     const written = mintLifecycleRecord(IDENTITY, storage);
     expect(written).toEqual({
-      version: 1,
+      // Every newly minted record is version 2; an exit record keeps the original seven keys.
+      version: 2,
       operation: "PARTIAL_EXIT",
       positionId: POSITION,
       idempotencyKey: KEY,
@@ -156,8 +162,35 @@ describe("personal-risk lifecycle safety record", () => {
     }
   });
 
+  it("A6b never persists a stop's payload, only its submitted evidence class", () => {
+    const STOP_VALUE = "101.25";
+    for (const evidenceClass of CLASSES) {
+      storage.map.clear();
+      mintLifecycleRecord({ ...STOP_IDENTITY, evidenceClass }, storage);
+      escalateLifecycleRecord("READBACK_PENDING", storage);
+      const stored = raw(storage) as string;
+      expect(JSON.parse(stored).evidenceClass).toBe(evidenceClass);
+      for (const forbidden of [
+        "price",
+        "quantity",
+        "fees",
+        "taxes",
+        "newStop",
+        STOP_VALUE,
+        "exitReason",
+        "brokerEffectiveAt",
+        "Authorization",
+        "Bearer",
+        "token",
+      ]) {
+        expect(stored, forbidden).not.toContain(forbidden);
+      }
+    }
+  });
+
   it("A7 gates the version and never reinterprets a future record", () => {
-    for (const version of [undefined, 0, 2, "1", null]) {
+    // Version 2 is now valid in its correct shape, so the unsupported future version is 3.
+    for (const version of [undefined, 0, 3, "1", "2", null]) {
       const bytes = JSON.stringify({ version, ...IDENTITY, ...IMPLIED.NONE, reason: "NONE" });
       storage.map.set(LIFECYCLE_PENDING_KEY, bytes);
       expect(readLifecycleRecord(storage).status).toBe("UNVERIFIABLE");
@@ -263,6 +296,125 @@ describe("personal-risk lifecycle safety record", () => {
       expect(() => clearLifecycleRecord(storage)).toThrow(LifecycleSafetyError);
       expect(raw(storage)).toBe(before);
     }
+  });
+
+  it("A15 mints a version-2 stop record that stores exactly the submitted class", () => {
+    for (const evidenceClass of CLASSES) {
+      storage.map.clear();
+      const written = mintLifecycleRecord({ ...STOP_IDENTITY, evidenceClass }, storage);
+      expect(written).toEqual({
+        version: 2,
+        operation: "TIGHTEN_STOP",
+        positionId: POSITION,
+        idempotencyKey: KEY,
+        evidenceClass,
+        certainty: "UNKNOWN",
+        restriction: "RECOVER_FIRST",
+        reason: "NONE",
+      });
+      expect(Object.keys(JSON.parse(raw(storage) as string)).sort()).toEqual(STOP_V2_KEYS);
+      const read = readLifecycleRecord(storage);
+      expect(read.status === "VALID" && read.record).toEqual(written);
+    }
+  });
+
+  it("A16 refuses a stop with a missing or unknown class and an exit with any class, writing nothing", () => {
+    const refusals: Array<Record<string, unknown>> = [
+      { ...STOP_IDENTITY },
+      { ...STOP_IDENTITY, evidenceClass: undefined },
+      { ...STOP_IDENTITY, evidenceClass: null },
+      { ...STOP_IDENTITY, evidenceClass: "" },
+      { ...STOP_IDENTITY, evidenceClass: "owner_declared" },
+      { ...STOP_IDENTITY, evidenceClass: "BROKER_ASSERTED" },
+      ...CLASSES.map((evidenceClass) => ({ ...IDENTITY, evidenceClass })),
+      ...CLASSES.map((evidenceClass) => ({ ...IDENTITY, operation: "FINAL_EXIT", evidenceClass })),
+    ];
+    for (const identity of refusals) {
+      storage.map.clear();
+      let thrown: unknown;
+      try {
+        mintLifecycleRecord(identity as never, storage);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown, JSON.stringify(identity)).toBeInstanceOf(LifecycleSafetyError);
+      expect((thrown as LifecycleSafetyError).kind).toBe("TRANSITION_REFUSED");
+      expect(raw(storage), JSON.stringify(identity)).toBeNull();
+    }
+    // A caller-supplied extra key never reaches storage: the record is built field by field.
+    storage.map.clear();
+    mintLifecycleRecord({ ...IDENTITY, newStop: "100" } as never, storage);
+    expect(Object.keys(JSON.parse(raw(storage) as string)).sort()).toEqual(BASE_KEYS);
+  });
+
+  it("A17 distinguishes the version-2 stop shape from exits and from version 1", () => {
+    const base = { ...IMPLIED.NONE, reason: "NONE" };
+    // Valid: version 1 in its original seven keys for every operation; version 2 exits without a class.
+    for (const record of [
+      { version: 1, ...IDENTITY, ...base },
+      { version: 1, ...STOP_IDENTITY, ...base },
+      { version: 2, ...IDENTITY, ...base },
+      { version: 2, ...IDENTITY, operation: "FINAL_EXIT", ...base },
+      ...CLASSES.map((evidenceClass) => ({ version: 2, ...STOP_IDENTITY, evidenceClass, ...base })),
+    ]) {
+      storage.map.set(LIFECYCLE_PENDING_KEY, JSON.stringify(record));
+      expect(readLifecycleRecord(storage).status, JSON.stringify(record)).toBe("VALID");
+    }
+    // Retained as UNVERIFIABLE, never repaired.
+    for (const record of [
+      { version: 1, ...STOP_IDENTITY, evidenceClass: "OWNER_DECLARED", ...base },
+      { version: 1, ...IDENTITY, evidenceClass: "OWNER_DECLARED", ...base },
+      { version: 2, ...STOP_IDENTITY, ...base },
+      { version: 2, ...STOP_IDENTITY, evidenceClass: null, ...base },
+      { version: 2, ...STOP_IDENTITY, evidenceClass: "UNKNOWN_CLASS", ...base },
+      { version: 2, ...STOP_IDENTITY, evidenceClass: "OWNER_DECLARED", ...base, newStop: "100" },
+      { version: 2, ...IDENTITY, evidenceClass: "BROKER_CONFIRMED", ...base },
+      { version: 3, ...STOP_IDENTITY, evidenceClass: "OWNER_DECLARED", ...base },
+      { version: 3, ...IDENTITY, ...base },
+    ]) {
+      const bytes = JSON.stringify(record);
+      storage.map.set(LIFECYCLE_PENDING_KEY, bytes);
+      expectUnverifiableAndRetained(storage, bytes);
+    }
+  });
+
+  it("A18 carries version and class unchanged through every permitted transition", () => {
+    const fixtures: Array<{ label: string; overrides: Partial<LifecycleSafetyRecord> }> = [
+      ...CLASSES.map((evidenceClass) => ({
+        label: `v2 stop ${evidenceClass}`,
+        overrides: { version: 2, operation: "TIGHTEN_STOP", evidenceClass } as Partial<LifecycleSafetyRecord>,
+      })),
+      { label: "v1 stop", overrides: { version: 1, operation: "TIGHTEN_STOP" } },
+      { label: "v2 exit", overrides: { version: 2 } },
+      { label: "v1 exit", overrides: { version: 1 } },
+    ];
+    for (const { label, overrides } of fixtures) {
+      for (const from of REASONS) {
+        for (const to of ALLOWED[from]) {
+          const seeded = seed(storage, from, overrides);
+          const next = escalateLifecycleRecord(to, storage);
+          const persisted = JSON.parse(raw(storage) as string);
+          expect(next.reason, `${label} ${from} -> ${to}`).toBe(to);
+          expect(persisted.version, `${label} ${from} -> ${to}`).toBe(seeded.version);
+          expect(persisted.evidenceClass, `${label} ${from} -> ${to}`).toBe(seeded.evidenceClass);
+          // A record without a class (every v1 record and every exit) never gains the key at all.
+          expect(Object.hasOwn(persisted, "evidenceClass"), `${label} ${from} -> ${to}`).toBe(
+            Object.hasOwn(seeded, "evidenceClass"),
+          );
+          expect(readLifecycleRecord(storage).status).toBe("VALID");
+        }
+      }
+    }
+  });
+
+  it("A19 exposes a class for recovery only from a version-2 stop record", () => {
+    for (const evidenceClass of CLASSES) {
+      storage.map.clear();
+      expect(submittedEvidenceClass(mintLifecycleRecord({ ...STOP_IDENTITY, evidenceClass }, storage))).toBe(evidenceClass);
+    }
+    expect(submittedEvidenceClass(seed(storage, "NONE", { version: 1, operation: "TIGHTEN_STOP" }) as LifecycleSafetyRecord)).toBeNull();
+    storage.map.clear();
+    expect(submittedEvidenceClass(mintLifecycleRecord(IDENTITY, storage))).toBeNull();
   });
 
   it("gates retry on the in-memory session, the restriction and the absence of a write failure", () => {
