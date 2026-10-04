@@ -172,7 +172,11 @@ function validateMutation(value: unknown, operation: LifecycleOperation): Lifecy
   return result;
 }
 
-function validateRecovery(value: unknown, operation: LifecycleOperation): RecoveryResult {
+function validateRecovery(
+  value: unknown,
+  operation: LifecycleOperation,
+  expectedEvidenceClass?: EvidenceClass,
+): RecoveryResult {
   const data = envelope(value);
   const record = object(data);
   if (record.state === "NOT_FOUND") {
@@ -184,6 +188,13 @@ function validateRecovery(value: unknown, operation: LifecycleOperation): Recove
   if (record.state !== "COMMITTED") invalid();
   const result = operation === "TIGHTEN_STOP" ? stopResult(data, ["state"]) : exitResult(data, ["state"]);
   if (result.operation !== operation || result.replayed !== true) invalid();
+  // Supplements the backend's own comparison: a different durable class is never a success.
+  if (
+    expectedEvidenceClass !== undefined &&
+    (result.operation !== "TIGHTEN_STOP" || result.evidenceClass !== expectedEvidenceClass)
+  ) {
+    invalid();
+  }
   return { ...result, state: "COMMITTED" };
 }
 
@@ -308,23 +319,35 @@ export async function tightenProtectiveStop(idempotencyKey: string, request: Sto
   return committedIfInvalid(() => validateMutation(response.data, "TIGHTEN_STOP")) as StopResult;
 }
 
-/** Non-mutating. The route requires the same strict single Idempotency-Key header as the writes. */
+/**
+ * Non-mutating. The route requires the same strict single Idempotency-Key header as the writes. For a
+ * TIGHTEN_STOP, an optional `evidenceClass` asks the backend to verify the durable class against the one
+ * originally submitted; omitted, the check only reports the stored class.
+ */
 export async function recoverLifecycle(
   idempotencyKey: string,
-  target: { operation: LifecycleOperation; positionId: string },
+  target: { operation: LifecycleOperation; positionId: string; evidenceClass?: EvidenceClass },
 ) {
   const headers = header(idempotencyKey);
   if (!UUID.test(target.positionId) || !LIFECYCLE_OPERATIONS.includes(target.operation)) {
+    throw new LifecycleClientError("LIFECYCLE_INPUT_INVALID", { status: 400 });
+  }
+  const expected = target.evidenceClass;
+  if (expected !== undefined && (target.operation !== "TIGHTEN_STOP" || !EVIDENCE_CLASSES.includes(expected))) {
     throw new LifecycleClientError("LIFECYCLE_INPUT_INVALID", { status: 400 });
   }
   // Deliberately not wrapped in committedIfInvalid: the recovery read is non-mutating, so a malformed
   // 2xx here establishes nothing about commit state.
   try {
     const response = await api.get(RECOVERY_ENDPOINT, {
-      params: { operation: target.operation, positionId: target.positionId },
+      params: {
+        operation: target.operation,
+        positionId: target.positionId,
+        ...(expected === undefined ? {} : { evidenceClass: expected }),
+      },
       headers,
     });
-    return validateRecovery(response.data, target.operation);
+    return validateRecovery(response.data, target.operation, expected);
   } catch (error) {
     return safeError(error);
   }

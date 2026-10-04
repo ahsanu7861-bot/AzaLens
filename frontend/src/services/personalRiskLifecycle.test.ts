@@ -258,4 +258,76 @@ describe("personal-risk lifecycle service", () => {
     expect(recovery.commitState).toBeUndefined();
     console.log("PASS lifecycle service: fixed endpoints, exact bodies, signed readback decimals, strict shapes, distinct commit-state mapping and committed-on-malformed-2xx are enforced.");
   });
+
+  it("B14 sends the expected class only for a TIGHTEN_STOP recovery that supplies one", async () => {
+    for (const evidenceClass of ["OWNER_DECLARED", "BROKER_CONFIRMED"] as const) {
+      get.mockReset().mockResolvedValue(ok({ operation: "TIGHTEN_STOP", state: "NOT_FOUND", positionId: POSITION }));
+      await recoverLifecycle(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass });
+      expect(get.mock.calls).toEqual([
+        [
+          "/api/personal-risk/lifecycle/recovery",
+          { params: { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass }, headers: { "Idempotency-Key": KEY } },
+        ],
+      ]);
+    }
+    // Omitted, or explicitly undefined, the read stays report-only with exactly two params.
+    get.mockReset().mockResolvedValue(ok({ operation: "TIGHTEN_STOP", state: "NOT_FOUND", positionId: POSITION }));
+    await recoverLifecycle(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: undefined });
+    expect(Object.keys((get.mock.calls[0][1] as { params: object }).params).sort()).toEqual(["operation", "positionId"]);
+  });
+
+  it("B15 rejects an unknown class, or a class supplied for an exit, before any GET", async () => {
+    for (const target of [
+      { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: "UNKNOWN_CLASS" },
+      { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: "" },
+      { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: null },
+      { operation: "PARTIAL_EXIT", positionId: POSITION, evidenceClass: "BROKER_CONFIRMED" },
+      { operation: "FINAL_EXIT", positionId: POSITION, evidenceClass: "OWNER_DECLARED" },
+    ]) {
+      expect(await failure(() => recoverLifecycle(KEY, target as never)), JSON.stringify(target)).toMatchObject({
+        code: "LIFECYCLE_INPUT_INVALID",
+        status: 400,
+      });
+    }
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("B16 refuses a COMMITTED stop recovery whose class differs from the expected one", async () => {
+    const committedStop = (evidenceClass: string) => ok({ ...stopData, evidenceClass, replayed: true, state: "COMMITTED" });
+    // Matching class: success, reported exactly.
+    get.mockResolvedValueOnce(committedStop("BROKER_CONFIRMED"));
+    expect(
+      await recoverLifecycle(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: "BROKER_CONFIRMED" }),
+    ).toMatchObject({ state: "COMMITTED", evidenceClass: "BROKER_CONFIRMED" });
+    // A discrepancy the backend failed to catch is still never a success, and asserts nothing about commit.
+    for (const [expected, returned] of [
+      ["BROKER_CONFIRMED", "OWNER_DECLARED"],
+      ["OWNER_DECLARED", "BROKER_CONFIRMED"],
+    ] as const) {
+      get.mockResolvedValueOnce(committedStop(returned));
+      const error = await failure(() =>
+        recoverLifecycle(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: expected }),
+      );
+      expect(error.code).toBe("LIFECYCLE_RESPONSE_INVALID");
+      expect(error.commitState).toBeUndefined();
+    }
+    // Without an expected class the stored class is only reported, exactly as before.
+    get.mockResolvedValueOnce(committedStop("OWNER_DECLARED"));
+    expect(await recoverLifecycle(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION })).toMatchObject({
+      state: "COMMITTED",
+      evidenceClass: "OWNER_DECLARED",
+    });
+    // NOT_FOUND carries no class and is unaffected by the expectation.
+    get.mockResolvedValueOnce(ok({ operation: "TIGHTEN_STOP", state: "NOT_FOUND", positionId: POSITION }));
+    expect(
+      await recoverLifecycle(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: "OWNER_DECLARED" }),
+    ).toEqual({ operation: "TIGHTEN_STOP", state: "NOT_FOUND", positionId: POSITION });
+    // The backend's own 502 for a mismatched or missing durable class keeps its UNKNOWN commit state.
+    get.mockRejectedValueOnce(
+      axiosError(502, { success: false, code: "LIFECYCLE_RESPONSE_INVALID", commitState: "UNKNOWN", recoveryRequired: true }),
+    );
+    expect(
+      await failure(() => recoverLifecycle(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: "OWNER_DECLARED" })),
+    ).toMatchObject({ code: "LIFECYCLE_RESPONSE_INVALID", status: 502, commitState: "UNKNOWN", recoveryRequired: true });
+  });
 });

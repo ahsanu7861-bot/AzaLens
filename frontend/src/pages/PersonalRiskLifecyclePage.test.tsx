@@ -51,6 +51,22 @@ function seed(reason: PendingReason, operation: LifecycleOperation = "PARTIAL_EX
     JSON.stringify({ version: 1, operation, positionId, idempotencyKey: KEY, reason, ...IMPLIED[reason] }),
   );
 }
+/** Mints the version-2 TIGHTEN_STOP shape directly, for states the page cannot reach in one session. */
+function seedV2Stop(reason: PendingReason, evidenceClass: "OWNER_DECLARED" | "BROKER_CONFIRMED" = "BROKER_CONFIRMED") {
+  memory.set(
+    LIFECYCLE_PENDING_KEY,
+    JSON.stringify({
+      version: 2,
+      operation: "TIGHTEN_STOP",
+      positionId: POSITION,
+      idempotencyKey: KEY,
+      evidenceClass,
+      reason,
+      ...IMPLIED[reason],
+    }),
+  );
+  return memory.get(LIFECYCLE_PENDING_KEY) as string;
+}
 const storedRecord = () => {
   const raw = memory.get(LIFECYCLE_PENDING_KEY);
   return raw === undefined ? null : (JSON.parse(raw) as Record<string, string>);
@@ -82,6 +98,22 @@ const notFound = (operation: LifecycleOperation = "PARTIAL_EXIT", positionId = P
 });
 const committed = { ...exitResult, replayed: true, state: "COMMITTED" as const };
 
+const CLASS_UNCONFIRMED_COPY =
+  "The recorded outcome could not be confirmed to match the evidence class originally submitted. The saved request key remains pending and needs investigation before any further action.";
+const RETRY_CLASS_MISMATCH_COPY = "Select the same evidence class you originally submitted to retry.";
+const REPORTED_CAPTION =
+  "The evidence class above is reported from the stored record. This check does not verify it against what was submitted.";
+const MATCHED_CAPTION = "The evidence class above matched the class originally submitted under this saved request key.";
+const CLASSES = [
+  { choice: "Owner declared" as const, sent: "OWNER_DECLARED" as const, other: "Broker confirmed" as const },
+  { choice: "Broker confirmed" as const, sent: "BROKER_CONFIRMED" as const, other: "Owner declared" as const },
+];
+const committedStop = (evidenceClass: "OWNER_DECLARED" | "BROKER_CONFIRMED") => ({
+  ...stopResult,
+  evidenceClass,
+  replayed: true,
+  state: "COMMITTED" as const,
+});
 const OWNER_DECLARED_COPY =
   "You have recorded this stop in AzaLens. This does not place or amend an order at Saxo — update your stop with your broker separately.";
 const BROKER_CONFIRMED_COPY =
@@ -551,7 +583,7 @@ describe("personal-risk lifecycle page", () => {
   it.each([
     { label: "unparseable JSON", bytes: "{" },
     { label: "wrong shape", bytes: JSON.stringify({ version: 1, nope: true }) },
-    { label: "future version", bytes: JSON.stringify({ version: 2, operation: "PARTIAL_EXIT", positionId: POSITION, idempotencyKey: KEY, certainty: "UNKNOWN", restriction: "RECOVER_FIRST", reason: "NONE" }) },
+    { label: "future version", bytes: JSON.stringify({ version: 3, operation: "PARTIAL_EXIT", positionId: POSITION, idempotencyKey: KEY, certainty: "UNKNOWN", restriction: "RECOVER_FIRST", reason: "NONE" }) },
     { label: "invalid enum", bytes: JSON.stringify({ version: 1, operation: "PARTIAL_EXIT", positionId: POSITION, idempotencyKey: KEY, certainty: "MAYBE", restriction: "RECOVER_FIRST", reason: "NONE" }) },
     { label: "inconsistent pair", bytes: JSON.stringify({ version: 1, operation: "PARTIAL_EXIT", positionId: POSITION, idempotencyKey: KEY, certainty: "UNKNOWN", restriction: "NO_RETRY", reason: "NONE" }) },
   ])("C25 fails closed and retains the bytes for $label", async ({ bytes }) => {
@@ -775,5 +807,247 @@ describe("personal-risk lifecycle page", () => {
     // The approved owner-declared sentence itself is still present, verbatim and unmodified.
     expect(screen.getAllByText(OWNER_DECLARED_COPY).length).toBeGreaterThan(0);
     console.log("PASS lifecycle UI: session-scoped retry gating, terminal conflict, contradictory recovery, committed-state escalation, explicit evidence selection and truthful copy are enforced.");
+  });
+
+  it.each(CLASSES)("D1 saves the dispatched $sent class and recovers with it after an ambiguous submission", async ({ choice, sent }) => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(KEY);
+    service.tightenProtectiveStop.mockRejectedValue(new LifecycleClientError("NETWORK_AMBIGUOUS"));
+    service.recoverLifecycle.mockResolvedValue(notFound("TIGHTEN_STOP"));
+    view();
+    await openStop(POSITION, choice);
+    await confirmDialog();
+    expect(await screen.findByText("Outcome unknown")).toBeInTheDocument();
+    expect(service.tightenProtectiveStop).toHaveBeenCalledWith(KEY, { positionId: POSITION, newStop: "100", evidenceClass: sent });
+    expect(storedRecord()).toEqual({
+      version: 2,
+      operation: "TIGHTEN_STOP",
+      positionId: POSITION,
+      idempotencyKey: KEY,
+      evidenceClass: sent,
+      certainty: "UNKNOWN",
+      restriction: "RECOVER_FIRST",
+      reason: "NONE",
+    });
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(service.recoverLifecycle).toHaveBeenCalledTimes(1));
+    expect(service.recoverLifecycle).toHaveBeenCalledWith(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: sent });
+  });
+
+  it.each(CLASSES)("D2 keeps version 2 and the $sent class through every escalation path", async ({ choice, sent }) => {
+    // NONE -> CONFLICT
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(KEY);
+    service.tightenProtectiveStop.mockRejectedValueOnce(new LifecycleClientError("IDEMPOTENCY_CONFLICT", { status: 409 }));
+    const first = view();
+    await openStop(POSITION, choice);
+    await confirmDialog();
+    expect(await screen.findByText("Saved request key conflict")).toBeInTheDocument();
+    expect(storedRecord()).toMatchObject({ version: 2, evidenceClass: sent, reason: "CONFLICT", restriction: "NO_RETRY" });
+    first.unmount();
+
+    // NONE -> READBACK_PENDING -> CONTRADICTORY
+    memory.clear();
+    service.tightenProtectiveStop.mockRejectedValueOnce(
+      new LifecycleClientError("LIFECYCLE_COMMITTED_READBACK_PENDING", { status: 503, commitState: "COMMITTED" }),
+    );
+    service.recoverLifecycle.mockResolvedValue(notFound("TIGHTEN_STOP"));
+    view();
+    await openStop(POSITION, choice);
+    await confirmDialog();
+    expect(await screen.findByText("Recorded, but not read back")).toBeInTheDocument();
+    expect(storedRecord()).toMatchObject({ version: 2, evidenceClass: sent, reason: "READBACK_PENDING", certainty: "COMMITTED" });
+    fireEvent.click(check() as HTMLElement);
+    expect(await screen.findByText("Conflicting results")).toBeInTheDocument();
+    expect(service.recoverLifecycle).toHaveBeenCalledWith(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: sent });
+    expect(storedRecord()).toMatchObject({ version: 2, evidenceClass: sent, reason: "CONTRADICTORY", restriction: "NO_RETRY" });
+    expect(Object.keys(storedRecord() as object)).toHaveLength(8);
+  });
+
+  it.each(CLASSES)("D3 clears a $sent record and says its class matched only on COMMITTED with that class", async ({ choice, sent }) => {
+    // From NONE, minted in this session after an ambiguous submission.
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(KEY);
+    service.tightenProtectiveStop.mockRejectedValue(new LifecycleClientError("NETWORK_AMBIGUOUS"));
+    service.recoverLifecycle.mockResolvedValue(committedStop(sent));
+    const first = view();
+    await openStop(POSITION, choice);
+    await confirmDialog();
+    await waitFor(() => expect(check()).toBeInTheDocument());
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(storedRecord()).toBeNull());
+    expect(screen.getByText(MATCHED_CAPTION)).toBeInTheDocument();
+    expect(screen.getByText("The stop tightening is confirmed recorded, and its evidence class matched what was submitted.")).toBeInTheDocument();
+    expect(screen.queryByText(REPORTED_CAPTION)).not.toBeInTheDocument();
+    await waitFor(() => expect(action("Review stop tightening")).toBeEnabled());
+    first.unmount();
+
+    // From READBACK_PENDING, reloaded.
+    seedV2Stop("READBACK_PENDING", sent);
+    view();
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(storedRecord()).toBeNull());
+    expect(service.recoverLifecycle).toHaveBeenLastCalledWith(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: sent });
+    expect(screen.getByText(MATCHED_CAPTION)).toBeInTheDocument();
+  });
+
+  it("D4 keeps a version-1 stop recovery report-only with the original caption", async () => {
+    seed("NONE", "TIGHTEN_STOP");
+    const before = memory.get(LIFECYCLE_PENDING_KEY);
+    expect(JSON.parse(before as string)).toMatchObject({ version: 1 });
+    service.recoverLifecycle.mockResolvedValue(committedStop("OWNER_DECLARED"));
+    view();
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(storedRecord()).toBeNull());
+    expect(service.recoverLifecycle).toHaveBeenCalledWith(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION });
+    expect(screen.getByText(REPORTED_CAPTION)).toBeInTheDocument();
+    expect(screen.getByText("The stop tightening is confirmed recorded.")).toBeInTheDocument();
+    expect(screen.queryByText(/matched/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { label: "a backend LIFECYCLE_RESPONSE_INVALID", reject: true },
+    { label: "a COMMITTED readback carrying the other class", reject: false },
+  ])("D5 shows one conflict alert and keeps the record after $label on a class-verified check", async ({ reject }) => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(KEY);
+    // An earlier, successful stop leaves its success card on screen.
+    service.tightenProtectiveStop
+      .mockResolvedValueOnce({ ...stopResult, evidenceClass: "OWNER_DECLARED" })
+      .mockRejectedValueOnce(new LifecycleClientError("NETWORK_AMBIGUOUS"));
+    if (reject) {
+      service.recoverLifecycle.mockRejectedValue(
+        new LifecycleClientError("LIFECYCLE_RESPONSE_INVALID", { status: 502, commitState: "UNKNOWN", recoveryRequired: true }),
+      );
+    } else {
+      service.recoverLifecycle.mockResolvedValue(committedStop("BROKER_CONFIRMED"));
+    }
+    view();
+    await openStop(POSITION, "Owner declared");
+    await confirmDialog();
+    expect(await screen.findByText("Recorded in AzaLens")).toBeInTheDocument();
+    await openStop(POSITION, "Owner declared");
+    await confirmDialog();
+    expect(await screen.findByText("Outcome unknown")).toBeInTheDocument();
+    const bytes = memory.get(LIFECYCLE_PENDING_KEY);
+    expect(JSON.parse(bytes as string)).toMatchObject({ version: 2, evidenceClass: "OWNER_DECLARED", reason: "NONE" });
+
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(screen.getByText(CLASS_UNCONFIRMED_COPY)).toBeInTheDocument());
+    expect(service.recoverLifecycle).toHaveBeenCalledWith(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: "OWNER_DECLARED" });
+    const alerts = screen.getAllByRole("alert");
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toHaveTextContent(CLASS_UNCONFIRMED_COPY);
+    expect(screen.queryByText(/last check could not be completed/)).not.toBeInTheDocument();
+    expect(memory.get(LIFECYCLE_PENDING_KEY)).toBe(bytes);
+    expect(screen.queryByText("Recorded in AzaLens")).not.toBeInTheDocument();
+    expect(screen.queryByText("Owner-scoped check result")).not.toBeInTheDocument();
+    expect(screen.queryByText(/confirmed recorded/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/matched/)).not.toBeInTheDocument();
+    expect(retry()).not.toBeInTheDocument();
+    expect(screen.getByText("Outcome unknown")).toBeInTheDocument();
+    expect(service.tightenProtectiveStop).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { label: "LIFECYCLE_RECOVERY_UNAVAILABLE", error: new LifecycleClientError("LIFECYCLE_RECOVERY_UNAVAILABLE", { status: 503, commitState: "UNKNOWN" }) },
+    { label: "NETWORK_AMBIGUOUS", error: new LifecycleClientError("NETWORK_AMBIGUOUS") },
+    { label: "a non-client error", error: new Error("socket closed") },
+  ])("D6 keeps the generic failed-check line for $label on a class-verified check", async ({ error }) => {
+    const bytes = seedV2Stop("NONE");
+    service.recoverLifecycle.mockRejectedValue(error);
+    view();
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(screen.getByText(/last check could not be completed/)).toBeInTheDocument());
+    expect(screen.queryByText(CLASS_UNCONFIRMED_COPY)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(memory.get(LIFECYCLE_PENDING_KEY)).toBe(bytes);
+  });
+
+  it.each([
+    { fixture: "version-1 stop record", load: () => seed("NONE", "TIGHTEN_STOP") },
+    { fixture: "version-2 stop record", load: () => seedV2Stop("NONE") },
+  ])("D7 (preservation-only: already true on main) starts no new action after an invalid check of a $fixture", async ({ load }) => {
+    load();
+    const randomUUID = vi.spyOn(crypto, "randomUUID");
+    service.recoverLifecycle.mockRejectedValue(new LifecycleClientError("LIFECYCLE_RESPONSE_INVALID", { status: 502 }));
+    view();
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(service.recoverLifecycle).toHaveBeenCalledTimes(1));
+    for (const name of ["Review partial exit", "Review final exit", "Review stop tightening"]) {
+      expect(action(name)).toBeDisabled();
+      fireEvent.click(action(name));
+    }
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(totalPosts()).toBe(0);
+    expect(randomUUID).not.toHaveBeenCalled();
+  });
+
+  it("D8 lets a later consistent check resolve an unconfirmed class-verified request", async () => {
+    seedV2Stop("NONE", "OWNER_DECLARED");
+    service.recoverLifecycle
+      .mockRejectedValueOnce(new LifecycleClientError("LIFECYCLE_RESPONSE_INVALID", { status: 502 }))
+      .mockResolvedValueOnce(committedStop("OWNER_DECLARED"));
+    view();
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(screen.getByText(CLASS_UNCONFIRMED_COPY)).toBeInTheDocument());
+    expect(storedRecord()).not.toBeNull();
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(storedRecord()).toBeNull());
+    expect(screen.queryByText(CLASS_UNCONFIRMED_COPY)).not.toBeInTheDocument();
+    expect(screen.getByText(MATCHED_CAPTION)).toBeInTheDocument();
+  });
+
+  it.each(CLASSES)("D9 refuses a same-key retry that selects a class other than $sent", async ({ choice, sent, other }) => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(KEY);
+    service.tightenProtectiveStop
+      .mockRejectedValueOnce(new LifecycleClientError("LIFECYCLE_COMMIT_UNKNOWN", { status: 503, commitState: "UNKNOWN" }))
+      .mockResolvedValueOnce({ ...stopResult, evidenceClass: sent });
+    service.recoverLifecycle.mockResolvedValue(notFound("TIGHTEN_STOP"));
+    view();
+    await openStop(POSITION, choice);
+    await confirmDialog();
+    await waitFor(() => expect(check()).toBeInTheDocument());
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(retry()).toBeInTheDocument());
+    const bytes = memory.get(LIFECYCLE_PENDING_KEY);
+
+    fillStop(POSITION, other);
+    fireEvent.click(retry() as HTMLElement);
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByLabelText(/I have read the statement above/));
+    await confirmDialog();
+    await waitFor(() => expect(screen.getAllByText(RETRY_CLASS_MISMATCH_COPY).length).toBeGreaterThan(0));
+    expect(service.tightenProtectiveStop).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/It is frozen/)).not.toBeInTheDocument();
+    expect(memory.get(LIFECYCLE_PENDING_KEY)).toBe(bytes);
+    expect(retry()).toBeInTheDocument();
+
+    // Selecting the original class then retries with the same key and that class.
+    fireEvent.click(screen.getByLabelText(choice));
+    fireEvent.click(screen.getByLabelText(/I have read the statement above/));
+    await confirmDialog();
+    await waitFor(() => expect(service.tightenProtectiveStop).toHaveBeenCalledTimes(2));
+    expect(service.tightenProtectiveStop).toHaveBeenLastCalledWith(KEY, { positionId: POSITION, newStop: "100", evidenceClass: sent });
+    expect(crypto.randomUUID).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { reason: "CONFLICT" as PendingReason, heading: "Saved request key conflict" },
+    { reason: "CONTRADICTORY" as PendingReason, heading: "Conflicting results" },
+  ])("D10 never claims a match for a $reason stop record, even on a COMMITTED matching check", async ({ reason, heading }) => {
+    const bytes = seedV2Stop(reason, "BROKER_CONFIRMED");
+    service.recoverLifecycle.mockResolvedValue(committedStop("BROKER_CONFIRMED"));
+    view();
+    fireEvent.click(check() as HTMLElement);
+    await waitFor(() => expect(service.recoverLifecycle).toHaveBeenCalledTimes(1));
+    expect(service.recoverLifecycle).toHaveBeenCalledWith(KEY, {
+      operation: "TIGHTEN_STOP",
+      positionId: POSITION,
+      evidenceClass: "BROKER_CONFIRMED",
+    });
+    await waitFor(() => expect(screen.getAllByText(/may be a different recorded action/).length).toBeGreaterThan(0));
+    expect(screen.getByText(heading)).toBeInTheDocument();
+    expect(memory.get(LIFECYCLE_PENDING_KEY)).toBe(bytes);
+    expect(screen.queryByText(/matched/)).not.toBeInTheDocument();
+    expect(screen.queryByText(MATCHED_CAPTION)).not.toBeInTheDocument();
+    expect(screen.queryByText(/confirmed recorded/)).not.toBeInTheDocument();
+    expect(retry()).not.toBeInTheDocument();
   });
 });
