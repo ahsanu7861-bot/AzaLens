@@ -114,7 +114,7 @@ export default function ClosedDemoGate({ children }: { children: ReactNode }) {
             />
             {error ? <p className="text-sm text-critical" role="alert">{error}</p> : null}
             <button
-              className="w-full rounded-xl bg-brand px-4 py-3 font-semibold text-white disabled:opacity-60"
+              className="w-full rounded-xl bg-brand px-4 py-3 font-semibold text-primary-button-label disabled:opacity-60"
               disabled={submitting}
               type="submit"
             >
@@ -131,7 +131,7 @@ export default function ClosedDemoGate({ children }: { children: ReactNode }) {
             <label className="block text-sm font-medium" htmlFor="owner-password">Password</label>
             <input id="owner-password" autoComplete="current-password" className="w-full rounded-xl border border-line bg-canvas px-4 py-3 outline-none focus:border-brand" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
             {error ? <p className="text-sm text-critical" role="alert">{error}</p> : null}
-            <button className="w-full rounded-xl bg-brand px-4 py-3 font-semibold text-white disabled:opacity-60" disabled={submitting || !supabaseAuthConfigured} type="submit">
+            <button className="w-full rounded-xl bg-brand px-4 py-3 font-semibold text-primary-button-label disabled:opacity-60" disabled={submitting || !supabaseAuthConfigured} type="submit">
               {submitting ? "Signing in…" : "Owner sign in"}
             </button>
           </form>

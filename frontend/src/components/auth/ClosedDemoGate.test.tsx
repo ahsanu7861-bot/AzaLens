@@ -75,4 +75,91 @@ describe("two-stage owner gate", () => {
     await waitFor(() => expect(signOutOwner).toHaveBeenCalled());
     expect(await screen.findByRole("heading", { name: "Owner sign in" })).toBeInTheDocument();
   });
+
+  const BUTTON_CLASS = "w-full rounded-xl bg-brand px-4 py-3 font-semibold text-primary-button-label disabled:opacity-60";
+
+  function expectLabelToken(button: HTMLElement) {
+    expect(button.classList.contains("bg-brand")).toBe(true);
+    expect(button.classList.contains("text-primary-button-label")).toBe(true);
+    expect(button.classList.contains("text-white")).toBe(false);
+    expect(button.className).toBe(BUTTON_CLASS);
+  }
+
+  async function lockedUnlockButton() {
+    publicGet.mockResolvedValue({ data: { authorized: false } });
+    render(<ClosedDemoGate><div>workspace</div></ClosedDemoGate>);
+    const button = await screen.findByRole("button", { name: "Enter workspace" });
+    await waitFor(() => expect(button).toBeEnabled());
+    return button;
+  }
+
+  it("gives the unlock button the primary-button label token", async () => {
+    expectLabelToken(await lockedUnlockButton());
+  });
+
+  it("gives the sign-in button the primary-button label token", async () => {
+    render(<ClosedDemoGate><div>workspace</div></ClosedDemoGate>);
+    const button = await screen.findByRole("button", { name: "Owner sign in" });
+    await waitFor(() => expect(button).toBeEnabled());
+    expectLabelToken(button);
+  });
+
+  it("unlocks with exactly one unchanged request and never signs in", async () => {
+    publicPost.mockResolvedValue({ data: { success: true } });
+    const button = await lockedUnlockButton();
+    fireEvent.change(screen.getByLabelText("Owner access code"), { target: { value: "fixture-access-code" } });
+    fireEvent.click(button);
+    expect(await screen.findByRole("heading", { name: "Owner sign in" })).toBeInTheDocument();
+    expect(publicPost).toHaveBeenCalledTimes(1);
+    expect(publicPost).toHaveBeenCalledWith("/auth/demo/unlock", { accessCode: "fixture-access-code" });
+    expect(signInOwner).not.toHaveBeenCalled();
+  });
+
+  it("dispatches the same single unlock request on form submission", async () => {
+    publicPost.mockResolvedValue({ data: { success: true } });
+    const button = await lockedUnlockButton();
+    fireEvent.change(screen.getByLabelText("Owner access code"), { target: { value: "fixture-access-code" } });
+    fireEvent.submit(button.closest("form") as HTMLFormElement);
+    expect(await screen.findByRole("heading", { name: "Owner sign in" })).toBeInTheDocument();
+    expect(publicPost).toHaveBeenCalledTimes(1);
+    expect(publicPost).toHaveBeenCalledWith("/auth/demo/unlock", { accessCode: "fixture-access-code" });
+    expect(signInOwner).not.toHaveBeenCalled();
+  });
+
+  it("keeps the label token on the disabled unlock button while checking", async () => {
+    let release: (value: unknown) => void = () => {};
+    publicPost.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+    const button = await lockedUnlockButton();
+    fireEvent.change(screen.getByLabelText("Owner access code"), { target: { value: "fixture-access-code" } });
+    fireEvent.click(button);
+    const pending = await screen.findByRole("button", { name: "Checking…" });
+    expect(pending).toBeDisabled();
+    expect(pending.classList.contains("disabled:opacity-60")).toBe(true);
+    expectLabelToken(pending);
+    expect(publicPost).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      release({ data: { success: true } });
+    });
+    expect(await screen.findByRole("heading", { name: "Owner sign in" })).toBeInTheDocument();
+  });
+
+  it("keeps the label token on the disabled sign-in button while signing in", async () => {
+    let release: (value: unknown) => void = () => {};
+    signInOwner.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+    render(<ClosedDemoGate><div>workspace</div></ClosedDemoGate>);
+    const button = await screen.findByRole("button", { name: "Owner sign in" });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "owner@example.test" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "fixture-password-never-logged" } });
+    fireEvent.click(button);
+    const pending = await screen.findByRole("button", { name: "Signing in…" });
+    expect(pending).toBeDisabled();
+    expectLabelToken(pending);
+    expect(signInOwner).toHaveBeenCalledTimes(1);
+    expect(publicPost).not.toHaveBeenCalled();
+    await act(async () => {
+      release({ access_token: "fixture" });
+    });
+    expect(await screen.findByText("workspace")).toBeInTheDocument();
+  });
 });
