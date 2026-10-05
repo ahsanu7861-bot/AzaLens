@@ -173,6 +173,13 @@ async function startAction(name: string) {
   fireEvent.click(control);
 }
 const check = () => screen.queryByRole("button", { name: "Check recorded outcome" });
+async function readyCheck() {
+  const control = await screen.findByRole("button", {
+    name: "Check recorded outcome",
+  });
+  await waitFor(() => expect(control).toBeEnabled());
+  return control;
+}
 const retry = () => screen.queryByRole("button", { name: "Retry same request key" });
 const totalPosts = () =>
   service.recordPartialExit.mock.calls.length + service.recordFinalExit.mock.calls.length + service.tightenProtectiveStop.mock.calls.length;
@@ -379,7 +386,7 @@ describe("personal-risk lifecycle page", () => {
     await confirmDialog();
     expect(await screen.findByText("Outcome unknown")).toBeInTheDocument();
     expect(retry()).not.toBeInTheDocument();
-    expect(check()).toBeInTheDocument();
+    await waitFor(() => expect(check()).toBeInTheDocument());
     expect(storedRecord()).toMatchObject({ idempotencyKey: KEY, reason: "NONE", restriction: "RECOVER_FIRST" });
   });
 
@@ -828,7 +835,7 @@ describe("personal-risk lifecycle page", () => {
       restriction: "RECOVER_FIRST",
       reason: "NONE",
     });
-    fireEvent.click(check() as HTMLElement);
+    fireEvent.click(await readyCheck());
     await waitFor(() => expect(service.recoverLifecycle).toHaveBeenCalledTimes(1));
     expect(service.recoverLifecycle).toHaveBeenCalledWith(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: sent });
   });
@@ -928,7 +935,7 @@ describe("personal-risk lifecycle page", () => {
     const bytes = memory.get(LIFECYCLE_PENDING_KEY);
     expect(JSON.parse(bytes as string)).toMatchObject({ version: 2, evidenceClass: "OWNER_DECLARED", reason: "NONE" });
 
-    fireEvent.click(check() as HTMLElement);
+    fireEvent.click(await readyCheck());
     await waitFor(() => expect(screen.getByText(CLASS_UNCONFIRMED_COPY)).toBeInTheDocument());
     expect(service.recoverLifecycle).toHaveBeenCalledWith(KEY, { operation: "TIGHTEN_STOP", positionId: POSITION, evidenceClass: "OWNER_DECLARED" });
     const alerts = screen.getAllByRole("alert");
@@ -1049,5 +1056,31 @@ describe("personal-risk lifecycle page", () => {
     expect(screen.queryByText(MATCHED_CAPTION)).not.toBeInTheDocument();
     expect(screen.queryByText(/confirmed recorded/)).not.toBeInTheDocument();
     expect(retry()).not.toBeInTheDocument();
+  });
+
+  it("D11 waits for the recovery check to return after an ambiguous stop submission settles", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(KEY);
+    let rejectDispatch: (reason: unknown) => void = () => {};
+    service.tightenProtectiveStop.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectDispatch = reject;
+        }),
+    );
+    service.recoverLifecycle.mockResolvedValue(notFound("TIGHTEN_STOP"));
+    view();
+    await openStop(POSITION, "Owner declared");
+    await confirmDialog();
+    // Dispatch is still unsettled: the heading is already shown, but the busy page withholds the check control.
+    expect(await screen.findByText("Outcome unknown")).toBeInTheDocument();
+    expect(check()).toBeNull();
+    rejectDispatch(new LifecycleClientError("NETWORK_AMBIGUOUS"));
+    fireEvent.click(await readyCheck());
+    await waitFor(() => expect(service.recoverLifecycle).toHaveBeenCalledTimes(1));
+    expect(service.recoverLifecycle).toHaveBeenCalledWith(KEY, {
+      operation: "TIGHTEN_STOP",
+      positionId: POSITION,
+      evidenceClass: "OWNER_DECLARED",
+    });
   });
 });
