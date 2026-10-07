@@ -293,6 +293,49 @@ check(
 //    Helper/trigger/system functions remain unavailable.
 // ------------------------------------------------------------
 
+// Phase 1 (Migration 011): the direct OPEN/INCREASE RPCs are executable by
+// no client role and no PUBLIC entry; the owner is the only EXECUTE grantee.
+const PHASE1_DIRECT_RPCS = [
+  "create_risk_enforced_outcome_position",
+  "increase_risk_enforced_position",
+];
+const phase1Privileges = rows(`
+  select p.proname
+         || '|' || has_function_privilege('authenticated', p.oid, 'EXECUTE')::text
+         || '|' || has_function_privilege('anon', p.oid, 'EXECUTE')::text
+         || '|' || has_function_privilege('service_role', p.oid, 'EXECUTE')::text
+         || '|' || exists(
+              select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+               where a.grantee = 0 and a.privilege_type = 'EXECUTE')::text
+         || '|' || coalesce((
+              select string_agg(distinct pg_get_userbyid(a.grantee), ',')
+                from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+               where a.grantee <> 0 and a.privilege_type = 'EXECUTE'), '')
+         || '|' || pg_get_userbyid(p.proowner)
+    from pg_proc p
+   where p.oid in (
+     'public.create_risk_enforced_outcome_position(uuid,text,text,text,text,timestamptz,text,text,text,numeric,numeric,numeric,numeric,text,text,text,text,jsonb,boolean,timestamptz,numeric,numeric,numeric,numeric,numeric,text)'::regprocedure,
+     'public.increase_risk_enforced_position(uuid,uuid,timestamptz,numeric,numeric,numeric,numeric)'::regprocedure)
+   order by 1
+`);
+
+check(
+  "Phase 1: direct OPEN/INCREASE RPCs are not executable by authenticated, anon, service_role or PUBLIC",
+  phase1Privileges.length === PHASE1_DIRECT_RPCS.length &&
+    phase1Privileges.every((line) => {
+      const [name, authenticated, anon, serviceRole, publicEntry, grantees, owner] = line.split("|");
+      return (
+        PHASE1_DIRECT_RPCS.includes(name) &&
+        authenticated === "false" &&
+        anon === "false" &&
+        serviceRole === "false" &&
+        publicEntry === "false" &&
+        grantees === owner
+      );
+    }),
+  `name|authenticated|anon|service_role|public|execute_grantees|owner: ${phase1Privileges.join("; ")}`
+);
+
 const executable = rows(`
   select p.proname || ' by ' || r.rolname
     from pg_proc p
@@ -303,18 +346,22 @@ const executable = rows(`
    order by 1
 `);
 
+// The two Phase 1 functions are excluded here by exact name; the dedicated
+// check above asserts their state more strictly.
+const executableOutsidePhase1 = executable.filter(
+  (line) => !PHASE1_DIRECT_RPCS.includes(line.split(" by ")[0])
+);
+
 check(
   "authenticated can execute only the approved owner RPCs and anon can execute none",
-  executable.join(",") === [
+  executableOutsidePhase1.join(",") === [
     "append_risk_lifecycle_event by authenticated",
     "create_broker_cost_schedule_version by authenticated",
     "create_broker_equity_snapshot by authenticated",
     "create_personal_risk_policy_version by authenticated",
-    "create_risk_enforced_outcome_position by authenticated",
-    "increase_risk_enforced_position by authenticated",
     "tighten_outcome_protective_stop by authenticated",
   ].join(","),
-  executable.join(", ")
+  executableOutsidePhase1.join(", ")
 );
 
 const forbiddenRiskExecutors = rows(`
