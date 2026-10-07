@@ -1,0 +1,9 @@
+-- Down for Migration 011: intentionally contains no SQL.
+-- Migration 011 is NOT permission-reversible. This down file deliberately does not restore
+-- authenticated EXECUTE on public.create_risk_enforced_outcome_position(...) or
+-- public.increase_risk_enforced_position(...); applying it leaves both functions closed.
+-- Restoring that access requires a separately reviewed forward migration.
+-- Warning: older files can still reopen access. Re-applying Migration 008 up re-grants both functions
+-- to authenticated, and Migration 008 down re-grants raw public.create_outcome_position(...) and
+-- public.append_outcome_position_event(...) to authenticated.
+-- Passing verifyMigrationReversibility.sh is not proof of permission rollback for this migration.
