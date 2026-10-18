@@ -210,7 +210,9 @@ current production row count:
 - **The opening and increase application paths are unbuilt.** Migration 008 defines
   `create_risk_enforced_outcome_position` and `increase_risk_enforced_position`, and **no backend route or
   service in this repository references either**. Both are, however, already granted to `authenticated`:
-  see the correction below.
+  see the correction below. *Updated 2026-10-13:* that grant no longer exists in production — Migration
+  011 revoked it; see "Migration 011 applied in production (2026-10-13)" below. The sentence before this
+  update was accurate when recorded and is retained.
 - **The UI requires a valid position UUID**, which it neither discovers nor creates; no position-listing
   endpoint exists.
 
@@ -291,6 +293,62 @@ by the authenticated owner, which requires independent production catalog eviden
 from migration text; and the confirmation and evidence-class semantics for creating risk rather than
 reducing it. No route, default, field or operation is invented by this documentation change.
 
+*Updated 2026-10-13:* the ACL question in the paragraph above is no longer open in the form stated.
+Migration 011 is applied in production, so the authenticated owner **cannot** call
+`create_risk_enforced_outcome_position` or `increase_risk_enforced_position` directly. The opening path
+must be delivered through the later, separately reviewed capture and intent-based design, not by
+re-granting direct `authenticated` EXECUTE. The paragraph above was accurate when written and is retained.
+
+### Migration 011 applied in production (2026-10-13)
+
+**Applied exactly once and independently read back.** Production project `jexphwidcfbgxpthgwum`,
+PostgreSQL 17.6.
+
+- **Apply.** One owner-authorized attempt on 2026-10-13, guarded by a one-attempt ledger. psql 17.6 ran in a
+  pinned local Docker image through the session pooler with `sslmode=verify-full`. It executed one
+  explicit transaction:
+  - fresh gates;
+  - the pinned migration file `1659bf1b96a3a507532e5619618c413da9ace3c16227d06f1e9f0e49949d6503`;
+  - the history row `20261006120000` / `011_close_direct_exposure_rpcs`, whose `statements` were written
+    with the Supabase CLI's own statement splitter (four statements);
+  - postconditions.
+
+  Transaction 1675 reached `COMMIT_ACKNOWLEDGED`. Wrapper exit 0, stderr empty. The apply output SHA-256 is
+  `f8ca7e9a592281c7fb3ddd426259ea757a379d650a0e3660a9ec9244ba17019b`.
+- **Deviations from the Migration 010 precedent, accepted by the owner and both reviewers.** There was no
+  linked dry run, and psql was used instead of the CLI. The history row was written by hand (CLI-conformant),
+  the migration ran in a single explicit transaction, and the client ran in Docker. The CLI `--linked` route
+  was not used because it creates a `read_only:false` login role.
+- **Pre-apply read-only check (P3b).** Category A: 001–010 were applied once and 011 was absent.
+  The explicit EXECUTE grantees were `postgres` and `authenticated`, and `supabase_admin` had access as
+  superuser.
+- **Read-only readback after the apply.** Category B:
+  - migrations 001–011 are each applied exactly once, with matching names;
+  - OIDs `50636` and `50625`, owner `postgres`, `SECURITY DEFINER` and `search_path=""` are unchanged;
+  - the raw `proacl` of both functions is `{postgres=X/postgres}`, with exactly one grantee (the owner);
+  - effective EXECUTE is denied to `authenticated`, `anon`, `service_role` and `authenticator`, and
+    retained by `postgres`;
+  - `supabase_admin` keeps explained superuser access;
+  - Q10 reported no unexplained effective-EXECUTE results, cycles or depth-limit flags.
+
+  The readback output SHA-256 is `3389110d04e6d6f548502eb784a76af4d3777b2932a2b27e6b8748cedb0af45e`.
+- **Backup taken before the apply.** On 2026-10-12, the owner confirmed the project was on the Free plan
+  and the dashboard reported no included platform backups. A partial logical `pg_dump` was taken of `public` and `supabase_migrations` (archive SHA-256
+  `0e4d7f2f8332130ddb7c61f9dc27da5e5eda8f96ad17cf1294e06d8ab363ca3b`, snapshot interval
+  2026-10-12T09:17:47Z–09:19:14Z). It excludes `auth`, `storage` and roles, and it is **not** proven
+  restorable. Its offline verification proved readability and the presence of both functions' ACL
+  entries and the history data.
+- **Not established.** No application RPC was called and no position was written. No app behaviour was
+  exercised after the apply. Outside callers of the two RPCs remain **unknown**; the deployed backend and
+  frontend at `7bdcb148` contain none.
+- **Preservation.** Preserve all evidence, including failed attempts, the consumed apply ledger, the
+  backup and every wrapper folder. No cleanup is authorized. Later verification did not refresh the
+  backup snapshot.
+- **Recovery.** Migration 011 is not permission-reversible. Any restoration of `authenticated` EXECUTE
+  reopens the exposure and requires a separately reviewed **forward** migration plus separate owner
+  authorization. The 011 history row must be preserved. Re-running Migration 008 would re-grant both
+  functions and must not be done.
+
 Do not begin shadow trading, create live production position writes, call production lifecycle RPCs, or
 imply Saxo execution without separate authorization and evidence.
 
@@ -305,6 +363,7 @@ imply Saxo execution without separate authorization and evidence.
 - The new-risk position-opening path through `create_risk_enforced_outcome_position` is the next Core implementation increment; no route or contract for it exists yet.
 - The `frontend/src/pages/SettingsPage.tsx:144` accessibility work **is done as a shipped-code defect fix** in PR #87: `/settings` now has axe coverage in both browser projects, the day contrast passes AA, and the night contrast still fails. It was never a Core increment, so completing it neither advanced nor displaced the Core sequence.
 - The new-risk position-opening path through `create_risk_enforced_outcome_position` **remains the next Core implementation increment**; no route or contract for it exists yet.
+- *Added 2026-10-13:* Migration 011 is applied exactly once in production and independently read back (Category B): direct `authenticated` EXECUTE on `create_risk_enforced_outcome_position` and `increase_risk_enforced_position` is closed. The opening increment above can no longer rely on a direct authenticated RPC call; it waits for the separately reviewed capture and intent-based design. The two bullets above were accurate when written and are retained. This entry does not update the canonical `main` identity listed at the top of this block.
 
 **Superseded position statements, retained as historical evidence and not rewritten.** Each was accurate
 when recorded; none is restated here as though it had been false at the time. Until this 2026-09-30 PR #87
@@ -559,7 +618,7 @@ This remains a separate later module/model. It must not begin merely because Cor
 | Supabase Data API 30 October 2026 grant report | **PENDING RE-VERIFICATION** | Verify the reported date and primary Supabase source, then verify effective catalog privileges including `PUBLIC` inheritance. Do not treat a platform change or route absence as function security. |
 | Application-facing PR A backend | **DONE — MERGED AND DEPLOYED, NO PRODUCTION LIFECYCLE WRITE** | PR #82 provides owner-only broker-confirmed partial/final exits and stop tightening, routes/service, owner-scoped readback, distinct commit-known and commit-unknown recovery, stable lifecycle codes, key-preserving recovery and negative independence tests. It called no production lifecycle RPC, wrote no position and executed no Saxo order. |
 | Personal Risk lifecycle UI | **DONE — MERGED AND DEPLOYED BEHIND `ClosedDemoGate`, UNEXERCISED** | PR #85 / merge `1ffdbd87c0d89437dad5a6a3a32c5dfa4d94cdc3`. First-attempt PR run `36622052421` remains a genuine accessibility failure and was never rerun; corrective commit `e26c23fc…` and first-attempt runs `36631347755` and `36632008513` passed. No production lifecycle RPC or position write occurred during these releases; the opening and increase application paths are unbuilt; and the UI acts only on an owner-supplied position UUID. Delivery and local behaviour are proven; authenticated owner rendering and any lifecycle action are not. No current production row count is asserted here. |
-| New-risk position opening | **PHASE 1 IN REVIEW — DIRECT OPEN/INCREASE RPC ACCESS CLOSED IN THE REPOSITORY ONLY** | Migration 011 (`supabase/migrations/20261006120000_011_close_direct_exposure_rpcs.sql`) revokes `authenticated` EXECUTE on `create_risk_enforced_outcome_position` (26 args) and `increase_risk_enforced_position` (7 args); exits, stop tightening and recovery are unchanged. **This repository change does not close production access, and this PR alone establishes no current production change.** The last recorded historical observation of the production ACLs is a read-only catalog check on 2026-10-01 (`authenticated=X` on OIDs `50636` and `50625`). Current production ACLs are unverified in this task. Production denial requires a separately authorized production apply of Migration 011 and a separately authorized read-only effective-ACL readback. After that apply, direct OPEN and INCREASE are unavailable to every client until the later, separately reviewed capture and intent-based paths are delivered. Migration 011 is intentionally not permission-reversible: its down file restores no grant, re-running older Migration 008 scripts can reopen access, and restoring access requires a separately reviewed forward migration. The earlier statement that no grant or ACL change was required is superseded. |
+| New-risk position opening | **PHASE 1 DONE — MIGRATION 011 APPLIED ONCE AND INDEPENDENTLY PRODUCTION-VERIFIED (2026-10-13); OPENING PATH UNBUILT** | Supersedes the earlier "PHASE 1 IN REVIEW — DIRECT OPEN/INCREASE RPC ACCESS CLOSED IN THE REPOSITORY ONLY" status, which was accurate when recorded. Production readback after the 2026-10-13 apply: both functions' raw `proacl` is `{postgres=X/postgres}`; `authenticated`, `anon`, `service_role` and `authenticator` have no EXECUTE; history `20261006120000` is present exactly once. See "Migration 011 applied in production (2026-10-13)". P6 confirmed that `authenticated`, `anon`, `service_role` and `authenticator` lack EXECUTE on both functions. `postgres` retains owner access and `supabase_admin` retains superuser access. The opening and increase application paths remain unbuilt. **Earlier text, retained:** Migration 011 (`supabase/migrations/20261006120000_011_close_direct_exposure_rpcs.sql`) revokes `authenticated` EXECUTE on `create_risk_enforced_outcome_position` (26 args) and `increase_risk_enforced_position` (7 args); exits, stop tightening and recovery are unchanged. **This repository change does not close production access, and this PR alone establishes no current production change.** The last recorded historical observation of the production ACLs is a read-only catalog check on 2026-10-01 (`authenticated=X` on OIDs `50636` and `50625`). Current production ACLs are unverified in this task. Production denial requires a separately authorized production apply of Migration 011 and a separately authorized read-only effective-ACL readback. After that apply, direct OPEN and INCREASE are unavailable to every client until the later, separately reviewed capture and intent-based paths are delivered. Migration 011 is intentionally not permission-reversible: its down file restores no grant, re-running older Migration 008 scripts can reopen access, and restoring access requires a separately reviewed forward migration. The earlier statement that no grant or ACL change was required is superseded. |
 | Recovery does not verify a tightening's evidence class | **BACKEND AND UI VERIFICATION IMPLEMENTED FOR NEW STOP RECORDS; VERSION-1 RECORDS REPORT-ONLY; AUTHENTICATED PRODUCTION UNEXERCISED** | Supersedes the earlier "BACKEND VERIFICATION ADDED; UI STILL REPORT-ONLY" status, which was accurate when recorded (and the "OPEN — backend characteristic" status before it). Backend (PR #91): the recovery route accepts an optional `evidenceClass` query parameter for `TIGHTEN_STOP` only (allowlisted to `OWNER_DECLARED`/`BROKER_CONFIRMED`; rejected with 400 for exits or any other value) and forwards it as `expectedEvidenceClass`; `stopResult` then requires the durable row to carry that exact class, so a mismatched or missing class returns `LIFECYCLE_RESPONSE_INVALID` (502, `commitState: UNKNOWN`, `recoveryRequired`). That code also covers other malformed readbacks, so it does not by itself prove a mismatch. Omitting the parameter keeps report-only behaviour. Frontend: new pending records are version 2, and a new `TIGHTEN_STOP` record stores exactly the one submitted class (exit records store none; prices, quantities, stops, notes, tokens and session data are still never stored). Recovery sends that stored class, the frontend service independently refuses a `COMMITTED` stop readback whose class differs, and a matching `COMMITTED` result clears a `NONE`/`READBACK_PENDING` record with wording that the class matched what was submitted. A `CONFLICT` or `CONTRADICTORY` record is never described as matched, even when the class matches. A `LIFECYCLE_RESPONSE_INVALID` on a class-verified check is a non-success conflict alert: the pending record is kept unchanged, no retry is offered, and no new lifecycle action can start until a later consistent check resolves it or it is investigated outside AzaLens. A same-key retry with a different class is refused without dispatch. Existing version-1 records stay valid in their original seven-key shape and their `TIGHTEN_STOP` recovery stays report-only with the "reported, not verified" caption. A browser tab still running the pre-version-2 frontend reads a version-2 record as unverifiable and fails closed until refreshed. Verified by fixture-backed unit tests only: authenticated production recovery with an evidence class has **not** been exercised. |
 | Lifecycle recovery check test readiness (D1 failure on PR #96's merge run) | **TEST-ONLY READINESS WAITS ADDED; RUN `37361470239` ATTEMPT 1 REMAINS FAILED; EXACT HISTORICAL CI SCHEDULING UNPROVEN** | PR #96's exact-merge Reliability Gates run `37361470239`, attempt 1, failed 1 / 529 passed in the deterministic frontend tests: `D1 saves the dispatched 'OWNER_DECLARED' class and recovers with it after an ambiguous submission` threw `Unable to fire a "click" event` at its unawaited `fireEvent.click(check() as HTMLElement)`. That run is retained as a genuine failure and was never rerun; its PR-head run passing does not establish the merge-run cause. **Verified local mechanism:** `PersonalRiskLifecyclePage.tsx` sets `busy` and refreshes the newly minted record together, so the **Outcome unknown** heading can be visible while a submission is still busy; `canCheck` requires `!busy`, so **Check recorded outcome** is absent until the rejected dispatch's continuation clears `busy`. Before any edit, 50 isolated unchanged-code runs of `PersonalRiskLifecyclePage.test.tsx` under Node 20.20.0 exited 0 every time (**0/50 failures — not reproduced in 50 local runs**; this neither disproves the gap nor explains CI). A new test, `D11 waits for the recovery check to return after an ambiguous stop submission settles`, holds `tightenProtectiveStop` on a manually controlled promise, asserts the heading is visible and the check control is absent, then rejects with `NETWORK_AMBIGUOUS`; in its pre-fix form, clicking synchronously after rejection, it **failed 5/5** isolated runs at that missing-element click, and after the correction it **passed 5/5**. This proves the local window, not the historical CI scheduling. The correction is test-only in `frontend/src/pages/PersonalRiskLifecyclePage.test.tsx`: a `readyCheck()` helper (find the control, await enablement, then return it) is used for the **readiness waits at D1, D5 (second submission) and D11 only**; **C13**, which asserted the control's presence immediately after the same heading, received a separate **presence wait** (`await waitFor(() => expect(check()).toBeInTheDocument())`) with its retry-absence assertion preserved. Already-guarded sites (C4, C16, D3, D9), sites awaiting settled output, seeded-record tests and every absence, disabled-control and negative assertion are unchanged. After the correction the whole lifecycle test file passed **50/50** isolated runs, and the required frontend checks (lint, test, contrast, design tokens, CSP, fonts, build, dist fonts, performance, privilege) each passed once under Node 20. No production code changed and production lifecycle behaviour was not exercised; whether main's CI is green again is established only by the CI runs on this change and its merge, not by this row. |
 | Shipped `SettingsPage.tsx:144` anchor contrast | **DONE AS A SHIPPED-CODE DEFECT FIX; NIGHT LABEL DEFECT SUPERSEDED BY PR #94 — LOCAL FIXTURE BROWSER EVIDENCE ONLY, PRODUCTION RENDERING UNVERIFIED** | **PR #94 supersedes the night primary-button label defect recorded below**, which was accurate when recorded; see the "Night brand-token contrast on primary Buttons" row. `Button.tsx`'s primary variant now uses `text-primary-button-label`, and `frontend/src/index.css` sets `--az-primary-button-label` to `#0a0e1a` in night and `#ffffff` in day. `frontend/e2e/settings-accessibility.spec.ts` now asserts, for both Open personal risk controls and Save preferences, night `rgb(10, 14, 26)` on `rgb(6, 182, 212)` = **7.931:1** and day `rgb(255, 255, 255)` on `rgb(14, 116, 144)` = **5.358:1**, each at least 4.5:1 and not flagged by axe for `color-contrast`. That is automated browser evidence against local mocked fixtures, not a production measurement: no authenticated production rendering was observed. **`/settings` is still not accessibility-clean** — the badge and other findings in "Other measured `/settings` axe findings" remain open, as do the `ClosedDemoGate`, `danger`-variant and night landing baseline rows. **Historical observation, retained unchanged:** Superseded the earlier "observed pattern, untested on `/settings`" status, which was accurate when recorded: `/settings` had no axe coverage then, so only the `/settings/personal-risk` measurement existed. PR #87 added the coverage and measured the page. Before the repair `/settings` measured **3.332:1** in day and **2.197:1** in night, in both browser projects — so the suspected defect was real and worse in night than the day-theme mechanism predicted. PR #87 changed the entry to the existing `Button` convention: day now measures **5.358:1** and passes AA with axe no longer flagging it; night measures **2.428:1** and **still fails AA**, identically to the page's pre-existing `Save preferences` Button. The new spec runs in both `desktop-chromium` and `mobile-chromium`. **`/settings` is not accessibility-clean.** |
@@ -590,6 +649,15 @@ This is a narrow reconciliation against locally available repository evidence, n
 | Local `.env` provider-pair mismatch | **REQUIRES REVALIDATION** | Local secrets/configuration were intentionally not inspected or printed in this documentation checkpoint. |
 
 ## Change log
+
+### 2026-10-13 — Migration 011 applied in production and read back (docs only)
+
+Documentation only; records the separately authorized 2026-10-13 production apply and its read-only
+readback. No migration, RPC, grant or production change is made by this documentation change. Updated: the
+open-work bullet on the unbuilt opening paths, the opening-increment paragraph, the current-position bullets,
+the "New-risk position opening" status row, and a new "Migration 011 applied in production (2026-10-13)"
+section. Earlier statements are retained as historical evidence, not rewritten. The canonical `main`
+identity in "Current repository position" is stale beyond this slice and is **not** changed here.
 
 ### 2026-10-04 — production write-path audit recorded (docs only)
 
